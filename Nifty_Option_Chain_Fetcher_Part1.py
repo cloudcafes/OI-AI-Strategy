@@ -20,6 +20,7 @@ INITIAL_RETRY_DELAY = 5
 FETCH_INTERVAL = 600
 DB_FILE = "oi_data-temp.db"
 MAX_FETCH_CYCLES = 10  # Keep exactly 10 fetch cycles (1 to 10)
+DISPLAY_STOCKS_ON_CONSOLE = 0
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",

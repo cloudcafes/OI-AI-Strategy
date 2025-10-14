@@ -507,13 +507,17 @@ def fetch_all_stock_data():
     """Fetch data for all top 10 Nifty stocks"""
     stock_data = {}
     
-    print(f"\n{'='*80}")
-    print("FETCHING TOP 10 NIFTY STOCKS DATA...")
-    print(f"{'='*80}")
+    from Nifty_Option_Chain_Fetcher_Part1 import DISPLAY_STOCKS_ON_CONSOLE
+    
+    if DISPLAY_STOCKS_ON_CONSOLE:
+        print(f"\n{'='*80}")
+        print("FETCHING TOP 10 NIFTY STOCKS DATA...")
+        print(f"{'='*80}")
     
     for symbol in TOP_NIFTY_STOCKS.keys():
         try:
-            print(f"Fetching {symbol}...")
+            if DISPLAY_STOCKS_ON_CONSOLE:
+                print(f"Fetching {symbol}...")
             
             # Initialize session for this stock
             session = initialize_stock_session(symbol)
@@ -535,12 +539,11 @@ def fetch_all_stock_data():
                 'weight': TOP_NIFTY_STOCKS[symbol]['weight']
             }
             
-            # Display stock data
-            display_stock_data(oi_data)
-            
-            # Display PCR values only
-            print(f"PCR for {symbol}: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}")
-            print(f"{'-'*80}")
+            # Display stock data only if flag is enabled
+            if DISPLAY_STOCKS_ON_CONSOLE:
+                display_stock_data(oi_data)
+                print(f"PCR for {symbol}: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}")
+                print(f"{'-'*80}")
             
             # Small delay to avoid overwhelming the server
             time.sleep(1)
@@ -560,98 +563,70 @@ def data_collection_loop():
     initialize_database()
     
     try:
-        while running:
-            try:
-                if session is None:
-                    if not first_run:
-                        print("Reinitializing Nifty session...")
-                    session = initialize_session()
-                
-                # Fetch Nifty data
-                print(f"Fetching {SYMBOL} option chain...")
-                data = fetch_option_chain(session)
-                oi_data = parse_option_chain(data)
-                
-                # Save to database and get PCR values
-                oi_pcr, volume_pcr, fetch_cycle, total_fetches = save_oi_data_to_db(oi_data)
-                
-                # Display Nifty data
-                display_latest_data()
-                
-                # Display Nifty PCR values only
-                print(f"PCR ANALYSIS (ATM ±2 strikes):")
-                print(f" OI PCR: {oi_pcr:.2f}")
-                print(f" Volume PCR: {volume_pcr:.2f}")
-                
-                # Fetch BANKNIFTY data
-                banknifty_data = fetch_banknifty_data()
-                if banknifty_data:
-                    display_banknifty_data(banknifty_data)
-                
-                # Fetch all stock data
-                stock_data = fetch_all_stock_data()
-                
-                # Get AI analysis with combined data
-                print("\n" + "="*80)
-                print("REQUESTING AI ANALYSIS...")
-                print("="*80)
-                
-                # Get AI analysis - only call once
-                try:
-                    ai_analysis = ai_analyzer.get_ai_analysis(
-                        oi_data=oi_data,
-                        current_cycle=fetch_cycle,
-                        total_fetches=total_fetches,
-                        oi_pcr=oi_pcr,
-                        volume_pcr=volume_pcr,
-                        current_nifty=oi_data[0]['nifty_value'],
-                        stock_data=stock_data,
-                        banknifty_data=banknifty_data
-                    )
-                    print(ai_analysis)
-                except Exception as ai_error:
-                    print(f"⚠️ AI analysis failed: {ai_error}")
-                    print("Continuing with next cycle...")
-                
-                print("="*80)
-                
-                # Display brief info
-                print(f"Nifty: {oi_data[0]['nifty_value']}, Expiry: {oi_data[0]['expiry_date']}")
-                if banknifty_data:
-                    print(f"BankNifty: {banknifty_data['current_value']}")
-                if first_run:
-                    print(f"Database: {DB_FILE}")
-                    first_run = False
-                    print("Press Ctrl+C to stop")
-                
-                # FIXED COUNTDOWN - Minimal output version
-                print(f"✅ Cycle {fetch_cycle} completed. Waiting {FETCH_INTERVAL}s...", flush=True)
-                
-                # Silent countdown - no periodic output
-                for i in range(FETCH_INTERVAL):
-                    if not running:
-                        break
-                    time.sleep(1)
-                
-                if running:
-                    print("🔄 Starting next cycle...", flush=True)
-                        
-            except KeyboardInterrupt:
-                print("\nKeyboard interrupt received in main loop.")
-                raise
-            except Exception as e:
-                print(f"Error: {e}")
-                session = None  # Reset session on error
-                # Check if we should continue after error
-                if running:
-                    print("Waiting 10 seconds before retry...")
-                    for i in range(10):
-                        if not running:
-                            break
-                        time.sleep(1)
-                    
+        # Run only once instead of continuous loop
+        if session is None:
+            session = initialize_session()
+        
+        # Fetch Nifty data
+        print(f"Fetching {SYMBOL} option chain...")
+        data = fetch_option_chain(session)
+        oi_data = parse_option_chain(data)
+        
+        # Save to database and get PCR values
+        oi_pcr, volume_pcr, fetch_cycle, total_fetches = save_oi_data_to_db(oi_data)
+        
+        # Display Nifty data
+        display_latest_data()
+        
+        # Display Nifty PCR values only
+        print(f"PCR ANALYSIS (ATM ±2 strikes):")
+        print(f" OI PCR: {oi_pcr:.2f}")
+        print(f" Volume PCR: {volume_pcr:.2f}")
+        
+        # Fetch BANKNIFTY data
+        banknifty_data = fetch_banknifty_data()
+        if banknifty_data:
+            display_banknifty_data(banknifty_data)
+        
+        # Fetch all stock data (display controlled by flag)
+        stock_data = fetch_all_stock_data()
+        
+        # Get AI analysis with combined data
+        print("\n" + "="*80)
+        print("REQUESTING AI ANALYSIS...")
+        print("="*80)
+        
+        # Get AI analysis - only call once
+        try:
+            ai_analysis = ai_analyzer.get_ai_analysis(
+                oi_data=oi_data,
+                current_cycle=fetch_cycle,
+                total_fetches=total_fetches,
+                oi_pcr=oi_pcr,
+                volume_pcr=volume_pcr,
+                current_nifty=oi_data[0]['nifty_value'],
+                stock_data=stock_data,
+                banknifty_data=banknifty_data
+            )
+            print(ai_analysis)
+        except Exception as ai_error:
+            print(f"⚠️ AI analysis failed: {ai_error}")
+            print("Continuing with next cycle...")
+        
+        print("="*80)
+        
+        # Display brief info
+        print(f"Nifty: {oi_data[0]['nifty_value']}, Expiry: {oi_data[0]['expiry_date']}")
+        if banknifty_data:
+            print(f"BankNifty: {banknifty_data['current_value']}")
+        
+        print(f"✅ Data collection completed. Program exiting.")
+        
     except KeyboardInterrupt:
-        print("\nKeyboard interrupt received. Shutting down gracefully...")
+        print("\nKeyboard interrupt received in main loop.")
+        raise
+    except Exception as e:
+        print(f"Error: {e}")
     finally:
         running = False
         if session:
