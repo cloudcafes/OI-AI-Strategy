@@ -568,7 +568,7 @@ def data_collection_loop():
                     session = initialize_session()
                 
                 # Fetch Nifty data
-                print(f"\nFetching {SYMBOL} option chain...")
+                print(f"Fetching {SYMBOL} option chain...")
                 data = fetch_option_chain(session)
                 oi_data = parse_option_chain(data)
                 
@@ -624,17 +624,17 @@ def data_collection_loop():
                     first_run = False
                     print("Press Ctrl+C to stop")
                 
-                # Wait for next interval with interruptible sleep
-                print(f"Next update in {FETCH_INTERVAL} seconds...", end='', flush=True)
+                # FIXED COUNTDOWN - Minimal output version
+                print(f"✅ Cycle {fetch_cycle} completed. Waiting {FETCH_INTERVAL}s...", flush=True)
+                
+                # Silent countdown - no periodic output
                 for i in range(FETCH_INTERVAL):
                     if not running:
                         break
                     time.sleep(1)
-                    # Print countdown every 10 seconds
-                    if (i + 1) % 10 == 0:
-                        remaining = FETCH_INTERVAL - (i + 1)
-                        if remaining > 0 and running:
-                            print(f"\rNext update in {remaining} seconds...", end='', flush=True)
+                
+                if running:
+                    print("🔄 Starting next cycle...", flush=True)
                         
             except KeyboardInterrupt:
                 print("\nKeyboard interrupt received in main loop.")

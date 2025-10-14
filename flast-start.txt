@@ -17,3 +17,9 @@ tail -f fastapi.log
 
 
 pip install fastapi uvicorn websockets requests OpenAI httpx
+
+
+https://raw.githubusercontent.com/cloudcafes/OI-AI-Strategy/refs/heads/master/Nifty_Option_Chain_Fetcher_Part1.py
+https://raw.githubusercontent.com/cloudcafes/OI-AI-Strategy/refs/heads/master/Nifty_Option_Chain_Fetcher_Part2.py
+https://raw.githubusercontent.com/cloudcafes/OI-AI-Strategy/refs/heads/master/Nifty_Option_Chain_Fetcher_Part3.py
+https://raw.githubusercontent.com/cloudcafes/OI-AI-Strategy/refs/heads/master/Nifty_Option_Chain_Fetcher_Part4.py
