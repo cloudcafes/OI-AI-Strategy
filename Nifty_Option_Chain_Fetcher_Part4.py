@@ -98,7 +98,8 @@ class NiftyAIAnalyzer:
             Remember, Nifty index ATM ±2 strikes of weekly expiry OI analysis differs from stock options: Nifty reflects broader market sentiment with more institutional writing, while stocks are prone to company-specific manipulation and lower liquidity. Always interpret Nifty option chain from the sellers' perspective. 
             Focus solely on intraday implications, ignoring multi-day or expiry perspectives for trades.
             Key steps of analysis whose interlinked interpretation should be used for any forecasting and provide output catagerocially for each point: Analyze Nifty/BankNifty/top10 Nifty Stocks by weightage ATM ±2 strikes- OI changes,concentration, buildup, Evaluate OI PCR and Volume PCR, Ignore false signals, Analyze Greeks.
-            I only take naked Nifty put or call buys for intraday trades, squaring off same day.             
+            I only take naked Nifty put or call buys for intraday trades, squaring off same day.
+            Ignore all the Greek values as they are wrongly fetched to zero value.           
 
             TRADE RECOMMENDATION:
             If Confidence >70%:
