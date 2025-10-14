@@ -1,7 +1,8 @@
-# Part 4: Nifty_Option_Chain_Fetcher_Part4.py (With BANKNIFTY Support)
+# Part 4: Nifty_Option_Chain_Fetcher_Part4.py (With Analysis History)
 import os
 import time
 import requests
+import datetime
 from openai import OpenAI
 import httpx
 
@@ -9,6 +10,7 @@ class NiftyAIAnalyzer:
     def __init__(self, api_key=None):
         self.api_key = api_key or "sk-df60b28326444de6859976f6e603fd9c"
         self.client = None
+        self.history_file = "analysis_history.txt"
         self.initialize_client()
     
     def initialize_client(self):
@@ -38,8 +40,46 @@ class NiftyAIAnalyzer:
             self.client = None
             return False
     
+    def save_analysis_to_history(self, analysis_text):
+        """Save AI analysis to history file with latest on top"""
+        try:
+            timestamp = datetime.datetime.now().strftime("%H:%M on %d %B %Y")
+            header = f"deepseek API analysis done at {timestamp}"
+            separator = "=" * 80
+            
+            # Create the new entry
+            new_entry = f"{header}\n{separator}\n{analysis_text}\n{separator}\n\n"
+            
+            # Read existing content if file exists
+            existing_content = ""
+            if os.path.exists(self.history_file):
+                with open(self.history_file, 'r', encoding='utf-8') as f:
+                    existing_content = f.read()
+            
+            # Write new content (latest on top)
+            with open(self.history_file, 'w', encoding='utf-8') as f:
+                f.write(new_entry + existing_content)
+            
+            print(f"✅ Analysis saved to {self.history_file}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error saving analysis to history: {e}")
+            return False
+    
+    def get_analysis_history(self):
+        """Read and return the analysis history"""
+        try:
+            if os.path.exists(self.history_file):
+                with open(self.history_file, 'r', encoding='utf-8') as f:
+                    return f.read()
+            return "No previous analysis history available."
+        except Exception as e:
+            print(f"❌ Error reading analysis history: {e}")
+            return "Error reading analysis history."
+    
     def get_ai_analysis(self, oi_data, current_cycle, total_fetches, oi_pcr, volume_pcr, current_nifty, stock_data=None, banknifty_data=None):
-        """Get AI analysis from DeepSeek API with comprehensive OI data including BANKNIFTY and stocks"""
+        """Get AI analysis from DeepSeek API with comprehensive OI data including history"""
         if not self.client:
             print("⚠️ Client not initialized, attempting to reinitialize...")
             if not self.initialize_client():
@@ -48,19 +88,21 @@ class NiftyAIAnalyzer:
         # Format data for AI analysis
         formatted_data = self.format_data_for_ai(oi_data, current_cycle, total_fetches, oi_pcr, volume_pcr, current_nifty, stock_data, banknifty_data)
         
+        # Get previous analysis history
+        analysis_history = self.get_analysis_history()
+        
         prompt = f"""
         You are an expert Nifty/BankNifty/top10 Nifty Stocks by weightage option chain analyst with deep knowledge of historical Nifty/BankNifty/top10 Nifty Stocks by weightage patterns and institutional trading behavior. You are not a dumb trader who only reads the data but you read in between the lines of provided data to decode the seller's & smart money perspective of the market which keeps you ahead from other traders when you provide any trade recommendation. You do mathemetical calculations as well as psychological analysis and interlink everything to understand the market. You never get in hurry to reply fast instead you focus on deep analysis and interlinked affect and take enough time to reply with your forecast.
-        ----------------------------------------------------------------------------------------------------------------------------------------------------------
+        
+        PREVIOUS ANALYSIS HISTORY (for context only - focus on current data):
+        {analysis_history}
+        
+        CURRENT DATA FOR ANALYSIS:
         Analyze the below provided comprehensive "OI data,greeks,CE-PE for the Nifty index ATM ±2 strikes of weekly expiry","OI data,greeks,CE-PE for the BANKNifty index ATM ±2 strikes of monthly expiry" and "OI data,greeks,CE-PE for the top10 Nifty Stocks by weightage ATM ±2 strikes of monthly expiry" to interpret the current only intraday trend which is provided to you live for this moment. Provide a short summary first, then a breakdown. Use historical proven patterns, data, and trends specific to the Nifty index ATM ±2 strikes,Banknifty index ATM ±2 strikes,Stocks ATM ±2 strikes for accurate analysis—reference.
-        ----------------------------------------------------------------------------------------------------------------------------------------------------------
         Remember, Nifty index ATM ±2 strikes of weekly expiry OI analysis differs from stock options: Nifty reflects broader market sentiment with more institutional writing, while stocks are prone to company-specific manipulation and lower liquidity. Always interpret Nifty option chain from the sellers' perspective. Focus solely on intraday implications, ignoring multi-day or expiry perspectives for trades.
-        ----------------------------------------------------------------------------------------------------------------------------------------------------------
         Key steps of analysis whose interlinked interpretation should be used for any forecasting and provide output catagerocially for each point: Analyze Nifty/BankNifty/top10 Nifty Stocks by weightage ATM ±2 strikes- OI changes,concentration, buildup, Evaluate OI PCR and Volume PCR, Ignore false signals, Analyze Greeks, connect to web and fetch any required latest data/news/views/announcement/cues related to nifty from web for this moment.
-        ----------------------------------------------------------------------------------------------------------------------------------------------------------
         I only take naked Nifty put or call buys for intraday trades, squaring off same day. So you can suggest me CE buy if you find upside outlook and PE buy if downside outlook. Based on the intraday trend, recommend high-probability trades with highly positive outcome potential—estimate and accuracy based on historical intraday patterns. You also need to suggest like "currently the index is going down but will bounce from certain level so buy at that level" or "currently the index is going up but will from from certain level so buy at that level", this is to avoid entry at wrong level or price. Include entry/strike suggestions, stop-loss, target for quick exits, and why it suits this intra-day scenario. Hedge recommendations with uncertainty, e.g., 'Intra-day evidence leans toward bullish, but monitor for session-end breakouts.'.
-        ----------------------------------------------------------------------------------------------------------------------------------------------------------
         Ensure the output does not contain any formatting which could result in showing any star sign. Why did you not include your analysis of latest data/news/views/announcement/cues related to market in your reply?
-        ----------------------------------------------------------------------------------------------------------------------------------------------------------
         Below you will find all the tabular data for "OI data,greeks,CE-PE for the Nifty index ATM ±2 strikes of weekly expiry","OI data,greeks,CE-PE for the BANKNifty index ATM ±2 strikes of monthly expiry" and "OI data,greeks,CE-PE for the top10 Nifty Stocks by weightage ATM ±2 strikes of monthly expiry
         {formatted_data}
         """
@@ -85,13 +127,17 @@ class NiftyAIAnalyzer:
                             "content": prompt
                         }
                     ],
-                    temperature=0.7,
+                    temperature=1.0,
                     max_tokens=2000,
                     stream=False,
-                    timeout=300.0
+                    timeout=600.0
                 )
                 
                 ai_response = response.choices[0].message.content.strip()
+                
+                # Save this analysis to history
+                self.save_analysis_to_history(ai_response)
+                
                 return f"🤖 DEEPSEEK AI INTRADAY ANALYSIS (NIFTY + BANKNIFTY + STOCKS):\n{ai_response}"
                 
             except requests.exceptions.ConnectionError as e:
