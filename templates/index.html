@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nifty Option Chain Fetcher</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #00ff00;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            min-width: 100px;
+        }
+        
+        .start-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .start-btn:hover:not(:disabled) {
+            background-color: #218838;
+            transform: translateY(-2px);
+        }
+        
+        .stop-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .stop-btn:hover:not(:disabled) {
+            background-color: #c82333;
+            transform: translateY(-2px);
+        }
+        
+        .clear-btn {
+            background-color: #ffc107;
+            color: black;
+        }
+        
+        .clear-btn:hover {
+            background-color: #e0a800;
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 18px;
+            border: 1px solid #444;
+        }
+        
+        .status-running {
+            background-color: #155724;
+            color: #90ee90;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-stopped {
+            background-color: #721c24;
+            color: #f8d7da;
+        }
+        
+        .status-stuck {
+            background-color: #856404;
+            color: #fff3cd;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .output-container {
+            background-color: #000;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+            height: 600px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        
+        .output-line {
+            margin-bottom: 3px;
+            animation: fadeIn 0.3s;
+            word-wrap: break-word;
+            padding: 2px 0;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .line-number {
+            color: #888;
+            margin-right: 15px;
+            font-size: 11px;
+            user-select: none;
+            min-width: 40px;
+            display: inline-block;
+        }
+        
+        .loading {
+            color: #ffa500;
+            text-align: center;
+            padding: 20px;
+            font-size: 16px;
+        }
+        
+        .last-update {
+            text-align: right;
+            font-size: 12px;
+            color: #888;
+            margin-top: 10px;
+            font-style: italic;
+        }
+        
+        .progress-container {
+            margin: 15px 0;
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background-color: #333;
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 4px;
+        }
+        
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 5px;
+        }
+        
+        .connection-status {
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+            margin: 10px 0;
+        }
+        
+        /* Scrollbar styling */
+        .output-container::-webkit-scrollbar {
+            width: 12px;
+        }
+        
+        .output-container::-webkit-scrollbar-track {
+            background: #2d2d2d;
+            border-radius: 6px;
+        }
+        
+        .output-container::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 6px;
+        }
+        
+        .output-container::-webkit-scrollbar-thumb:hover {
+            background: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 style="margin: 0; color: #00ff00;">Nifty Option Chain Fetcher</h1>
+            <p style="margin: 10px 0 0 0; color: #ccc;">Real-time Nifty, BankNifty, and Stock Options Analysis with AI</p>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn" class="btn start-btn" onclick="startScript()">▶ Start</button>
+            <button id="stopBtn" class="btn stop-btn" onclick="stopScript()" disabled>⏹ Stop</button>
+            <button id="clearBtn" class="btn clear-btn" onclick="clearOutput()">🗑 Clear</button>
+        </div>
+        
+        <div id="status" class="status status-stopped">
+            ⏹ Status: Stopped
+        </div>
+        
+        <div class="progress-container">
+            <div class="progress-info">
+                <span id="progressText">Ready to start</span>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+        </div>
+        
+        <div class="connection-status" id="connectionStatus">
+            🔄 Connecting...
+        </div>
+        
+        <div class="output-container" id="output">
+            <div class="loading">🚀 Output will appear here when script is running...</div>
+        </div>
+        <div id="lastUpdate" class="last-update"></div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let lastIndex = 0;
+        let totalLines = 0;
+        let connectionErrors = 0;
+        const MAX_CONNECTION_ERRORS = 5;
+        let isConnected = false;
+        
+        // Stock tracking for progress
+        const stocks = ['RELIANCE', 'HDFCBANK', 'BHARTIARTL', 'TCS', 'ICICIBANK', 'SBIN', 'BAJFINANCE', 'INFY', 'ITC', 'LT'];
+        let currentProgress = {
+            currentStock: '',
+            completed: 0,
+            total: stocks.length
+        };
+        
+        function initializeEventSource() {
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            updateConnectionStatus('🔄 Connecting to server...');
+            
+            eventSource = new EventSource(`/stream?last_index=${lastIndex}&t=${Date.now()}`);
+            
+            eventSource.onopen = function() {
+                isConnected = true;
+                connectionErrors = 0;
+                updateConnectionStatus('✅ Connected - Receiving real-time output');
+            };
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.output && data.output.length > 0) {
+                    appendOutput(data.output);
+                    lastIndex = data.total_lines;
+                    totalLines = data.total_lines;
+                    updateProgressFromOutput(data.output);
+                }
+                
+                updateLastUpdateTime();
+            };
+            
+            eventSource.onerror = function(event) {
+                console.error('EventSource error:', event);
+                isConnected = false;
+                connectionErrors++;
+                
+                updateConnectionStatus('❌ Connection lost - Attempting to reconnect...');
+                
+                if (connectionErrors >= MAX_CONNECTION_ERRORS) {
+                    showNotification('Lost connection to server. Please refresh the page.', 'error');
+                    stopEventSource();
+                    updateConnectionStatus('❌ Connection failed - Please refresh the page');
+                } else {
+                    // Try to reconnect after delay
+                    setTimeout(() => {
+                        if (getScriptStatus()) {
+                            initializeEventSource();
+                        }
+                    }, 2000 + (connectionErrors * 1000));
+                }
+            };
+        }
+        
+        function stopEventSource() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            isConnected = false;
+        }
+        
+        function appendOutput(newLines) {
+            const outputDiv = document.getElementById('output');
+            const wasScrolledToBottom = outputDiv.scrollHeight - outputDiv.clientHeight <= outputDiv.scrollTop + 50;
+            
+            newLines.forEach(line => {
+                const lineNumber = totalLines;
+                const lineElement = document.createElement('div');
+                lineElement.className = 'output-line';
+                
+                // Add emoji/icons for certain messages
+                let displayLine = line;
+                if (line.includes('Fetching')) displayLine = '📡 ' + line;
+                if (line.includes('AI ANALYSIS')) displayLine = '🤖 ' + line;
+                if (line.includes('ERROR') || line.includes('Error')) displayLine = '❌ ' + line;
+                if (line.includes('WARNING')) displayLine = '⚠️ ' + line;
+                if (line.includes('completed') || line.includes('finished')) displayLine = '✅ ' + line;
+                
+                lineElement.innerHTML = `<span class="line-number">${lineNumber}</span>${escapeHtml(displayLine)}`;
+                outputDiv.appendChild(lineElement);
+                totalLines++;
+            });
+            
+            // Remove loading message if present
+            const loadingElement = outputDiv.querySelector('.loading');
+            if (loadingElement) {
+                loadingElement.remove();
+            }
+            
+            // Auto-scroll to bottom if user was at bottom
+            if (wasScrolledToBottom) {
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            }
+            
+            // Limit number of lines to prevent memory issues (keep last 1500 lines)
+            const maxLines = 1500;
+            const lines = outputDiv.querySelectorAll('.output-line');
+            if (lines.length > maxLines) {
+                const linesToRemove = lines.length - maxLines;
+                for (let i = 0; i < linesToRemove; i++) {
+                    lines[i].remove();
+                }
+            }
+        }
+        
+        function updateProgressFromOutput(newLines) {
+            newLines.forEach(line => {
+                // Track stock fetching progress
+                if (line.includes('Fetching') && line.includes('...')) {
+                    const stockMatch = line.match(/Fetching\s+(\w+)/);
+                    if (stockMatch) {
+                        currentProgress.currentStock = stockMatch[1];
+                        const stockIndex = stocks.indexOf(currentProgress.currentStock);
+                        if (stockIndex !== -1) {
+                            currentProgress.completed = stockIndex;
+                        }
+                    }
+                }
+                
+                // Reset progress when starting new cycle
+                if (line.includes('FETCHING TOP 10 NIFTY STOCKS DATA')) {
+                    currentProgress.completed = 0;
+                    currentProgress.currentStock = '';
+                }
+                
+                // Complete progress when AI analysis starts
+                if (line.includes('REQUESTING AI ANALYSIS')) {
+                    currentProgress.completed = currentProgress.total;
+                    currentProgress.currentStock = 'AI Analysis';
+                }
+                
+                // Complete progress when cycle finishes
+                if (line.includes('Next update in')) {
+                    currentProgress.completed = currentProgress.total;
+                    currentProgress.currentStock = 'Cycle Complete';
+                }
+            });
+            
+            updateProgressDisplay();
+        }
+        
+        function updateProgressDisplay() {
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            const progressPercent = document.getElementById('progressPercent');
+            
+            const percent = currentProgress.total > 0 ? 
+                Math.min(100, (currentProgress.completed / currentProgress.total) * 100) : 0;
+            
+            progressFill.style.width = `${percent}%`;
+            progressPercent.textContent = `${Math.round(percent)}%`;
+            
+            if (currentProgress.currentStock) {
+                progressText.textContent = `Processing: ${currentProgress.currentStock} (${currentProgress.completed}/${currentProgress.total})`;
+            } else if (currentProgress.completed > 0) {
+                progressText.textContent = `Progress: ${currentProgress.completed}/${currentProgress.total} stocks`;
+            } else {
+                progressText.textContent = 'Ready to start';
+            }
+        }
+        
+        function updateConnectionStatus(message) {
+            document.getElementById('connectionStatus').textContent = message;
+        }
+        
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    connectionErrors = 0;
+                    
+                    const statusDiv = document.getElementById('status');
+                    const startBtn = document.getElementById('startBtn');
+                    const stopBtn = document.getElementById('stopBtn');
+                    
+                    if (data.running) {
+                        statusDiv.innerHTML = '▶ Status: Running';
+                        statusDiv.className = 'status status-running';
+                        startBtn.disabled = true;
+                        stopBtn.disabled = false;
+                        
+                        // Initialize event source if not already done
+                        if (!eventSource) {
+                            initializeEventSource();
+                        }
+                        
+                        // Update progress from existing output
+                        if (data.output && data.output.length > 0) {
+                            updateProgressFromOutput(data.output.slice(-10)); // Check last 10 lines
+                        }
+                    } else {
+                        statusDiv.innerHTML = '⏹ Status: Stopped';
+                        statusDiv.className = 'status status-stopped';
+                        startBtn.disabled = false;
+                        stopBtn.disabled = true;
+                        stopEventSource();
+                        updateConnectionStatus('⏸ Script stopped');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching status:', error);
+                    connectionErrors++;
+                    updateConnectionStatus('❌ Error connecting to server');
+                });
+        }
+        
+        function getScriptStatus() {
+            const statusDiv = document.getElementById('status');
+            return statusDiv.textContent.includes('Running');
+        }
+        
+        function startScript() {
+            showNotification('Starting script...', 'info');
+            updateConnectionStatus('🔄 Starting script...');
+            
+            fetch('/start', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    showNotification(data.message, data.status);
+                    if (data.status === 'success') {
+                        lastIndex = 0;
+                        totalLines = 0;
+                        currentProgress = { currentStock: '', completed: 0, total: stocks.length };
+                        document.getElementById('output').innerHTML = '<div class="loading">🚀 Starting script... Please wait</div>';
+                        updateProgressDisplay();
+                        updateStatus();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error starting script:', error);
+                    showNotification('Error starting script: ' + error.message, 'error');
+                });
+        }
+        
+        function stopScript() {
+            showNotification('Stopping script...', 'info');
+            updateConnectionStatus('🔄 Stopping script...');
+            
+            fetch('/stop', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    showNotification(data.message, data.status);
+                    if (data.status === 'success') {
+                        updateStatus();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error stopping script:', error);
+                    showNotification('Error stopping script: ' + error.message, 'error');
+                });
+        }
+        
+        function clearOutput() {
+            fetch('/clear', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        document.getElementById('output').innerHTML = '<div class="loading">🗑 Output cleared</div>';
+                        lastIndex = 0;
+                        totalLines = 0;
+                        showNotification('Output cleared', 'success');
+                        updateProgressDisplay();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error clearing output:', error);
+                    showNotification('Error clearing output', 'error');
+                });
+        }
+        
+        function updateLastUpdateTime() {
+            document.getElementById('lastUpdate').textContent = `Last update: ${new Date().toLocaleTimeString()}`;
+        }
+        
+        function showNotification(message, type) {
+            // Remove existing notifications
+            const existingNotifications = document.querySelectorAll('.notification');
+            existingNotifications.forEach(notif => notif.remove());
+            
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                z-index: 1000;
+                transition: all 0.3s;
+                opacity: 0;
+                transform: translateX(100px);
+                max-width: 400px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            `;
+            
+            let icon = '💡';
+            if (type === 'success') {
+                notification.style.backgroundColor = '#28a745';
+                icon = '✅';
+            } else if (type === 'error') {
+                notification.style.backgroundColor = '#dc3545';
+                icon = '❌';
+            } else {
+                notification.style.backgroundColor = '#17a2b8';
+                icon = 'ℹ️';
+            }
+            
+            notification.textContent = `${icon} ${message}`;
+            document.body.appendChild(notification);
+            
+            // Animate in
+            setTimeout(() => {
+                notification.style.opacity = '1';
+                notification.style.transform = 'translateX(0)';
+            }, 10);
+            
+            // Remove after 4 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateX(100px)';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 4000);
+        }
+        
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;")
+                .replace(/\n/g, "<br>");
+        }
+        
+        // Auto-refresh status every 3 seconds
+        setInterval(updateStatus, 3000);
+        
+        // Initial status update
+        updateStatus();
+        
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                updateStatus();
+            }
+        });
+        
+        // Handle page unload
+        window.addEventListener('beforeunload', function() {
+            stopEventSource();
+        });
+        
+        // Initialize progress display
+        updateProgressDisplay();
+    </script>
+</body>
+</html>

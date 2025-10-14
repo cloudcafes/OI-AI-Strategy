@@ -1,0 +1,16 @@
+https://python01.hostinghome.net:2083/cpsess4201716775/frontend/jupiter/terminal/index.html?login=1&post_login=15586908212306
+
+pkill -f "python app.py"
+cd /home/niftyaic/niftyai
+start
+nohup python app.py > flask_app.log 2>&1 &
+
+http://103.185.74.60:5001/
+
+uvicorn fastapi_app:app --host 0.0.0.0 --port 5000 --reload
+
+nohup uvicorn fastapi_app:app --host 0.0.0.0 --port 5000 > fastapi.log 2>&1 &
+
+
+ps aux | grep uvicorn
+tail -f fastapi.log

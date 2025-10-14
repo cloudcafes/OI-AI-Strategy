@@ -1,0 +1,193 @@
+# Part 4: Nifty_Option_Chain_Fetcher_Part4.py (With BANKNIFTY Support)
+import os
+import time
+import requests
+from openai import OpenAI
+import httpx
+
+class NiftyAIAnalyzer:
+    def __init__(self, api_key=None):
+        self.api_key = api_key or "sk-df60b28326444de6859976f6e603fd9c"
+        self.client = None
+        self.initialize_client()
+    
+    def initialize_client(self):
+        """Initialize the DeepSeek API client with SSL verification disabled"""
+        try:
+            # Create custom HTTP client with SSL verification disabled
+            http_client = httpx.Client(verify=False, timeout=30.0)
+            
+            self.client = OpenAI(
+                api_key=self.api_key, 
+                base_url="https://api.deepseek.com",
+                http_client=http_client,
+                max_retries=2
+            )
+            
+            # Test the connection with a simple call
+            test_response = self.client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": "Hello"}],
+                max_tokens=10
+            )
+            print("✅ DeepSeek AI client initialized successfully")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to initialize DeepSeek client: {e}")
+            self.client = None
+            return False
+    
+    def get_ai_analysis(self, oi_data, current_cycle, total_fetches, oi_pcr, volume_pcr, current_nifty, stock_data=None, banknifty_data=None):
+        """Get AI analysis from DeepSeek API with comprehensive OI data including BANKNIFTY and stocks"""
+        if not self.client:
+            print("⚠️ Client not initialized, attempting to reinitialize...")
+            if not self.initialize_client():
+                return "🤖 AI Analysis: Service temporarily unavailable - Check API connection"
+        
+        # Format data for AI analysis
+        formatted_data = self.format_data_for_ai(oi_data, current_cycle, total_fetches, oi_pcr, volume_pcr, current_nifty, stock_data, banknifty_data)
+        
+        prompt = f"""
+        You are an expert Nifty/BankNifty/top10 Nifty Stocks by weightage option chain analyst with deep knowledge of historical Nifty/BankNifty/top10 Nifty Stocks by weightage patterns and institutional trading behavior. You are not a dumb trader who only reads the data but you read in between the lines of provided data to decode the seller's & smart money perspective of the market which keeps you ahead from other traders when you provide any trade recommendation. You do mathemetical calculations as well as psychological analysis and interlink everything to understand the market. You never get in hurry to reply fast instead you focus on deep analysis and interlinked affect and take enough time to reply with your forecast.
+        ----------------------------------------------------------------------------------------------------------------------------------------------------------
+        Analyze the below provided comprehensive "OI data,greeks,CE-PE for the Nifty index ATM ±2 strikes of weekly expiry","OI data,greeks,CE-PE for the BANKNifty index ATM ±2 strikes of monthly expiry" and "OI data,greeks,CE-PE for the top10 Nifty Stocks by weightage ATM ±2 strikes of monthly expiry" to interpret the current only intraday trend which is provided to you live for this moment. Provide a short summary first, then a breakdown. Use historical proven patterns, data, and trends specific to the Nifty index ATM ±2 strikes,Banknifty index ATM ±2 strikes,Stocks ATM ±2 strikes for accurate analysis—reference.
+        ----------------------------------------------------------------------------------------------------------------------------------------------------------
+        Remember, Nifty index ATM ±2 strikes of weekly expiry OI analysis differs from stock options: Nifty reflects broader market sentiment with more institutional writing, while stocks are prone to company-specific manipulation and lower liquidity. Always interpret Nifty option chain from the sellers' perspective. Focus solely on intraday implications, ignoring multi-day or expiry perspectives for trades.
+        ----------------------------------------------------------------------------------------------------------------------------------------------------------
+        Key steps of analysis whose interlinked interpretation should be used for any forecasting and provide output catagerocially for each point: Analyze Nifty/BankNifty/top10 Nifty Stocks by weightage ATM ±2 strikes- OI changes,concentration, buildup, Evaluate OI PCR and Volume PCR, Ignore false signals, Analyze Greeks, connect to web and fetch any required latest data/news/views/announcement/cues related to nifty from web for this moment.
+        ----------------------------------------------------------------------------------------------------------------------------------------------------------
+        I only take naked Nifty put or call buys for intraday trades, squaring off same day. So you can suggest me CE buy if you find upside outlook and PE buy if downside outlook. Based on the intraday trend, recommend high-probability trades with highly positive outcome potential—estimate and accuracy based on historical intraday patterns. You also need to suggest like "currently the index is going down but will bounce from certain level so buy at that level" or "currently the index is going up but will from from certain level so buy at that level", this is to avoid entry at wrong level or price. Include entry/strike suggestions, stop-loss, target for quick exits, and why it suits this intra-day scenario. Hedge recommendations with uncertainty, e.g., 'Intra-day evidence leans toward bullish, but monitor for session-end breakouts.'.
+        ----------------------------------------------------------------------------------------------------------------------------------------------------------
+        Ensure the output does not contain any formatting which could result in showing any star sign. Why did you not include your analysis of latest data/news/views/announcement/cues related to market in your reply?
+        ----------------------------------------------------------------------------------------------------------------------------------------------------------
+        Below you will find all the tabular data for "OI data,greeks,CE-PE for the Nifty index ATM ±2 strikes of weekly expiry","OI data,greeks,CE-PE for the BANKNifty index ATM ±2 strikes of monthly expiry" and "OI data,greeks,CE-PE for the top10 Nifty Stocks by weightage ATM ±2 strikes of monthly expiry
+        {formatted_data}
+        """
+        
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                if attempt == 0:
+                    print(f"🔄 Requesting AI analysis from DeepSeek...")
+                
+                response = self.client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {
+                            "role": "system", 
+                            "content": "You are an expert options analyst specializing in Nifty, BankNifty, and stock options analysis for intraday trading."
+                        },
+                        {
+                            "role": "user", 
+                            "content": prompt
+                        }
+                    ],
+                    temperature=0.7,
+                    max_tokens=2000,
+                    stream=False,
+                    timeout=300.0
+                )
+                
+                ai_response = response.choices[0].message.content.strip()
+                return f"🤖 DEEPSEEK AI INTRADAY ANALYSIS (NIFTY + BANKNIFTY + STOCKS):\n{ai_response}"
+                
+            except requests.exceptions.ConnectionError as e:
+                error_msg = f"🔴 Connection Error (Attempt {attempt + 1}): Unable to reach DeepSeek API"
+                print(error_msg)
+                if attempt < max_retries - 1:
+                    print(f"⏳ Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    return f"{error_msg}. Check internet connection."
+                
+            except requests.exceptions.Timeout:
+                error_msg = f"⏰ Timeout Error (Attempt {attempt + 1}): Request timed out"
+                print(error_msg)
+                if attempt < max_retries - 1:
+                    print(f"⏳ Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    return f"{error_msg}. Try again next cycle."
+                
+            except Exception as e:
+                error_msg = f"⚠️ AI Analysis Error: {str(e)}"
+                print(error_msg)
+                
+                if any(keyword in str(e).lower() for keyword in ['auth', 'api key', 'key', 'invalid', 'quota']):
+                    print("🔄 Attempting to reinitialize DeepSeek client...")
+                    time.sleep(2)
+                    if self.initialize_client():
+                        if attempt < max_retries - 1:
+                            continue
+                    
+                if attempt >= max_retries - 1:
+                    return f"🤖 AI Analysis: Service temporarily unavailable - {str(e)}"
+                
+                time.sleep(retry_delay)
+        
+        return "🤖 AI Analysis: Maximum retries exceeded. Service temporarily unavailable."
+
+    def format_data_for_ai(self, oi_data, current_cycle, total_fetches, oi_pcr, volume_pcr, current_nifty, stock_data, banknifty_data):
+        """Format all data for AI analysis - just raw data, no analysis"""
+        formatted_text = f"NIFTY DATA (Cycle: {current_cycle}/10, Total: {total_fetches})\n"
+        formatted_text += f"Nifty Spot: {current_nifty}\n"
+        formatted_text += f"PCR Values: OI PCR = {oi_pcr:.2f} | Volume PCR = {volume_pcr:.2f}\n"
+        formatted_text += "=" * 80 + "\n"
+        
+        # Nifty strikes data
+        for data in oi_data:
+            strike = data['strike_price']
+            ce_pe_diff = data['ce_change_oi'] - data['pe_change_oi']
+            
+            formatted_text += f"Strike {strike}: "
+            formatted_text += f"CE[ChgOI:{data['ce_change_oi']}, Vol:{data['ce_volume']}, LTP:{data['ce_ltp']:.1f}, OI:{data['ce_oi']}, IV:{data['ce_iv']:.1f}%, Delta:{data['ce_delta']:.3f}] "
+            formatted_text += f"PE[ChgOI:{data['pe_change_oi']}, Vol:{data['pe_volume']}, LTP:{data['pe_ltp']:.1f}, OI:{data['pe_oi']}, IV:{data['pe_iv']:.1f}%, Delta:{data['pe_delta']:.3f}] "
+            formatted_text += f"Diff:{ce_pe_diff}\n"
+        
+        # Add BANKNIFTY data if available
+        if banknifty_data:
+            formatted_text += "\n" + "=" * 80 + "\n"
+            formatted_text += "BANKNIFTY DATA\n"
+            formatted_text += "=" * 80 + "\n"
+            formatted_text += f"BankNifty Spot: {banknifty_data['current_value']}\n"
+            formatted_text += f"PCR Values: OI PCR = {banknifty_data['oi_pcr']:.2f} | Volume PCR = {banknifty_data['volume_pcr']:.2f}\n"
+            
+            for data in banknifty_data['data']:
+                strike = data['strike_price']
+                ce_pe_diff = data['ce_change_oi'] - data['pe_change_oi']
+                
+                formatted_text += f"Strike {strike}: "
+                formatted_text += f"CE[ChgOI:{data['ce_change_oi']}, Vol:{data['ce_volume']}, LTP:{data['ce_ltp']:.1f}, OI:{data['ce_oi']}, IV:{data['ce_iv']:.1f}%, Delta:{data['ce_delta']:.3f}] "
+                formatted_text += f"PE[ChgOI:{data['pe_change_oi']}, Vol:{data['pe_volume']}, LTP:{data['pe_ltp']:.1f}, OI:{data['pe_oi']}, IV:{data['pe_iv']:.1f}%, Delta:{data['pe_delta']:.3f}] "
+                formatted_text += f"Diff:{ce_pe_diff}\n"
+        
+        # Add stock data if available
+        if stock_data:
+            formatted_text += "\n" + "=" * 80 + "\n"
+            formatted_text += "TOP 10 NIFTY STOCKS DATA\n"
+            formatted_text += "=" * 80 + "\n"
+            
+            for symbol, stock_info in stock_data.items():
+                data = stock_info['data'][0]  # First data point for basic info
+                formatted_text += f"\n{symbol} (Weight: {stock_info['weight']:.4f}, Price: {data['stock_value']}): "
+                formatted_text += f"OI PCR: {stock_info['oi_pcr']:.2f}, Volume PCR: {stock_info['volume_pcr']:.2f}\n"
+                
+                # Add strikes data for this stock
+                for strike_data in stock_info['data']:
+                    strike = strike_data['strike_price']
+                    ce_pe_diff = strike_data['ce_change_oi'] - strike_data['pe_change_oi']
+                    
+                    formatted_text += f"  Strike {strike}: "
+                    formatted_text += f"CE[ChgOI:{strike_data['ce_change_oi']}, Vol:{strike_data['ce_volume']}, LTP:{strike_data['ce_ltp']:.1f}] "
+                    formatted_text += f"PE[ChgOI:{strike_data['pe_change_oi']}, Vol:{strike_data['pe_volume']}, LTP:{strike_data['pe_ltp']:.1f}] "
+                    formatted_text += f"Diff:{ce_pe_diff}\n"
+        
+        return formatted_text
+
+def format_data_for_ai(oi_data, current_cycle, total_fetches, pcr_analysis):
+    """Legacy function for backward compatibility"""
+    return "Data formatting updated - use get_ai_analysis method directly"
