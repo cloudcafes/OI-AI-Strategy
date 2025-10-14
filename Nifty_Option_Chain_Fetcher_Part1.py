@@ -17,7 +17,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 SYMBOL = "NIFTY"
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 5
-FETCH_INTERVAL = 80
+FETCH_INTERVAL = 600
 DB_FILE = "oi_data-temp.db"
 MAX_FETCH_CYCLES = 10  # Keep exactly 10 fetch cycles (1 to 10)
 

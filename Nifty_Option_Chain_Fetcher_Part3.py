@@ -625,7 +625,7 @@ def data_collection_loop():
                     print("Press Ctrl+C to stop")
                 
                 # Wait for next interval with interruptible sleep
-                print(f"Next update in {FETCH_INTERVAL} seconds...")
+                print(f"Next update in {FETCH_INTERVAL} seconds...", end='', flush=True)
                 for i in range(FETCH_INTERVAL):
                     if not running:
                         break
@@ -634,7 +634,7 @@ def data_collection_loop():
                     if (i + 1) % 10 == 0:
                         remaining = FETCH_INTERVAL - (i + 1)
                         if remaining > 0 and running:
-                            print(f"Next update in {remaining} seconds...")
+                            print(f"\rNext update in {remaining} seconds...", end='', flush=True)
                         
             except KeyboardInterrupt:
                 print("\nKeyboard interrupt received in main loop.")
