@@ -68,8 +68,8 @@ class ScriptRunner:
             }))
             
             # Command to run the script
-            script_dir = "/home/niftyaic/niftyai"
-            venv_python = "/home/niftyaic/virtualenv/niftyai/3.10/bin/python"
+            script_dir = "/home/niftyaic/OI-AI-Strategy"
+            venv_python = "/home/niftyaic/virtualenv/OI-AI-Strategy/3.10/bin/python"
             
             cmd = [
                 venv_python, 
