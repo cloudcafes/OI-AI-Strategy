@@ -44,35 +44,27 @@ def parse_option_chain(data):
         for strike in selected_strikes:
             record = next((r for r in nearest_expiry_records if r['strikePrice'] == strike), None)
             if record:
-                # Parse CE data with Greeks
+                # Parse CE data without Greeks (delta, gamma, theta, vega removed)
                 ce_data = record.get('CE', {})
-                # Parse PE data with Greeks
+                # Parse PE data without Greeks (delta, gamma, theta, vega removed)
                 pe_data = record.get('PE', {})
                 
                 oi_data = {
                     'nifty_value': round(current_nifty),
                     'expiry_date': nearest_expiry,
                     'strike_price': strike,
-                    # CE Data
+                    # CE Data - only IV kept, other Greeks removed
                     'ce_change_oi': parse_numeric_value(ce_data.get('changeinOpenInterest', 0)),
                     'ce_volume': parse_numeric_value(ce_data.get('totalTradedVolume', 0)),
                     'ce_ltp': parse_float_value(ce_data.get('lastPrice', 0)),
                     'ce_oi': parse_numeric_value(ce_data.get('openInterest', 0)),
                     'ce_iv': parse_float_value(ce_data.get('impliedVolatility', 0)),
-                    'ce_delta': parse_float_value(ce_data.get('delta', 0)),
-                    'ce_gamma': parse_float_value(ce_data.get('gamma', 0)),
-                    'ce_theta': parse_float_value(ce_data.get('theta', 0)),
-                    'ce_vega': parse_float_value(ce_data.get('vega', 0)),
-                    # PE Data
+                    # PE Data - only IV kept, other Greeks removed
                     'pe_change_oi': parse_numeric_value(pe_data.get('changeinOpenInterest', 0)),
                     'pe_volume': parse_numeric_value(pe_data.get('totalTradedVolume', 0)),
                     'pe_ltp': parse_float_value(pe_data.get('lastPrice', 0)),
                     'pe_oi': parse_numeric_value(pe_data.get('openInterest', 0)),
                     'pe_iv': parse_float_value(pe_data.get('impliedVolatility', 0)),
-                    'pe_delta': parse_float_value(pe_data.get('delta', 0)),
-                    'pe_gamma': parse_float_value(pe_data.get('gamma', 0)),
-                    'pe_theta': parse_float_value(pe_data.get('theta', 0)),
-                    'pe_vega': parse_float_value(pe_data.get('vega', 0)),
                 }
                 filtered_records.append(oi_data)
         

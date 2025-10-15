@@ -20,7 +20,7 @@ INITIAL_RETRY_DELAY = 5
 FETCH_INTERVAL = 600
 DB_FILE = "oi_data-temp.db"
 MAX_FETCH_CYCLES = 10  # Keep exactly 10 fetch cycles (1 to 10)
-DISPLAY_STOCKS_ON_CONSOLE = 0
+DISPLAY_STOCKS_ON_CONSOLE = 1
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
@@ -63,7 +63,7 @@ def initialize_database():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     cursor = conn.cursor()
     
-    # Create table for OI data with Greek values columns
+    # Create table for OI data without Greek values columns (delta, gamma, theta, vega removed)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS oi_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,19 +77,11 @@ def initialize_database():
             ce_ltp REAL,
             ce_oi INTEGER,
             ce_iv REAL,
-            ce_delta REAL,
-            ce_gamma REAL,
-            ce_theta REAL,
-            ce_vega REAL,
             pe_change_oi INTEGER,
             pe_volume INTEGER,
             pe_ltp REAL,
             pe_oi INTEGER,
             pe_iv REAL,
-            pe_delta REAL,
-            pe_gamma REAL,
-            pe_theta REAL,
-            pe_vega REAL,
             chg_oi_diff INTEGER,
             created_at TEXT
         )

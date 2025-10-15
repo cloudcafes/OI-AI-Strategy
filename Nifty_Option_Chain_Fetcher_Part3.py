@@ -90,7 +90,7 @@ def fetch_stock_option_chain(session, symbol):
                 raise Exception(f"Failed after 3 attempts for {symbol}: {str(e)}")
 
 def parse_stock_option_chain(data, symbol):
-    """Parse stock option chain data with Greeks"""
+    """Parse stock option chain data without Greeks (delta, gamma, theta, vega removed)"""
     try:
         current_stock_value = data['records']['underlyingValue']
         records = data['records']['data']
@@ -110,9 +110,9 @@ def parse_stock_option_chain(data, symbol):
         for strike in selected_strikes:
             record = next((r for r in nearest_expiry_records if r['strikePrice'] == strike), None)
             if record:
-                # Parse CE data with Greeks
+                # Parse CE data without Greeks
                 ce_data = record.get('CE', {})
-                # Parse PE data with Greeks
+                # Parse PE data without Greeks
                 pe_data = record.get('PE', {})
                 
                 oi_data = {
@@ -120,26 +120,18 @@ def parse_stock_option_chain(data, symbol):
                     'stock_value': round(current_stock_value, 2),
                     'expiry_date': nearest_expiry,
                     'strike_price': strike,
-                    # CE Data with Greeks
+                    # CE Data - only IV kept, other Greeks removed
                     'ce_change_oi': parse_numeric_value(ce_data.get('changeinOpenInterest', 0)),
                     'ce_volume': parse_numeric_value(ce_data.get('totalTradedVolume', 0)),
                     'ce_ltp': parse_float_value(ce_data.get('lastPrice', 0)),
                     'ce_oi': parse_numeric_value(ce_data.get('openInterest', 0)),
                     'ce_iv': parse_float_value(ce_data.get('impliedVolatility', 0)),
-                    'ce_delta': parse_float_value(ce_data.get('delta', 0)),
-                    'ce_gamma': parse_float_value(ce_data.get('gamma', 0)),
-                    'ce_theta': parse_float_value(ce_data.get('theta', 0)),
-                    'ce_vega': parse_float_value(ce_data.get('vega', 0)),
-                    # PE Data with Greeks
+                    # PE Data - only IV kept, other Greeks removed
                     'pe_change_oi': parse_numeric_value(pe_data.get('changeinOpenInterest', 0)),
                     'pe_volume': parse_numeric_value(pe_data.get('totalTradedVolume', 0)),
                     'pe_ltp': parse_float_value(pe_data.get('lastPrice', 0)),
                     'pe_oi': parse_numeric_value(pe_data.get('openInterest', 0)),
                     'pe_iv': parse_float_value(pe_data.get('impliedVolatility', 0)),
-                    'pe_delta': parse_float_value(pe_data.get('delta', 0)),
-                    'pe_gamma': parse_float_value(pe_data.get('gamma', 0)),
-                    'pe_theta': parse_float_value(pe_data.get('theta', 0)),
-                    'pe_vega': parse_float_value(pe_data.get('vega', 0)),
                 }
                 filtered_records.append(oi_data)
         
@@ -167,7 +159,7 @@ def calculate_stock_pcr_values(oi_data):
     return oi_pcr, volume_pcr
 
 def fetch_banknifty_data():
-    """Fetch BANKNIFTY option chain data"""
+    """Fetch BANKNIFTY option chain data without Greeks"""
     try:
         print(f"Fetching BANKNIFTY option chain...")
         
@@ -199,9 +191,9 @@ def fetch_banknifty_data():
         for strike in selected_strikes:
             record = next((r for r in nearest_expiry_records if r['strikePrice'] == strike), None)
             if record:
-                # Parse CE data with Greeks
+                # Parse CE data without Greeks
                 ce_data = record.get('CE', {})
-                # Parse PE data with Greeks
+                # Parse PE data without Greeks
                 pe_data = record.get('PE', {})
                 
                 oi_data = {
@@ -209,26 +201,18 @@ def fetch_banknifty_data():
                     'underlying_value': round(current_banknifty, 2),
                     'expiry_date': nearest_expiry,
                     'strike_price': strike,
-                    # CE Data with Greeks
+                    # CE Data - only IV kept, other Greeks removed
                     'ce_change_oi': parse_numeric_value(ce_data.get('changeinOpenInterest', 0)),
                     'ce_volume': parse_numeric_value(ce_data.get('totalTradedVolume', 0)),
                     'ce_ltp': parse_float_value(ce_data.get('lastPrice', 0)),
                     'ce_oi': parse_numeric_value(ce_data.get('openInterest', 0)),
                     'ce_iv': parse_float_value(ce_data.get('impliedVolatility', 0)),
-                    'ce_delta': parse_float_value(ce_data.get('delta', 0)),
-                    'ce_gamma': parse_float_value(ce_data.get('gamma', 0)),
-                    'ce_theta': parse_float_value(ce_data.get('theta', 0)),
-                    'ce_vega': parse_float_value(ce_data.get('vega', 0)),
-                    # PE Data with Greeks
+                    # PE Data - only IV kept, other Greeks removed
                     'pe_change_oi': parse_numeric_value(pe_data.get('changeinOpenInterest', 0)),
                     'pe_volume': parse_numeric_value(pe_data.get('totalTradedVolume', 0)),
                     'pe_ltp': parse_float_value(pe_data.get('lastPrice', 0)),
                     'pe_oi': parse_numeric_value(pe_data.get('openInterest', 0)),
                     'pe_iv': parse_float_value(pe_data.get('impliedVolatility', 0)),
-                    'pe_delta': parse_float_value(pe_data.get('delta', 0)),
-                    'pe_gamma': parse_float_value(pe_data.get('gamma', 0)),
-                    'pe_theta': parse_float_value(pe_data.get('theta', 0)),
-                    'pe_vega': parse_float_value(pe_data.get('vega', 0)),
                 }
                 banknifty_data.append(oi_data)
         
@@ -247,22 +231,22 @@ def fetch_banknifty_data():
         return None
 
 def display_banknifty_data(banknifty_data):
-    """Display BANKNIFTY OI data with Greeks"""
+    """Display BANKNIFTY OI data without Greeks (delta, gamma, theta, vega removed)"""
     if not banknifty_data:
         return
     
     current_value = banknifty_data['current_value']
     
-    print(f"\n{'='*170}")
+    print(f"\n{'='*120}")
     print(f"OI Data for BANKNIFTY - Current: {current_value}")
-    print(f"{'='*170}")
-    print(f"{'CALL OPTION':<70}|   STRIKE   |{'PUT OPTION':<72}|  {'CHG OI DIFF':<18}")
+    print(f"{'='*120}")
+    print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
     print(
-        f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  {'Delta'.rjust(7)}  {'Gamma'.rjust(7)}  |  "
+        f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
         f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
-        f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  {'Delta'.rjust(7)}  {'Gamma'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
+        f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
     )
-    print("-" * 170)
+    print("-" * 120)
     
     for data in banknifty_data['data']:
         strike_price = data['strike_price']
@@ -273,51 +257,47 @@ def display_banknifty_data(banknifty_data):
         ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
         ce_oi_total_formatted = format_oi_value(data['ce_oi'])
         ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
-        ce_delta_formatted = format_greek_value(data['ce_delta'])
-        ce_gamma_formatted = format_greek_value(data['ce_gamma'], 4)
         
         pe_oi_formatted = format_oi_value(data['pe_change_oi'])
         pe_volume_formatted = format_oi_value(data['pe_volume'])
         pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
         pe_oi_total_formatted = format_oi_value(data['pe_oi'])
         pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
-        pe_delta_formatted = format_greek_value(data['pe_delta'])
-        pe_gamma_formatted = format_greek_value(data['pe_gamma'], 4)
         
         chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
         chg_oi_diff_formatted = format_oi_value(chg_oi_diff)
         
-        # Format the row
+        # Format the row without Greek columns
         formatted_row = (
             f"{ce_oi_formatted.rjust(10)}  {ce_volume_formatted.rjust(10)}  {ce_ltp_formatted.rjust(8)}  "
-            f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  {ce_delta_formatted.rjust(7)}  {ce_gamma_formatted.rjust(7)}  |  "
+            f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  |  "
             f"{str(strike_price).center(9)}  |  "
             f"{pe_oi_formatted.rjust(10)}  {pe_volume_formatted.rjust(10)}  {pe_ltp_formatted.rjust(8)}  "
-            f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  {pe_delta_formatted.rjust(7)}  {pe_gamma_formatted.rjust(7)}  |  "
+            f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  |  "
             f"{chg_oi_diff_formatted.rjust(16)}"
         )
         
         print(formatted_row)
     
-    print("=" * 170)
+    print("=" * 120)
     print(f"BANKNIFTY PCR: OI PCR = {banknifty_data['oi_pcr']:.2f}, Volume PCR = {banknifty_data['volume_pcr']:.2f}")
 
 def display_stock_data(stock_data):
-    """Display stock OI data with Greeks in required format"""
+    """Display stock OI data without Greeks in required format"""
     symbol = stock_data[0]['symbol']
     stock_info = TOP_NIFTY_STOCKS[symbol]
     current_price = stock_data[0]['stock_value']
     
-    print(f"\n{'='*170}")
+    print(f"\n{'='*120}")
     print(f"OI Data for {stock_info['name']} ({symbol}) - Current Price: {current_price}")
-    print(f"{'='*170}")
-    print(f"{'CALL OPTION':<70}|   STRIKE   |{'PUT OPTION':<72}|  {'CHG OI DIFF':<18}")
+    print(f"{'='*120}")
+    print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
     print(
-        f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  {'Delta'.rjust(7)}  {'Gamma'.rjust(7)}  |  "
+        f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
         f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
-        f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  {'Delta'.rjust(7)}  {'Gamma'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
+        f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
     )
-    print("-" * 170)
+    print("-" * 120)
     
     for data in stock_data:
         strike_price = data['strike_price']
@@ -328,33 +308,29 @@ def display_stock_data(stock_data):
         ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
         ce_oi_total_formatted = format_oi_value(data['ce_oi'])
         ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
-        ce_delta_formatted = format_greek_value(data['ce_delta'])
-        ce_gamma_formatted = format_greek_value(data['ce_gamma'], 4)
         
         pe_oi_formatted = format_oi_value(data['pe_change_oi'])
         pe_volume_formatted = format_oi_value(data['pe_volume'])
         pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
         pe_oi_total_formatted = format_oi_value(data['pe_oi'])
         pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
-        pe_delta_formatted = format_greek_value(data['pe_delta'])
-        pe_gamma_formatted = format_greek_value(data['pe_gamma'], 4)
         
         chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
         chg_oi_diff_formatted = format_oi_value(chg_oi_diff)
         
-        # Format the row
+        # Format the row without Greek columns
         formatted_row = (
             f"{ce_oi_formatted.rjust(10)}  {ce_volume_formatted.rjust(10)}  {ce_ltp_formatted.rjust(8)}  "
-            f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  {ce_delta_formatted.rjust(7)}  {ce_gamma_formatted.rjust(7)}  |  "
+            f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  |  "
             f"{str(strike_price).center(9)}  |  "
             f"{pe_oi_formatted.rjust(10)}  {pe_volume_formatted.rjust(10)}  {pe_ltp_formatted.rjust(8)}  "
-            f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  {pe_delta_formatted.rjust(7)}  {pe_gamma_formatted.rjust(7)}  |  "
+            f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  |  "
             f"{chg_oi_diff_formatted.rjust(16)}"
         )
         
         print(formatted_row)
     
-    print("=" * 170)
+    print("=" * 120)
 
 def save_oi_data_to_db(oi_data):
     """Save OI data to SQLite database with proper cycle management"""
@@ -372,7 +348,7 @@ def save_oi_data_to_db(oi_data):
         # Delete existing data for this cycle (if any) before inserting new data
         cursor.execute('DELETE FROM oi_data WHERE fetch_cycle = ?', (fetch_cycle,))
         
-        # Save OI data for all strike prices with Greek values
+        # Save OI data for all strike prices without Greek values
         for data in oi_data:
             # Calculate chg_oi_diff (CE - PE) - CORRECT CALCULATION
             chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
@@ -380,16 +356,14 @@ def save_oi_data_to_db(oi_data):
             cursor.execute('''
                 INSERT INTO oi_data (
                     fetch_cycle, fetch_timestamp, nifty_value, expiry_date, strike_price,
-                    ce_change_oi, ce_volume, ce_ltp, ce_oi, ce_iv, ce_delta, ce_gamma, ce_theta, ce_vega,
-                    pe_change_oi, pe_volume, pe_ltp, pe_oi, pe_iv, pe_delta, pe_gamma, pe_theta, pe_vega,
+                    ce_change_oi, ce_volume, ce_ltp, ce_oi, ce_iv,
+                    pe_change_oi, pe_volume, pe_ltp, pe_oi, pe_iv,
                     chg_oi_diff, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 fetch_cycle, fetch_timestamp, data['nifty_value'], data['expiry_date'], data['strike_price'],
-                data['ce_change_oi'], data['ce_volume'], data['ce_ltp'], data['ce_oi'], 
-                data['ce_iv'], data['ce_delta'], data['ce_gamma'], data['ce_theta'], data['ce_vega'],
-                data['pe_change_oi'], data['pe_volume'], data['pe_ltp'], data['pe_oi'],
-                data['pe_iv'], data['pe_delta'], data['pe_gamma'], data['pe_theta'], data['pe_vega'],
+                data['ce_change_oi'], data['ce_volume'], data['ce_ltp'], data['ce_oi'], data['ce_iv'],
+                data['pe_change_oi'], data['pe_volume'], data['pe_ltp'], data['pe_oi'], data['pe_iv'],
                 chg_oi_diff, datetime.datetime.now().isoformat()
             ))
         
@@ -405,7 +379,7 @@ def save_oi_data_to_db(oi_data):
         conn.close()
 
 def display_latest_data():
-    """Display the latest fetch cycle data from database with Greek values"""
+    """Display the latest fetch cycle data from database without Greek values"""
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     cursor = conn.cursor()
     
@@ -429,16 +403,16 @@ def display_latest_data():
         rows = cursor.fetchall()
         
         if rows:
-            print(f"\nOI Data with Greeks:")
-            print("=" * 170)
-            # Updated header with optimized spacing
-            print(f"{'CALL OPTION':<70}|   STRIKE   |{'PUT OPTION':<72}|  {'CHG OI DIFF':<18}{'CHG OI DIFF HISTORY':>25}")
+            print(f"\nOI Data (No Greeks):")
+            print("=" * 120)
+            # Updated header without Greek columns
+            print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}{'CHG OI DIFF HISTORY':>25}")
             print(
-                f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  {'Delta'.rjust(7)}  {'Gamma'.rjust(7)}  |  "
+                f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
                 f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
-                f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  {'Delta'.rjust(7)}  {'Gamma'.rjust(7)}  |  {'CE-PE'.rjust(16)}  {'(latest first)'.ljust(25)}"
+                f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}  {'(latest first)'.ljust(25)}"
             )
-            print("-" * 170)
+            print("-" * 120)
             
             for row in rows:
                 strike_price = row[5]
@@ -448,17 +422,13 @@ def display_latest_data():
                 ce_ltp = row[8]
                 ce_oi_total = row[9]
                 ce_iv = row[10]
-                ce_delta = row[11]
-                ce_gamma = row[12]
                 # PE Data
-                pe_oi = row[15]
-                pe_volume = row[16]
-                pe_ltp = row[17]
-                pe_oi_total = row[18]
-                pe_iv = row[19]
-                pe_delta = row[20]
-                pe_gamma = row[21]
-                chg_oi_diff = row[24]
+                pe_oi = row[11]
+                pe_volume = row[12]
+                pe_ltp = row[13]
+                pe_oi_total = row[14]
+                pe_iv = row[15]
+                chg_oi_diff = row[16]
 
                 # Format all values
                 ce_oi_formatted = format_oi_value(ce_oi)
@@ -466,16 +436,12 @@ def display_latest_data():
                 ce_ltp_formatted = f"{ce_ltp:.1f}" if ce_ltp else "0"
                 ce_oi_total_formatted = format_oi_value(ce_oi_total)
                 ce_iv_formatted = format_greek_value(ce_iv, 1)
-                ce_delta_formatted = format_greek_value(ce_delta)
-                ce_gamma_formatted = format_greek_value(ce_gamma, 4)
                 
                 pe_oi_formatted = format_oi_value(pe_oi)
                 pe_volume_formatted = format_oi_value(pe_volume)
                 pe_ltp_formatted = f"{pe_ltp:.1f}" if pe_ltp else "0"
                 pe_oi_total_formatted = format_oi_value(pe_oi_total)
                 pe_iv_formatted = format_greek_value(pe_iv, 1)
-                pe_delta_formatted = format_greek_value(pe_delta)
-                pe_gamma_formatted = format_greek_value(pe_gamma, 4)
                 
                 chg_oi_diff_formatted = format_oi_value(chg_oi_diff)
                 
@@ -483,20 +449,20 @@ def display_latest_data():
                 chg_oi_history = get_chg_oi_diff_history(strike_price, current_cycle)
                 history_str = ", ".join(chg_oi_history) if chg_oi_history else "No history"
                 
-                # Format the row using the optimized padding
+                # Format the row without Greek columns
                 formatted_row = (
                     f"{ce_oi_formatted.rjust(10)}  {ce_volume_formatted.rjust(10)}  {ce_ltp_formatted.rjust(8)}  "
-                    f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  {ce_delta_formatted.rjust(7)}  {ce_gamma_formatted.rjust(7)}  |  "
+                    f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  |  "
                     f"{str(strike_price).center(9)}  |  "
                     f"{pe_oi_formatted.rjust(10)}  {pe_volume_formatted.rjust(10)}  {pe_ltp_formatted.rjust(8)}  "
-                    f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  {pe_delta_formatted.rjust(7)}  {pe_gamma_formatted.rjust(7)}  |  "
+                    f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  |  "
                     f"{chg_oi_diff_formatted.rjust(16)}  {history_str.ljust(25)}"
                 )
                 
                 print(formatted_row)
             
-            print("=" * 170)
-            print("Note: IV in %, Delta/Gamma rounded to 3-4 decimals")
+            print("=" * 120)
+            print("Note: IV in %")
         
     except Exception as e:
         print(f"Error displaying data: {e}")
@@ -635,7 +601,7 @@ def data_collection_loop():
         print("Data collection stopped completely")
 
 def main():
-    print(f"Starting {SYMBOL} OI Data Logger with Greek Values & AI Analysis")
+    print(f"Starting {SYMBOL} OI Data Logger without Greeks & AI Analysis")
     print(f"Including BANKNIFTY and Top 10 NIFTY Stocks with Weightage Analysis")
     print(f"Data will be saved to {DB_FILE} every {FETCH_INTERVAL} seconds")
     print(f"Maintaining exactly {MAX_FETCH_CYCLES} fetch cycles (1-10 in circular manner)")
