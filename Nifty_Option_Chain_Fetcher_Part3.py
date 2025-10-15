@@ -17,7 +17,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from Nifty_Option_Chain_Fetcher_Part1 import (
     SYMBOL, FETCH_INTERVAL, DB_FILE, MAX_FETCH_CYCLES, running,
     signal_handler, initialize_database, initialize_session,
-    get_chg_oi_diff_history, format_oi_value, format_greek_value, get_next_cycle,
+    format_greek_value, get_next_cycle,
     parse_numeric_value, parse_float_value
 )
 
@@ -237,35 +237,35 @@ def display_banknifty_data(banknifty_data):
     
     current_value = banknifty_data['current_value']
     
-    print(f"\n{'='*120}")
+    print(f"\n{'='*100}")
     print(f"OI Data for BANKNIFTY - Current: {current_value}")
-    print(f"{'='*120}")
+    print(f"{'='*100}")
     print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
     print(
         f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
         f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
         f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
     )
-    print("-" * 120)
+    print("-" * 100)
     
     for data in banknifty_data['data']:
         strike_price = data['strike_price']
         
-        # Format all values
-        ce_oi_formatted = format_oi_value(data['ce_change_oi'])
-        ce_volume_formatted = format_oi_value(data['ce_volume'])
+        # Use raw values directly without formatting
+        ce_oi_formatted = str(data['ce_change_oi'])
+        ce_volume_formatted = str(data['ce_volume'])
         ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
-        ce_oi_total_formatted = format_oi_value(data['ce_oi'])
+        ce_oi_total_formatted = str(data['ce_oi'])
         ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
         
-        pe_oi_formatted = format_oi_value(data['pe_change_oi'])
-        pe_volume_formatted = format_oi_value(data['pe_volume'])
+        pe_oi_formatted = str(data['pe_change_oi'])
+        pe_volume_formatted = str(data['pe_volume'])
         pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
-        pe_oi_total_formatted = format_oi_value(data['pe_oi'])
+        pe_oi_total_formatted = str(data['pe_oi'])
         pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
         
         chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
-        chg_oi_diff_formatted = format_oi_value(chg_oi_diff)
+        chg_oi_diff_formatted = str(chg_oi_diff)
         
         # Format the row without Greek columns
         formatted_row = (
@@ -279,7 +279,7 @@ def display_banknifty_data(banknifty_data):
         
         print(formatted_row)
     
-    print("=" * 120)
+    print("=" * 100)
     print(f"BANKNIFTY PCR: OI PCR = {banknifty_data['oi_pcr']:.2f}, Volume PCR = {banknifty_data['volume_pcr']:.2f}")
 
 def display_stock_data(stock_data):
@@ -288,35 +288,35 @@ def display_stock_data(stock_data):
     stock_info = TOP_NIFTY_STOCKS[symbol]
     current_price = stock_data[0]['stock_value']
     
-    print(f"\n{'='*120}")
+    print(f"\n{'='*100}")
     print(f"OI Data for {stock_info['name']} ({symbol}) - Current Price: {current_price}")
-    print(f"{'='*120}")
+    print(f"{'='*100}")
     print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
     print(
         f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
         f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
         f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
     )
-    print("-" * 120)
+    print("-" * 100)
     
     for data in stock_data:
         strike_price = data['strike_price']
         
-        # Format all values
-        ce_oi_formatted = format_oi_value(data['ce_change_oi'])
-        ce_volume_formatted = format_oi_value(data['ce_volume'])
+        # Use raw values directly without formatting
+        ce_oi_formatted = str(data['ce_change_oi'])
+        ce_volume_formatted = str(data['ce_volume'])
         ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
-        ce_oi_total_formatted = format_oi_value(data['ce_oi'])
+        ce_oi_total_formatted = str(data['ce_oi'])
         ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
         
-        pe_oi_formatted = format_oi_value(data['pe_change_oi'])
-        pe_volume_formatted = format_oi_value(data['pe_volume'])
+        pe_oi_formatted = str(data['pe_change_oi'])
+        pe_volume_formatted = str(data['pe_volume'])
         pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
-        pe_oi_total_formatted = format_oi_value(data['pe_oi'])
+        pe_oi_total_formatted = str(data['pe_oi'])
         pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
         
         chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
-        chg_oi_diff_formatted = format_oi_value(chg_oi_diff)
+        chg_oi_diff_formatted = str(chg_oi_diff)
         
         # Format the row without Greek columns
         formatted_row = (
@@ -330,7 +330,7 @@ def display_stock_data(stock_data):
         
         print(formatted_row)
     
-    print("=" * 120)
+    print("=" * 100)
 
 def save_oi_data_to_db(oi_data):
     """Save OI data to SQLite database with proper cycle management"""
@@ -404,15 +404,15 @@ def display_latest_data():
         
         if rows:
             print(f"\nOI Data (No Greeks):")
-            print("=" * 120)
-            # Updated header without Greek columns
-            print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}{'CHG OI DIFF HISTORY':>25}")
+            print("=" * 100)
+            # Updated header without CHG OI DIFF HISTORY column
+            print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
             print(
                 f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
                 f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
-                f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}  {'(latest first)'.ljust(25)}"
+                f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
             )
-            print("-" * 120)
+            print("-" * 100)
             
             for row in rows:
                 strike_price = row[5]
@@ -430,38 +430,34 @@ def display_latest_data():
                 pe_iv = row[15]
                 chg_oi_diff = row[16]
 
-                # Format all values
-                ce_oi_formatted = format_oi_value(ce_oi)
-                ce_volume_formatted = format_oi_value(ce_volume)
+                # Use raw values directly without formatting
+                ce_oi_formatted = str(ce_oi)
+                ce_volume_formatted = str(ce_volume)
                 ce_ltp_formatted = f"{ce_ltp:.1f}" if ce_ltp else "0"
-                ce_oi_total_formatted = format_oi_value(ce_oi_total)
+                ce_oi_total_formatted = str(ce_oi_total)
                 ce_iv_formatted = format_greek_value(ce_iv, 1)
                 
-                pe_oi_formatted = format_oi_value(pe_oi)
-                pe_volume_formatted = format_oi_value(pe_volume)
+                pe_oi_formatted = str(pe_oi)
+                pe_volume_formatted = str(pe_volume)
                 pe_ltp_formatted = f"{pe_ltp:.1f}" if pe_ltp else "0"
-                pe_oi_total_formatted = format_oi_value(pe_oi_total)
+                pe_oi_total_formatted = str(pe_oi_total)
                 pe_iv_formatted = format_greek_value(pe_iv, 1)
                 
-                chg_oi_diff_formatted = format_oi_value(chg_oi_diff)
+                chg_oi_diff_formatted = str(chg_oi_diff)
                 
-                # Get CHG OI DIFF history
-                chg_oi_history = get_chg_oi_diff_history(strike_price, current_cycle)
-                history_str = ", ".join(chg_oi_history) if chg_oi_history else "No history"
-                
-                # Format the row without Greek columns
+                # Format the row without CHG OI DIFF HISTORY column
                 formatted_row = (
                     f"{ce_oi_formatted.rjust(10)}  {ce_volume_formatted.rjust(10)}  {ce_ltp_formatted.rjust(8)}  "
                     f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  |  "
                     f"{str(strike_price).center(9)}  |  "
                     f"{pe_oi_formatted.rjust(10)}  {pe_volume_formatted.rjust(10)}  {pe_ltp_formatted.rjust(8)}  "
                     f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  |  "
-                    f"{chg_oi_diff_formatted.rjust(16)}  {history_str.ljust(25)}"
+                    f"{chg_oi_diff_formatted.rjust(16)}"
                 )
                 
                 print(formatted_row)
             
-            print("=" * 120)
+            print("=" * 100)
             print("Note: IV in %")
         
     except Exception as e:

@@ -6,7 +6,7 @@ import sqlite3
 # Import from Part 1
 from Nifty_Option_Chain_Fetcher_Part1 import (
     SYMBOL, MAX_RETRIES, INITIAL_RETRY_DELAY, HEADERS, 
-    parse_numeric_value, parse_float_value, DB_FILE, get_next_cycle, format_oi_value, format_greek_value
+    parse_numeric_value, parse_float_value, DB_FILE, get_next_cycle, format_greek_value
 )
 
 def fetch_option_chain(session):

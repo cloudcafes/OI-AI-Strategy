@@ -177,34 +177,6 @@ def parse_float_value(value):
     
     return 0.0
 
-def format_oi_value(value):
-    """Format OI value to k (thousands) or L (lacs) for better readability while preserving sign"""
-    if value == 0:
-        return "0"
-    
-    abs_value = abs(value)
-    is_negative = value < 0
-    
-    if abs_value >= 100000:
-        # Convert to lacs
-        formatted = abs_value / 100000
-        if formatted == int(formatted):
-            formatted_str = f"{int(formatted)}L"
-        else:
-            formatted_str = f"{formatted:.1f}L"
-    elif abs_value >= 1000:
-        # Convert to thousands
-        formatted = abs_value / 1000
-        if formatted == int(formatted):
-            formatted_str = f"{int(formatted)}k"
-        else:
-            formatted_str = f"{formatted:.1f}k"
-    else:
-        formatted_str = str(abs_value)
-    
-    # Add negative sign back if original value was negative
-    return f"-{formatted_str}" if is_negative else formatted_str
-
 def format_greek_value(value, decimal_places=3):
     """Format Greek values with specified decimal places"""
     if value is None or value == 0:
@@ -214,32 +186,3 @@ def format_greek_value(value, decimal_places=3):
         return f"{float(value):.{decimal_places}f}"
     except (ValueError, TypeError):
         return "0"
-
-def get_chg_oi_diff_history(strike_price, current_cycle):
-    """Get the last 5 CHG OI DIFF values for a strike price"""
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    cursor = conn.cursor()
-    
-    try:
-        # Get last 5 CHG OI DIFF values for this strike (excluding current cycle)
-        cursor.execute('''
-            SELECT chg_oi_diff 
-            FROM oi_data 
-            WHERE strike_price = ? AND fetch_cycle < ?
-            ORDER BY fetch_cycle DESC 
-            LIMIT 5
-        ''', (strike_price, current_cycle))
-        
-        history_records = cursor.fetchall()
-        
-        # Format the history values
-        formatted_history = []
-        for record in history_records:
-            formatted_history.append(format_oi_value(record[0]))
-        
-        return formatted_history
-        
-    except Exception as e:
-        return []
-    finally:
-        conn.close()
