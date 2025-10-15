@@ -237,16 +237,16 @@ def display_banknifty_data(banknifty_data):
     
     current_value = banknifty_data['current_value']
     
-    print(f"\n{'='*100}")
+    print(f"\n{'='*80}")
     print(f"OI Data for BANKNIFTY - Current: {current_value}")
-    print(f"{'='*100}")
+    print(f"{'='*80}")
     print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
     print(
         f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
         f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
         f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
     )
-    print("-" * 100)
+    print("-" * 150)
     
     for data in banknifty_data['data']:
         strike_price = data['strike_price']
@@ -279,7 +279,7 @@ def display_banknifty_data(banknifty_data):
         
         print(formatted_row)
     
-    print("=" * 100)
+    print("=" * 150)
     print(f"BANKNIFTY PCR: OI PCR = {banknifty_data['oi_pcr']:.2f}, Volume PCR = {banknifty_data['volume_pcr']:.2f}")
 
 def display_stock_data(stock_data):
@@ -288,16 +288,16 @@ def display_stock_data(stock_data):
     stock_info = TOP_NIFTY_STOCKS[symbol]
     current_price = stock_data[0]['stock_value']
     
-    print(f"\n{'='*100}")
+    print(f"\n{'='*80}")
     print(f"OI Data for {stock_info['name']} ({symbol}) - Current Price: {current_price}")
-    print(f"{'='*100}")
+    print(f"{'='*80}")
     print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
     print(
         f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
         f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
         f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
     )
-    print("-" * 100)
+    print("-" * 150)
     
     for data in stock_data:
         strike_price = data['strike_price']
@@ -330,7 +330,7 @@ def display_stock_data(stock_data):
         
         print(formatted_row)
     
-    print("=" * 100)
+    print("=" * 150)
 
 def save_oi_data_to_db(oi_data):
     """Save OI data to SQLite database with proper cycle management"""
@@ -403,8 +403,8 @@ def display_latest_data():
         rows = cursor.fetchall()
         
         if rows:
-            print(f"\nOI Data (No Greeks):")
-            print("=" * 100)
+            print(f"\nOI Data for NIFTY:")
+            print("=" * 150)
             # Updated header without CHG OI DIFF HISTORY column
             print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
             print(
@@ -412,7 +412,7 @@ def display_latest_data():
                 f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
                 f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
             )
-            print("-" * 100)
+            print("-" * 150)
             
             for row in rows:
                 strike_price = row[5]
@@ -457,7 +457,7 @@ def display_latest_data():
                 
                 print(formatted_row)
             
-            print("=" * 100)
+            print("=" * 150)
             print("Note: IV in %")
         
     except Exception as e:
