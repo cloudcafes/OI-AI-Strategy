@@ -1,5 +1,5 @@
 # stock-fetcher.py
-# Fixed data fetching with proper session handling
+# Fixed data fetching with complete option chain (no ATM filtering)
 
 import requests
 import time
@@ -106,7 +106,7 @@ def fetch_stock_option_chain(session, symbol):
             response = session.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
             
             if response.status_code == 401:
-                # Session expired, reinitialize
+                # Session expired, reinitializing
                 print(f"🔄 Session expired for {symbol}, reinitializing...")
                 global_session = initialize_session()
                 response = global_session.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -133,7 +133,7 @@ def fetch_stock_option_chain(session, symbol):
             raise Exception(f"Unexpected error fetching {symbol}: {str(e)}")
 
 def parse_stock_option_chain(data, symbol):
-    """Parse stock option chain data - extract relevant fields only"""
+    """Parse stock option chain data - return ALL strikes for nearest expiry"""
     try:
         if not data or 'records' not in data:
             raise ValueError(f"No records found in data for {symbol}")
@@ -144,65 +144,49 @@ def parse_stock_option_chain(data, symbol):
         if not records:
             raise ValueError(f"No option chain data available for {symbol}")
         
-        # Get nearest expiry
+        # Get nearest expiry (monthly for stocks)
         expiry_dates = data['records']['expiryDates']
         if not expiry_dates:
             raise ValueError(f"No expiry dates found for {symbol}")
         
         nearest_expiry = expiry_dates[0]
         
-        # Filter for nearest expiry only
+        # Filter for nearest expiry only - NO ATM FILTERING, ALL STRIKES
         nearest_expiry_records = [record for record in records if record['expiryDate'] == nearest_expiry]
         
         if not nearest_expiry_records:
-            # If no records for nearest expiry, try any expiry
-            nearest_expiry_records = records[:10]  # Limit to first 10 records
+            raise ValueError(f"No records found for nearest expiry {nearest_expiry}")
         
-        # Get all strike prices and find ATM strikes
-        strike_prices = sorted(list(set(record['strikePrice'] for record in nearest_expiry_records)))
-        
-        if not strike_prices:
-            raise ValueError(f"No strike prices found for {symbol}")
-        
-        # Find closest strike to current price (ATM)
-        closest_strike = min(strike_prices, key=lambda x: abs(x - current_stock_value))
-        closest_index = strike_prices.index(closest_strike)
-        
-        # Select ATM ±2 strikes (5 strikes total)
-        start_index = max(0, closest_index - 2)
-        end_index = min(len(strike_prices), closest_index + 3)
-        selected_strikes = strike_prices[start_index:end_index]
-        
+        # Process ALL strikes without filtering
         filtered_records = []
         
-        for strike in selected_strikes:
-            record = next((r for r in nearest_expiry_records if r['strikePrice'] == strike), None)
-            if record:
-                # Parse CE data
-                ce_data = record.get('CE', {})
-                # Parse PE data
-                pe_data = record.get('PE', {})
-                
-                oi_data = {
-                    'symbol': symbol,
-                    'stock_value': round(current_stock_value, 2),
-                    'expiry_date': nearest_expiry,
-                    'strike_price': strike,
-                    # CE Data
-                    'ce_change_oi': parse_numeric_value(ce_data.get('changeinOpenInterest', 0)),
-                    'ce_volume': parse_numeric_value(ce_data.get('totalTradedVolume', 0)),
-                    'ce_ltp': parse_float_value(ce_data.get('lastPrice', 0)),
-                    'ce_oi': parse_numeric_value(ce_data.get('openInterest', 0)),
-                    'ce_iv': parse_float_value(ce_data.get('impliedVolatility', 0)),
-                    # PE Data
-                    'pe_change_oi': parse_numeric_value(pe_data.get('changeinOpenInterest', 0)),
-                    'pe_volume': parse_numeric_value(pe_data.get('totalTradedVolume', 0)),
-                    'pe_ltp': parse_float_value(pe_data.get('lastPrice', 0)),
-                    'pe_oi': parse_numeric_value(pe_data.get('openInterest', 0)),
-                    'pe_iv': parse_float_value(pe_data.get('impliedVolatility', 0)),
-                }
-                filtered_records.append(oi_data)
+        for record in nearest_expiry_records:
+            # Parse CE data
+            ce_data = record.get('CE', {})
+            # Parse PE data
+            pe_data = record.get('PE', {})
+            
+            oi_data = {
+                'symbol': symbol,
+                'stock_value': round(current_stock_value, 2),
+                'expiry_date': nearest_expiry,
+                'strike_price': record['strikePrice'],
+                # CE Data
+                'ce_change_oi': parse_numeric_value(ce_data.get('changeinOpenInterest', 0)),
+                'ce_volume': parse_numeric_value(ce_data.get('totalTradedVolume', 0)),
+                'ce_ltp': parse_float_value(ce_data.get('lastPrice', 0)),
+                'ce_oi': parse_numeric_value(ce_data.get('openInterest', 0)),
+                'ce_iv': parse_float_value(ce_data.get('impliedVolatility', 0)),
+                # PE Data
+                'pe_change_oi': parse_numeric_value(pe_data.get('changeinOpenInterest', 0)),
+                'pe_volume': parse_numeric_value(pe_data.get('totalTradedVolume', 0)),
+                'pe_ltp': parse_float_value(pe_data.get('lastPrice', 0)),
+                'pe_oi': parse_numeric_value(pe_data.get('openInterest', 0)),
+                'pe_iv': parse_float_value(pe_data.get('impliedVolatility', 0)),
+            }
+            filtered_records.append(oi_data)
         
+        print(f"✅ {symbol}: Retrieved {len(filtered_records)} strikes for {nearest_expiry}")
         return filtered_records
         
     except Exception as e:
@@ -219,7 +203,7 @@ def get_stock_data(symbol, session=None):
         # Fetch raw data
         raw_data = fetch_stock_option_chain(session, symbol)
         
-        # Parse and filter data
+        # Parse data - returns ALL strikes now
         parsed_data = parse_stock_option_chain(raw_data, symbol)
         
         return parsed_data

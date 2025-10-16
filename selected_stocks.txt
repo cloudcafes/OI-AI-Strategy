@@ -1,0 +1,45 @@
+🎯 STRONG TREND STOCK FOUND - 2025-10-16 23:28:18 (Iteration #1)
+================================================================================
+📈 LT: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.575 | Volume PCR: 0.574
+   ⏰ Discovery Time: 2025-10-16 23:28:18
+   🔍 Total CE OI Change: -632
+   🔍 Total PE OI Change: +2,433
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-16 23:27:12 (Iteration #1)
+================================================================================
+📈 RBLBANK: STRONG_BULLISH (58.33% confidence)
+   📊 OI PCR: 0.541 | Volume PCR: 0.557
+   ⏰ Discovery Time: 2025-10-16 23:27:12
+   🔍 Total CE OI Change: +791
+   🔍 Total PE OI Change: +1,046
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-16 23:27:03 (Iteration #1)
+================================================================================
+📈 HDFCAMC: STRONG_BULLISH (62.5% confidence)
+   📊 OI PCR: 0.543 | Volume PCR: 0.406
+   ⏰ Discovery Time: 2025-10-16 23:27:03
+   🔍 Total CE OI Change: -200
+   🔍 Total PE OI Change: +1,024
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-16 23:26:26 (Iteration #1)
+================================================================================
+📈 GODREJPROP: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.738 | Volume PCR: 0.460
+   ⏰ Discovery Time: 2025-10-16 23:26:26
+   🔍 Total CE OI Change: -389
+   🔍 Total PE OI Change: +686
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-16 23:25:52 (Iteration #1)
+================================================================================
+📈 IDEA: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.599 | Volume PCR: 0.455
+   ⏰ Discovery Time: 2025-10-16 23:25:52
+   🔍 Total CE OI Change: -236
+   🔍 Total PE OI Change: +957
+================================================================================
+

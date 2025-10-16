@@ -6,16 +6,10 @@ ENABLE_AI_ANALYSIS = False  # Set to False for Python-only analysis
 RATE_LIMIT_DELAY = 3  # Increased delay to avoid rate limiting
 MAX_RETRIES = 3
 REQUEST_TIMEOUT = 20
-SHOW_ONLY_FILTERED=True
+CONTINUOUS_MODE = True
+CONTINUOUS_SCAN_INTERVAL = 300
 
-# F&O Stock List (150+ symbols) - Reduced for testing
-# STOCK_LIST = [
-#     'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'HINDUNILVR',
-#     'ICICIBANK', 'KOTAKBANK', 'HCLTECH', 'SBIN', 'BHARTIARTL',
-#     'ITC', 'ASIANPAINT', 'DMART', 'BAJFINANCE', 'MARUTI',
-#     'TITAN', 'SUNPHARMA', 'TATAMOTORS', 'LT', 'AXISBANK'
-# ]
-
+# F&O Stock List (150+ symbols)
 STOCK_LIST = [
     'PERSISTENT', 'IDEA', 'PRESTIGE', 'IIFL', 
     'BAJFINANCE', 'NESTLEIND', 'AUBANK', 'NCC', 'GODREJPROP', 
@@ -77,3 +71,17 @@ HEADERS = {
 
 # Display Configuration
 SHOW_DETAILED_OUTPUT = True
+
+# Trend Classification Thresholds (for STRONG_BULLISH/BEARISH filtering)
+STRONG_TREND_THRESHOLD = 4.5  # net_score threshold for strong trends
+
+# Removed trading-related configuration parameters:
+# - SHOW_ONLY_FILTERED
+# - MIN_STOCK_ACTIVITY
+# - REQ_STEPS_LIMIT
+# - REQ_SEP_STEPS
+# - RUN_AI_ON_FILTERED
+# - VERBOSE_FILTER
+# - KEEP_REJECT_SAMPLES
+# - MIN_ATM_OPTION_LTP
+# - All RELAX_* parameters
