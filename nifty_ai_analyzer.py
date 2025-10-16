@@ -238,10 +238,10 @@ class NiftyAIAnalyzer:
         ----------------------------------------------------------------------------------------------------------------------------------------------------------
         Provide output categorically:
         - Short summary with clear directional bias
-        - Breakdown of conflicting/confirming signals
+        - Breakdown of conflicting/confirming signals in short.
         - ATM+1 vs ATM-1 probability with mathematical justification
-        - Specific entry levels, stop-loss, targets
-        - Risk assessment and contradictory evidence
+        - Specific entry levels, stop-loss, targets, do not provide hedge instead only buy CE/PE.
+        - Do not give Risk assessment and contradictory evidence and FINAL WARNING,RECOMMENDATION,
 
         ----------------------------------------------------------------------------------------------------------------------------------------------------------
         I only take naked Nifty CE/PE buys for intraday. Recommend "buy on dip" or "sell on rise" levels to avoid wrong entries. Include:
