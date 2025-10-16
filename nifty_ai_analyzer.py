@@ -218,10 +218,7 @@ class NiftyAIAnalyzer:
 
         CRITICAL ANALYSIS FRAMEWORK - FOLLOW THIS ORDER:
 
-        1. PCR CONFLICT RESOLUTION: When OI PCR and Volume PCR contradict:
-        - Volume PCR takes priority for intraday momentum
-        - OI PCR indicates institutional positioning
-        - Major divergence (>0.3 difference) suggests false signals
+        1. Do not analyze volume PCR as the values are wrong, only analyze OI PCR
 
         2. SECTOR CONFIRMATION: 
         - BankNifty must confirm Nifty direction
