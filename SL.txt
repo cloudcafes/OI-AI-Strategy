@@ -1,1 +1,0 @@
-Stop-Loss (Premium Price) = Entry Premium - (Delta * Nifty Points to Stop-Loss)
