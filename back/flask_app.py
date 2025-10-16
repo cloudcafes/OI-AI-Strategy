@@ -8,7 +8,7 @@ import signal
 import os
 import sqlite3
 from datetime import datetime
-from Nifty_Option_Chain_Fetcher_Part3 import data_collection_loop, running, signal_handler, DB_FILE
+from nifty_main import data_collection_loop, running, signal_handler, DB_FILE
 
 app = Flask(__name__)
 

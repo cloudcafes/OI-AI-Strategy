@@ -1,4 +1,4 @@
-# Part 1: Nifty_Option_Chain_Fetcher_Part1.py
+# nifty_core_config.py
 import requests
 import datetime
 import time
@@ -18,9 +18,14 @@ SYMBOL = "NIFTY"
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 5
 FETCH_INTERVAL = 600
-DB_FILE = "oi_data-temp.db"
+DB_FILE = "nifty-database.db"
 MAX_FETCH_CYCLES = 10  # Keep exactly 10 fetch cycles (1 to 10)
-DISPLAY_STOCKS_ON_CONSOLE = 0
+
+# Feature flags
+ENABLE_AI_ANALYSIS = True
+ENABLE_LOOP_FETCHING = False
+ENABLE_STOCK_DISPLAY = True
+ENABLE_PCR_CALCULATION = True
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
@@ -28,6 +33,28 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.nseindia.com/get-quotes/derivatives?symbol=NIFTY",
     "X-Requested-With": "XMLHttpRequest"
+}
+
+# Stock-specific headers
+STOCK_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "X-Requested-With": "XMLHttpRequest"
+}
+
+# Top 10 NIFTY 50 stocks with their symbols and weightages
+TOP_NIFTY_STOCKS = {
+    'RELIANCE': {'name': 'RELIANCE INDUSTRIES LTD', 'weight': 0.0924},
+    'HDFCBANK': {'name': 'HDFC BANK LTD', 'weight': 0.0876},
+    'BHARTIARTL': {'name': 'BHARTI AIRTEL LTD', 'weight': 0.0421},
+    'TCS': {'name': 'TATA CONSULTANCY SERVICES LTD', 'weight': 0.0512},
+    'ICICIBANK': {'name': 'ICICI BANK LTD', 'weight': 0.0763},
+    'SBIN': {'name': 'STATE BANK OF INDIA', 'weight': 0.0398},
+    'BAJFINANCE': {'name': 'BAJAJ FINANCE LTD', 'weight': 0.0287},
+    'INFY': {'name': 'INFOSYS LTD', 'weight': 0.0589},
+    'ITC': {'name': 'ITC LTD', 'weight': 0.0271},
+    'LT': {'name': 'LARSEN & TOUBRO LTD', 'weight': 0.0263}
 }
 
 running = True
@@ -56,6 +83,27 @@ def initialize_session():
         return session
     except Exception as e:
         print(f"Session initialization failed: {e}")
+        raise
+
+def create_stock_session_with_retry():
+    """Create session with retry strategy for stocks"""
+    session = requests.Session()
+    retry_strategy = Retry(total=3, status_forcelist=[429, 500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    session.verify = False
+    return session
+
+def initialize_stock_session(symbol):
+    """Initialize session for stock data fetching"""
+    session = create_stock_session_with_retry()
+    try:
+        session.get("https://www.nseindia.com", headers=STOCK_HEADERS, timeout=10)
+        session.get(f"https://www.nseindia.com/get-quotes/equity?symbol={symbol}", headers=STOCK_HEADERS, timeout=10)
+        return session
+    except Exception as e:
+        print(f"Stock session initialization for {symbol} failed: {e}")
         raise
 
 def initialize_database():
@@ -186,3 +234,23 @@ def format_greek_value(value, decimal_places=3):
         return f"{float(value):.{decimal_places}f}"
     except (ValueError, TypeError):
         return "0"
+
+def should_run_ai_analysis():
+    """Check if AI analysis should be performed"""
+    return ENABLE_AI_ANALYSIS
+
+def should_run_loop():
+    """Check if continuous loop fetching should be performed"""
+    return ENABLE_LOOP_FETCHING
+
+def should_display_stocks():
+    """Check if stock data should be displayed"""
+    return ENABLE_STOCK_DISPLAY
+
+def should_calculate_pcr():
+    """Check if PCR calculations should be performed"""
+    return ENABLE_PCR_CALCULATION
+
+def get_fetch_interval():
+    """Get the fetch interval based on configuration"""
+    return FETCH_INTERVAL
