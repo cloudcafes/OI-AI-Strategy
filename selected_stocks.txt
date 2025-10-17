@@ -1,45 +1,316 @@
-🎯 STRONG TREND STOCK FOUND - 2025-10-16 23:28:18 (Iteration #1)
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 14:36:23 (Iteration #1)
 ================================================================================
-📈 LT: STRONG_BULLISH (54.17% confidence)
-   📊 OI PCR: 0.575 | Volume PCR: 0.574
-   ⏰ Discovery Time: 2025-10-16 23:28:18
-   🔍 Total CE OI Change: -632
-   🔍 Total PE OI Change: +2,433
-================================================================================
-
-🎯 STRONG TREND STOCK FOUND - 2025-10-16 23:27:12 (Iteration #1)
-================================================================================
-📈 RBLBANK: STRONG_BULLISH (58.33% confidence)
-   📊 OI PCR: 0.541 | Volume PCR: 0.557
-   ⏰ Discovery Time: 2025-10-16 23:27:12
-   🔍 Total CE OI Change: +791
-   🔍 Total PE OI Change: +1,046
+📈 APLAPOLLO: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.552 | Volume PCR: 0.404
+   ⏰ Discovery Time: 2025-10-17 14:36:23
+   🔍 Total CE OI Change: +129
+   🔍 Total PE OI Change: +253
+   🏷️  Status: FIRST DISCOVERY TODAY
 ================================================================================
 
-🎯 STRONG TREND STOCK FOUND - 2025-10-16 23:27:03 (Iteration #1)
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 14:35:31 (Iteration #1)
 ================================================================================
-📈 HDFCAMC: STRONG_BULLISH (62.5% confidence)
-   📊 OI PCR: 0.543 | Volume PCR: 0.406
-   ⏰ Discovery Time: 2025-10-16 23:27:03
-   🔍 Total CE OI Change: -200
-   🔍 Total PE OI Change: +1,024
+📈 PIDILITIND: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.747 | Volume PCR: 0.316
+   ⏰ Discovery Time: 2025-10-17 14:35:31
+   🔍 Total CE OI Change: -45
+   🔍 Total PE OI Change: +254
+   🏷️  Status: FIRST DISCOVERY TODAY
 ================================================================================
 
-🎯 STRONG TREND STOCK FOUND - 2025-10-16 23:26:26 (Iteration #1)
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:37:09 (Iteration #1)
+================================================================================
+📈 DELHIVERY: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.485 | Volume PCR: 0.361
+   ⏰ Discovery Time: 2025-10-17 13:37:09
+   🔍 Total CE OI Change: -636
+   🔍 Total PE OI Change: +54
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:36:25 (Iteration #1)
+================================================================================
+📈 TATACONSUM: STRONG_BULLISH (79.17% confidence)
+   📊 OI PCR: 0.644 | Volume PCR: 0.355
+   ⏰ Discovery Time: 2025-10-17 13:36:25
+   🔍 Total CE OI Change: -468
+   🔍 Total PE OI Change: +634
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:35:53 (Iteration #1)
+================================================================================
+📈 MAXHEALTH: STRONG_BULLISH (70.83% confidence)
+   📊 OI PCR: 0.830 | Volume PCR: 0.406
+   ⏰ Discovery Time: 2025-10-17 13:35:53
+   🔍 Total CE OI Change: -1,167
+   🔍 Total PE OI Change: +324
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:34:42 (Iteration #1)
+================================================================================
+📈 MARICO: STRONG_BULLISH (62.5% confidence)
+   📊 OI PCR: 0.775 | Volume PCR: 0.366
+   ⏰ Discovery Time: 2025-10-17 13:34:42
+   🔍 Total CE OI Change: -313
+   🔍 Total PE OI Change: +172
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:34:14 (Iteration #1)
+================================================================================
+📈 POWERINDIA: STRONG_BULLISH (50.0% confidence)
+   📊 OI PCR: 0.244 | Volume PCR: 0.316
+   ⏰ Discovery Time: 2025-10-17 13:34:14
+   🔍 Total CE OI Change: -6
+   🔍 Total PE OI Change: +27
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:33:09 (Iteration #1)
+================================================================================
+📈 CUMMINSIND: STRONG_BULLISH (62.5% confidence)
+   📊 OI PCR: 0.704 | Volume PCR: 0.336
+   ⏰ Discovery Time: 2025-10-17 13:33:09
+   🔍 Total CE OI Change: -373
+   🔍 Total PE OI Change: +166
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:32:40 (Iteration #1)
+================================================================================
+📈 TORNTPHARM: STRONG_BULLISH (70.83% confidence)
+   📊 OI PCR: 0.532 | Volume PCR: 0.230
+   ⏰ Discovery Time: 2025-10-17 13:32:40
+   🔍 Total CE OI Change: -250
+   🔍 Total PE OI Change: +83
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:31:20 (Iteration #1)
+================================================================================
+📈 VBL: STRONG_BULLISH (62.5% confidence)
+   📊 OI PCR: 0.682 | Volume PCR: 0.482
+   ⏰ Discovery Time: 2025-10-17 13:31:20
+   🔍 Total CE OI Change: -720
+   🔍 Total PE OI Change: +354
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:30:05 (Iteration #1)
+================================================================================
+📈 BDL: STRONG_BULLISH (62.5% confidence)
+   📊 OI PCR: 0.629 | Volume PCR: 0.254
+   ⏰ Discovery Time: 2025-10-17 13:30:05
+   🔍 Total CE OI Change: -369
+   🔍 Total PE OI Change: +458
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:29:50 (Iteration #1)
+================================================================================
+📈 POLYCAB: STRONG_BULLISH (50.0% confidence)
+   📊 OI PCR: 0.556 | Volume PCR: 0.521
+   ⏰ Discovery Time: 2025-10-17 13:29:50
+   🔍 Total CE OI Change: +1,611
+   🔍 Total PE OI Change: +1,384
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:29:37 (Iteration #1)
+================================================================================
+📈 GODREJCP: STRONG_BULLISH (79.17% confidence)
+   📊 OI PCR: 0.590 | Volume PCR: 0.339
+   ⏰ Discovery Time: 2025-10-17 13:29:37
+   🔍 Total CE OI Change: -1,205
+   🔍 Total PE OI Change: +509
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:28:39 (Iteration #1)
+================================================================================
+📈 BHARTIARTL: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.712 | Volume PCR: 0.435
+   ⏰ Discovery Time: 2025-10-17 13:28:39
+   🔍 Total CE OI Change: +3,449
+   🔍 Total PE OI Change: +6,222
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:28:30 (Iteration #1)
+================================================================================
+📈 HAVELLS: STRONG_BULLISH (50.0% confidence)
+   📊 OI PCR: 0.622 | Volume PCR: 0.516
+   ⏰ Discovery Time: 2025-10-17 13:28:30
+   🔍 Total CE OI Change: +508
+   🔍 Total PE OI Change: +683
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:28:21 (Iteration #1)
+================================================================================
+📈 BRITANNIA: STRONG_BULLISH (79.17% confidence)
+   📊 OI PCR: 0.754 | Volume PCR: 0.384
+   ⏰ Discovery Time: 2025-10-17 13:28:21
+   🔍 Total CE OI Change: -703
+   🔍 Total PE OI Change: +917
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:24:44 (Iteration #1)
+================================================================================
+📈 ANGELONE: STRONG_BULLISH (50.0% confidence)
+   📊 OI PCR: 1.017 | Volume PCR: 0.602
+   ⏰ Discovery Time: 2025-10-17 13:24:44
+   🔍 Total CE OI Change: -1,147
+   🔍 Total PE OI Change: +764
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:23:56 (Iteration #1)
+================================================================================
+📈 TVSMOTOR: STRONG_BULLISH (58.33% confidence)
+   📊 OI PCR: 0.979 | Volume PCR: 0.456
+   ⏰ Discovery Time: 2025-10-17 13:23:56
+   🔍 Total CE OI Change: -475
+   🔍 Total PE OI Change: +694
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:22:37 (Iteration #1)
+================================================================================
+📈 OBEROIRLTY: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.828 | Volume PCR: 0.459
+   ⏰ Discovery Time: 2025-10-17 13:22:37
+   🔍 Total CE OI Change: -1,050
+   🔍 Total PE OI Change: -82
+   🏷️  Status: FIRST DISCOVERY TODAY
+================================================================================
+
+🎯 UNIQUE - STRONG TREND STOCK FOUND - 2025-10-17 13:21:17 (Iteration #1)
 ================================================================================
 📈 GODREJPROP: STRONG_BULLISH (54.17% confidence)
-   📊 OI PCR: 0.738 | Volume PCR: 0.460
-   ⏰ Discovery Time: 2025-10-16 23:26:26
-   🔍 Total CE OI Change: -389
-   🔍 Total PE OI Change: +686
+   📊 OI PCR: 0.883 | Volume PCR: 0.510
+   ⏰ Discovery Time: 2025-10-17 13:21:17
+   🔍 Total CE OI Change: -612
+   🔍 Total PE OI Change: +1,031
+   🏷️  Status: FIRST DISCOVERY TODAY
 ================================================================================
 
-🎯 STRONG TREND STOCK FOUND - 2025-10-16 23:25:52 (Iteration #1)
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 12:08:21 (Iteration #1)
 ================================================================================
-📈 IDEA: STRONG_BULLISH (54.17% confidence)
-   📊 OI PCR: 0.599 | Volume PCR: 0.455
-   ⏰ Discovery Time: 2025-10-16 23:25:52
-   🔍 Total CE OI Change: -236
-   🔍 Total PE OI Change: +957
+📈 BRITANNIA: STRONG_BULLISH (70.83% confidence)
+   📊 OI PCR: 0.737 | Volume PCR: 0.362
+   ⏰ Discovery Time: 2025-10-17 12:08:21
+   🔍 Total CE OI Change: -665
+   🔍 Total PE OI Change: +814
 ================================================================================
 
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 12:06:52 (Iteration #1)
+================================================================================
+📈 DABUR: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.572 | Volume PCR: 0.403
+   ⏰ Discovery Time: 2025-10-17 12:06:52
+   🔍 Total CE OI Change: -1,484
+   🔍 Total PE OI Change: -157
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 12:05:52 (Iteration #1)
+================================================================================
+📈 BEL: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.611 | Volume PCR: 0.359
+   ⏰ Discovery Time: 2025-10-17 12:05:52
+   🔍 Total CE OI Change: -439
+   🔍 Total PE OI Change: +1,085
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 12:04:40 (Iteration #1)
+================================================================================
+📈 ANGELONE: STRONG_BULLISH (58.33% confidence)
+   📊 OI PCR: 1.071 | Volume PCR: 0.579
+   ⏰ Discovery Time: 2025-10-17 12:04:40
+   🔍 Total CE OI Change: -1,160
+   🔍 Total PE OI Change: +1,201
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 12:03:54 (Iteration #1)
+================================================================================
+📈 TVSMOTOR: STRONG_BULLISH (50.0% confidence)
+   📊 OI PCR: 0.975 | Volume PCR: 0.437
+   ⏰ Discovery Time: 2025-10-17 12:03:54
+   🔍 Total CE OI Change: -529
+   🔍 Total PE OI Change: +579
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 12:02:34 (Iteration #1)
+================================================================================
+📈 OBEROIRLTY: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.840 | Volume PCR: 0.423
+   ⏰ Discovery Time: 2025-10-17 12:02:34
+   🔍 Total CE OI Change: -1,068
+   🔍 Total PE OI Change: -22
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 12:01:12 (Iteration #1)
+================================================================================
+📈 GODREJPROP: STRONG_BULLISH (62.5% confidence)
+   📊 OI PCR: 0.893 | Volume PCR: 0.469
+   ⏰ Discovery Time: 2025-10-17 12:01:12
+   🔍 Total CE OI Change: -783
+   🔍 Total PE OI Change: +973
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 10:29:01 (Iteration #4)
+================================================================================
+📈 ASIANPAINT: STRONG_BULLISH (50.0% confidence)
+   📊 OI PCR: 0.680 | Volume PCR: 0.405
+   ⏰ Discovery Time: 2025-10-17 10:29:01
+   🔍 Total CE OI Change: +7,732
+   🔍 Total PE OI Change: +6,580
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 10:21:02 (Iteration #3)
+================================================================================
+📈 AXISBANK: STRONG_BULLISH (62.5% confidence)
+   📊 OI PCR: 0.688 | Volume PCR: 0.765
+   ⏰ Discovery Time: 2025-10-17 10:21:02
+   🔍 Total CE OI Change: -3,102
+   🔍 Total PE OI Change: +3,108
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 10:20:48 (Iteration #3)
+================================================================================
+📈 MARUTI: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.620 | Volume PCR: 0.411
+   ⏰ Discovery Time: 2025-10-17 10:20:48
+   🔍 Total CE OI Change: -259
+   🔍 Total PE OI Change: +2,575
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 10:15:13 (Iteration #3)
+================================================================================
+📈 GODREJCP: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.506 | Volume PCR: 0.298
+   ⏰ Discovery Time: 2025-10-17 10:15:13
+   🔍 Total CE OI Change: +297
+   🔍 Total PE OI Change: +616
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 10:11:30 (Iteration #3)
+================================================================================
+📈 BEL: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.601 | Volume PCR: 0.390
+   ⏰ Discovery Time: 2025-10-17 10:11:30
+   🔍 Total CE OI Change: -577
+   🔍 Total PE OI Change: +784
+================================================================================
+
+🎯 STRONG TREND STOCK FOUND - 2025-10-17 09:54:07 (Iteration #2)
+================================================================================
+📈 GODREJCP: STRONG_BULLISH (54.17% confidence)
+   📊 OI PCR: 0.497 | Volume PCR: 0.305
+   ⏰ Discovery Time: 2025-10-17 09:54:07
+   🔍 Total CE OI Change: +470
+   🔍 Total PE OI Change: +626
+================================================================================
