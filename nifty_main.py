@@ -5,23 +5,25 @@ import signal
 import sys
 import os
 from nifty_core_config import (
-    SYMBOL, FETCH_INTERVAL, DB_FILE, MAX_FETCH_CYCLES, running,
-    signal_handler, initialize_database, initialize_session,
-    format_greek_value, get_next_cycle, should_run_ai_analysis,
+    SYMBOL, FETCH_INTERVAL, running,
+    signal_handler, initialize_session,
+    format_greek_value, should_run_ai_analysis,
     should_run_loop, should_display_stocks, get_fetch_interval,
     TOP_NIFTY_STOCKS
 )
 from nifty_data_fetcher import (
     fetch_option_chain, parse_option_chain, calculate_pcr_values,
-    fetch_banknifty_data, fetch_all_stock_data, save_oi_data_to_db
+    fetch_banknifty_data, fetch_all_stock_data
 )
 from nifty_ai_analyzer import NiftyAIAnalyzer
+from nifty_file_logger import save_ai_query_data
+
 
 # Initialize AI analyzer globally
 ai_analyzer = NiftyAIAnalyzer()
 
 def display_nifty_data(oi_data, oi_pcr, volume_pcr):
-    """Display Nifty OI data without Greeks"""
+    """Display Nifty OI data without Greeks - Show ALL strikes"""
     if not oi_data:
         return
     
@@ -30,6 +32,7 @@ def display_nifty_data(oi_data, oi_pcr, volume_pcr):
     
     print(f"\n{'='*80}")
     print(f"OI Data for NIFTY - Current: {current_value}, Expiry: {expiry_date}")
+    print(f"Full Chain PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}")
     print(f"{'='*80}")
     print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
     print(
@@ -74,14 +77,16 @@ def display_nifty_data(oi_data, oi_pcr, volume_pcr):
     print(f"NIFTY PCR: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}")
 
 def display_banknifty_data(banknifty_data):
-    """Display BANKNIFTY OI data without Greeks"""
+    """Display BANKNIFTY OI data without Greeks - Show ALL strikes"""
     if not banknifty_data:
         return
     
     current_value = banknifty_data['current_value']
+    expiry_date = banknifty_data['expiry_date']
     
     print(f"\n{'='*80}")
-    print(f"OI Data for BANKNIFTY - Current: {current_value}")
+    print(f"OI Data for BANKNIFTY - Current: {current_value}, Expiry: {expiry_date}")
+    print(f"Full Chain PCR: OI={banknifty_data['oi_pcr']:.2f}, Volume={banknifty_data['volume_pcr']:.2f}")
     print(f"{'='*80}")
     print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
     print(
@@ -126,7 +131,7 @@ def display_banknifty_data(banknifty_data):
     print(f"BANKNIFTY PCR: OI PCR = {banknifty_data['oi_pcr']:.2f}, Volume PCR = {banknifty_data['volume_pcr']:.2f}")
 
 def display_stock_data(stock_data):
-    """Display stock OI data without Greeks in required format"""
+    """Display stock OI data without Greeks in required format - Show ALL strikes"""
     if not stock_data:
         return
         
@@ -190,16 +195,12 @@ def display_stocks_summary(stock_data):
     print("-" * 80)
     
     for symbol, info in stock_data.items():
-        rows = info.get('data', [])
-        if not rows:
-            continue
-            
-        stock_price = rows[0].get('stock_value', 0)
+        price = info.get('current_price', 0)
         oi_pcr = info.get('oi_pcr', 0)
         vol_pcr = info.get('volume_pcr', 0)
         weight = info.get('weight', 0)
         
-        print(f"{symbol:<15} {weight:<10.4f} {stock_price:<10} {oi_pcr:<10.2f} {vol_pcr:<10.2f}")
+        print(f"{symbol:<15} {weight:<10.4f} {price:<10} {oi_pcr:<10.2f} {vol_pcr:<10.2f}")
     
     print("=" * 80)
 
@@ -216,10 +217,10 @@ def data_collection_cycle():
         data = fetch_option_chain(session)
         oi_data = parse_option_chain(data)
         
-        # Save to database and get PCR values
-        oi_pcr, volume_pcr, fetch_cycle, total_fetches = save_oi_data_to_db(oi_data)
+        # Calculate PCR values for full chain
+        oi_pcr, volume_pcr = calculate_pcr_values(oi_data)
         
-        # Display Nifty data
+        # Display Nifty data (ALL strikes)
         display_nifty_data(oi_data, oi_pcr, volume_pcr)
         
         # Fetch BANKNIFTY data
@@ -230,9 +231,24 @@ def data_collection_cycle():
         # Fetch all stock data
         stock_data = fetch_all_stock_data()
         
+        # NEW FEATURE: Save AI query data to file (always executed)
+        print("\n💾 Saving AI query data to file...")
+        file_path = save_ai_query_data(
+            oi_data=oi_data,
+            oi_pcr=oi_pcr,
+            volume_pcr=volume_pcr,
+            current_nifty=oi_data[0]['nifty_value'],
+            expiry_date=oi_data[0]['expiry_date'],
+            banknifty_data=banknifty_data
+        )
+        
         # Display stocks summary if enabled
         if should_display_stocks() and stock_data:
             display_stocks_summary(stock_data)
+            
+            # Display individual stock data if enabled
+            for symbol, info in stock_data.items():
+                display_stock_data(info['data'])
         
         # AI Analysis if enabled
         if should_run_ai_analysis():
@@ -243,11 +259,10 @@ def data_collection_cycle():
             try:
                 ai_analysis = ai_analyzer.get_ai_analysis(
                     oi_data=oi_data,
-                    current_cycle=fetch_cycle,
-                    total_fetches=total_fetches,
                     oi_pcr=oi_pcr,
                     volume_pcr=volume_pcr,
                     current_nifty=oi_data[0]['nifty_value'],
+                    expiry_date=oi_data[0]['expiry_date'],
                     stock_data=stock_data,
                     banknifty_data=banknifty_data
                 )
@@ -261,9 +276,9 @@ def data_collection_cycle():
         # Display brief info
         print(f"Nifty: {oi_data[0]['nifty_value']}, Expiry: {oi_data[0]['expiry_date']}")
         if banknifty_data:
-            print(f"BankNifty: {banknifty_data['current_value']}")
+            print(f"BankNifty: {banknifty_data['current_value']}, Expiry: {banknifty_data['expiry_date']}")
         
-        print(f"✅ Data collection cycle {fetch_cycle} completed.")
+        print(f"✅ Data collection cycle completed.")
         
         return True
         
@@ -281,15 +296,12 @@ def data_collection_loop():
     """Main data collection loop with configurable behavior"""
     global running
     
-    # Initialize database
-    initialize_database()
-    
     try:
         if should_run_loop():
             print(f"Starting continuous data collection (interval: {get_fetch_interval()} seconds)")
             cycle_count = 0
             
-            while running and cycle_count < MAX_FETCH_CYCLES:
+            while running:
                 cycle_count += 1
                 print(f"\n{'#'*80}")
                 print(f"DATA COLLECTION CYCLE {cycle_count}")
@@ -302,7 +314,7 @@ def data_collection_loop():
                     time.sleep(30)  # Shorter wait on failure
                     continue
                 
-                if cycle_count < MAX_FETCH_CYCLES and running:
+                if running:
                     print(f"\nWaiting {get_fetch_interval()} seconds for next cycle...")
                     # Wait with interruptible sleep
                     for _ in range(get_fetch_interval()):
@@ -325,21 +337,20 @@ def data_collection_loop():
         print("Data collection stopped.")
 
 def main():
-    print(f"Starting {SYMBOL} OI Data Logger")
+    print(f"Starting {SYMBOL} OI Data Analyzer")
     print(f"Configuration:")
     print(f"  AI Analysis: {'ENABLED' if should_run_ai_analysis() else 'DISABLED'}")
     print(f"  Loop Mode: {'ENABLED' if should_run_loop() else 'DISABLED'}")
     print(f"  Stock Display: {'ENABLED' if should_display_stocks() else 'DISABLED'}")
-    print(f"  Data will be saved to {DB_FILE}")
+    print(f"  Data Processing: Full Options Chains")
     
     if should_run_loop():
         print(f"  Fetch interval: {get_fetch_interval()} seconds")
-        print(f"  Maximum cycles: {MAX_FETCH_CYCLES}")
     else:
         print("  Single execution mode")
     
     if should_run_ai_analysis():
-        print("  DeepSeek AI analysis will be performed for each cycle")
+        print("  DeepSeek AI analysis will be performed")
     else:
         print("  AI analysis disabled - displaying raw data only")
     

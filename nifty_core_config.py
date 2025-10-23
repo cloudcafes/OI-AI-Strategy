@@ -5,7 +5,6 @@ import time
 import signal
 import sys
 import urllib3
-import sqlite3
 import os
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -18,14 +17,11 @@ SYMBOL = "NIFTY"
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 5
 FETCH_INTERVAL = 600
-DB_FILE = "nifty-database.db"
-MAX_FETCH_CYCLES = 10  # Keep exactly 10 fetch cycles (1 to 10)
 
 # Feature flags
-ENABLE_AI_ANALYSIS = True
+ENABLE_AI_ANALYSIS = False
 ENABLE_LOOP_FETCHING = False
-ENABLE_STOCK_DISPLAY = True
-ENABLE_PCR_CALCULATION = True
+ENABLE_STOCK_DISPLAY = False
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
@@ -106,84 +102,6 @@ def initialize_stock_session(symbol):
         print(f"Stock session initialization for {symbol} failed: {e}")
         raise
 
-def initialize_database():
-    """Initialize SQLite database and reset cycles to start from 1"""
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    cursor = conn.cursor()
-    
-    # Create table for OI data without Greek values columns (delta, gamma, theta, vega removed)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS oi_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fetch_cycle INTEGER,
-            fetch_timestamp TEXT,
-            nifty_value INTEGER,
-            expiry_date TEXT,
-            strike_price INTEGER,
-            ce_change_oi INTEGER,
-            ce_volume INTEGER,
-            ce_ltp REAL,
-            ce_oi INTEGER,
-            ce_iv REAL,
-            pe_change_oi INTEGER,
-            pe_volume INTEGER,
-            pe_ltp REAL,
-            pe_oi INTEGER,
-            pe_iv REAL,
-            chg_oi_diff INTEGER,
-            created_at TEXT
-        )
-    ''')
-    
-    # Create simple cycle tracker
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS app_state (
-            key TEXT PRIMARY KEY,
-            value INTEGER
-        )
-    ''')
-    
-    # Initialize or reset current cycle to 1
-    cursor.execute('''
-        INSERT OR REPLACE INTO app_state (key, value)
-        VALUES ('current_cycle', 1), ('total_fetches', 0)
-    ''')
-    
-    # Clean up any existing data to start fresh
-    cursor.execute('DELETE FROM oi_data')
-    
-    conn.commit()
-    conn.close()
-    #print(f"Database initialized: {DB_FILE}")
-    #print("Cycle counter reset to 1")
-
-def get_next_cycle():
-    """Get the next cycle number (1-10 in circular manner)"""
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    cursor = conn.cursor()
-    
-    # Get current cycle
-    cursor.execute("SELECT value FROM app_state WHERE key = 'current_cycle'")
-    current_cycle = cursor.fetchone()[0]
-    
-    # Get total fetches
-    cursor.execute("SELECT value FROM app_state WHERE key = 'total_fetches'")
-    total_fetches = cursor.fetchone()[0]
-    
-    # Calculate next cycle
-    next_cycle = current_cycle + 1
-    if next_cycle > MAX_FETCH_CYCLES:
-        next_cycle = 1
-    
-    # Update current cycle and total fetches
-    cursor.execute("UPDATE app_state SET value = ? WHERE key = 'current_cycle'", (next_cycle,))
-    cursor.execute("UPDATE app_state SET value = ? WHERE key = 'total_fetches'", (total_fetches + 1,))
-    
-    conn.commit()
-    conn.close()
-    
-    return current_cycle, total_fetches + 1
-
 def parse_numeric_value(value):
     """Parse numeric values that may contain commas and convert to integer"""
     if value is None:
@@ -246,10 +164,6 @@ def should_run_loop():
 def should_display_stocks():
     """Check if stock data should be displayed"""
     return ENABLE_STOCK_DISPLAY
-
-def should_calculate_pcr():
-    """Check if PCR calculations should be performed"""
-    return ENABLE_PCR_CALCULATION
 
 def get_fetch_interval():
     """Get the fetch interval based on configuration"""
