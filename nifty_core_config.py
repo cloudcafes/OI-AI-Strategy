@@ -16,7 +16,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 SYMBOL = "NIFTY"
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 5
-FETCH_INTERVAL = 600
+FETCH_INTERVAL = 800
 
 # Feature flags
 ENABLE_AI_ANALYSIS = False
