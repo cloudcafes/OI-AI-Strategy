@@ -13,7 +13,7 @@ class WebSocketMultiplexer:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
         self.model_channels = {
-            "deepseek_r1": "model1",
+            "deepseek-r1:latest": "model1",
             "cloud_deepseek": "model2", 
             "llama3": "model3",
             "mistral": "model4"
