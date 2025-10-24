@@ -56,7 +56,7 @@ class ModelRegistry:
                     "temperature": 0.1,
                     "top_p": 1.0,
                     "max_tokens": 1200,
-                    "timeout": 120
+                    "timeout": 600
                 }
             ),
             ModelConfig(
@@ -86,7 +86,7 @@ class ModelRegistry:
                     "temperature": 0.1,
                     "top_p": 0.9,
                     "max_tokens": 1000,
-                    "timeout": 120
+                    "timeout": 600
                 }
             ),
             ModelConfig(
@@ -101,7 +101,7 @@ class ModelRegistry:
                     "temperature": 0.1,
                     "top_p": 0.9,
                     "max_tokens": 1000,
-                    "timeout": 120
+                    "timeout": 600
                 }
             )
         ]

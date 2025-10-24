@@ -83,7 +83,7 @@ MODEL_PARAMETERS = {
         "temperature": 0.1,
         "top_p": 1.0,
         "max_tokens": 1200,
-        "timeout": 120,
+        "timeout": 600,
         "ollama_model_name": "deepseek-r1:latest"
     },
     "cloud_deepseek": {
@@ -96,13 +96,13 @@ MODEL_PARAMETERS = {
         "temperature": 0.1,
         "top_p": 0.9,
         "max_tokens": 1000,
-        "timeout": 120
+        "timeout": 600
     },
     "mistral": {
         "temperature": 0.1,
         "top_p": 0.9,
         "max_tokens": 1000,
-        "timeout": 120
+        "timeout": 600
     }
 }
 
