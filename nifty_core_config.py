@@ -36,7 +36,7 @@ MODEL_MISTRAL_ENABLED = False
 
 # Local AI Configuration
 LOCAL_AI_ENABLED = True
-OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_BASE_URL = "http://localhost:11434/api/generate"
 OLLAMA_DEFAULT_MODEL = "deepseek-r1:latest"
 OLLAMA_TIMEOUT = 120
 
