@@ -279,3 +279,95 @@ def fetch_all_stock_data():
             continue
     
     return stock_data
+
+def fetch_market_data_for_multi_model():
+    """
+    Fetch complete market data for multi-model analysis
+    Returns all necessary data in a single dictionary
+    """
+    session = None
+    try:
+        print("🔄 Fetching market data for multi-model analysis...")
+        
+        # Initialize session
+        session = initialize_session()
+        
+        # Fetch Nifty data
+        nifty_data = fetch_option_chain(session)
+        oi_data = parse_option_chain(nifty_data)
+        oi_pcr, volume_pcr = calculate_pcr_values(oi_data)
+        
+        # Fetch BankNifty data
+        banknifty_data = fetch_banknifty_data()
+        
+        # Fetch stock data
+        stock_data = fetch_all_stock_data()
+        
+        # Prepare complete data package
+        market_data = {
+            'oi_data': oi_data,
+            'oi_pcr': oi_pcr,
+            'volume_pcr': volume_pcr,
+            'current_nifty': oi_data[0]['nifty_value'] if oi_data else 0,
+            'expiry_date': oi_data[0]['expiry_date'] if oi_data else "N/A",
+            'banknifty_data': banknifty_data,
+            'stock_data': stock_data,
+            'fetch_time': datetime.datetime.now().isoformat(),
+            'status': 'success'
+        }
+        
+        print("✅ Market data fetched successfully for multi-model analysis")
+        return market_data
+        
+    except Exception as e:
+        print(f"❌ Error fetching market data for multi-model: {e}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'fetch_time': datetime.datetime.now().isoformat()
+        }
+    finally:
+        if session:
+            session.close()
+
+def test_data_fetcher():
+    """Test function for data fetcher"""
+    print("=== Testing Data Fetcher ===")
+    
+    try:
+        # Test Nifty data fetching
+        session = initialize_session()
+        data = fetch_option_chain(session)
+        oi_data = parse_option_chain(data)
+        oi_pcr, volume_pcr = calculate_pcr_values(oi_data)
+        
+        print(f"✅ Nifty data fetched: {len(oi_data)} strikes")
+        print(f"✅ PCR values: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}")
+        
+        # Test BankNifty data
+        banknifty_data = fetch_banknifty_data()
+        if banknifty_data:
+            print(f"✅ BankNifty data fetched: {len(banknifty_data['data'])} strikes")
+        
+        # Test stock data (first stock only for testing)
+        test_symbol = list(TOP_NIFTY_STOCKS.keys())[0]
+        stock_session = initialize_stock_session(test_symbol)
+        stock_data = fetch_stock_option_chain(stock_session, test_symbol)
+        parsed_stock_data = parse_stock_option_chain(stock_data, test_symbol)
+        
+        print(f"✅ Stock data fetched for {test_symbol}: {len(parsed_stock_data)} strikes")
+        
+        # Test multi-model data fetch
+        multi_model_data = fetch_market_data_for_multi_model()
+        if multi_model_data['status'] == 'success':
+            print("✅ Multi-model data fetch successful")
+        else:
+            print(f"❌ Multi-model data fetch failed: {multi_model_data.get('error')}")
+        
+        print("✅ All data fetcher tests completed successfully")
+        
+    except Exception as e:
+        print(f"❌ Data fetcher test failed: {e}")
+
+if __name__ == "__main__":
+    test_data_fetcher()

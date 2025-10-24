@@ -9,15 +9,21 @@ from nifty_core_config import (
     signal_handler, initialize_session,
     format_greek_value, should_run_ai_analysis,
     should_run_loop, should_display_stocks, get_fetch_interval,
-    TOP_NIFTY_STOCKS
+    TOP_NIFTY_STOCKS, should_run_multi_model_analysis,
+    is_multi_model_enabled, get_enabled_models
 )
 from nifty_data_fetcher import (
     fetch_option_chain, parse_option_chain, calculate_pcr_values,
-    fetch_banknifty_data, fetch_all_stock_data
+    fetch_banknifty_data, fetch_all_stock_data, fetch_market_data_for_multi_model
 )
 from nifty_ai_analyzer import NiftyAIAnalyzer
 from nifty_file_logger import save_ai_query_data
 
+# Import multi-model components if enabled
+if is_multi_model_enabled():
+    from nifty_model_manager import ModelManager, model_manager
+    from nifty_model_registry import model_registry
+    from nifty_websocket_multiplexer import WebSocketMultiplexer, websocket_multiplexer
 
 # Initialize AI analyzer globally
 ai_analyzer = NiftyAIAnalyzer()
@@ -204,6 +210,66 @@ def display_stocks_summary(stock_data):
     
     print("=" * 80)
 
+def run_multi_model_analysis():
+    """Run multi-model analysis if enabled"""
+    if not is_multi_model_enabled():
+        print("⚠️ Multi-model analysis is disabled")
+        return None
+        
+    try:
+        print("\n" + "="*80)
+        print("🚀 STARTING MULTI-MODEL ANALYSIS")
+        print("="*80)
+        
+        # Fetch market data
+        market_data = fetch_market_data_for_multi_model()
+        if market_data.get('status') != 'success':
+            print(f"❌ Failed to fetch market data: {market_data.get('error')}")
+            return None
+        
+        # Get enabled models
+        enabled_models = get_enabled_models()
+        if not enabled_models:
+            print("⚠️ No models enabled for execution")
+            return None
+            
+        print(f"📊 Executing {len(enabled_models)} models: {', '.join(enabled_models)}")
+        
+        # Execute models (this would be connected to WebSocket in full implementation)
+        # For now, we'll run a simplified version
+        for model_name in enabled_models:
+            print(f"\n🧠 Executing {model_name}...")
+            try:
+                # Create analyzer for this model
+                analyzer = NiftyAIAnalyzer(model_name=model_name)
+                
+                # Run analysis
+                analysis_result = analyzer.get_ai_analysis(
+                    oi_data=market_data['oi_data'],
+                    oi_pcr=market_data['oi_pcr'],
+                    volume_pcr=market_data['volume_pcr'],
+                    current_nifty=market_data['current_nifty'],
+                    expiry_date=market_data['expiry_date'],
+                    stock_data=market_data['stock_data'],
+                    banknifty_data=market_data['banknifty_data'],
+                    model_name=model_name
+                )
+                
+                print(f"✅ {model_name} analysis completed")
+                print(analysis_result)
+                print("-" * 80)
+                
+            except Exception as e:
+                print(f"❌ {model_name} analysis failed: {e}")
+                continue
+        
+        print("🎉 Multi-model analysis completed!")
+        return market_data
+        
+    except Exception as e:
+        print(f"❌ Multi-model analysis failed: {e}")
+        return None
+
 def data_collection_cycle():
     """Perform one complete data collection and analysis cycle"""
     session = None
@@ -212,24 +278,39 @@ def data_collection_cycle():
         if session is None:
             session = initialize_session()
         
-        # Fetch Nifty data
-        print(f"Fetching {SYMBOL} option chain...")
-        data = fetch_option_chain(session)
-        oi_data = parse_option_chain(data)
-        
-        # Calculate PCR values for full chain
-        oi_pcr, volume_pcr = calculate_pcr_values(oi_data)
+        # Check if multi-model analysis should run
+        if should_run_multi_model_analysis():
+            multi_model_result = run_multi_model_analysis()
+            if multi_model_result:
+                # Use multi-model data for display
+                oi_data = multi_model_result['oi_data']
+                oi_pcr = multi_model_result['oi_pcr']
+                volume_pcr = multi_model_result['volume_pcr']
+                banknifty_data = multi_model_result['banknifty_data']
+                stock_data = multi_model_result['stock_data']
+            else:
+                # Fall back to regular data collection
+                print("🔄 Falling back to regular data collection...")
+                data = fetch_option_chain(session)
+                oi_data = parse_option_chain(data)
+                oi_pcr, volume_pcr = calculate_pcr_values(oi_data)
+                banknifty_data = fetch_banknifty_data()
+                stock_data = fetch_all_stock_data()
+        else:
+            # Regular data collection
+            print(f"Fetching {SYMBOL} option chain...")
+            data = fetch_option_chain(session)
+            oi_data = parse_option_chain(data)
+            oi_pcr, volume_pcr = calculate_pcr_values(oi_data)
+            banknifty_data = fetch_banknifty_data()
+            stock_data = fetch_all_stock_data()
         
         # Display Nifty data (ALL strikes)
         display_nifty_data(oi_data, oi_pcr, volume_pcr)
         
-        # Fetch BANKNIFTY data
-        banknifty_data = fetch_banknifty_data()
+        # Display BANKNIFTY data if available
         if banknifty_data:
             display_banknifty_data(banknifty_data)
-        
-        # Fetch all stock data
-        stock_data = fetch_all_stock_data()
         
         # NEW FEATURE: Save AI query data to file (always executed)
         print("\n💾 Saving AI query data to file...")
@@ -250,10 +331,10 @@ def data_collection_cycle():
             for symbol, info in stock_data.items():
                 display_stock_data(info['data'])
         
-        # AI Analysis if enabled
-        if should_run_ai_analysis():
+        # Legacy AI Analysis if enabled (and not using multi-model)
+        if should_run_ai_analysis() and not should_run_multi_model_analysis():
             print("\n" + "="*80)
-            print("REQUESTING AI ANALYSIS...")
+            print("REQUESTING LEGACY AI ANALYSIS...")
             print("="*80)
             
             try:
@@ -339,18 +420,27 @@ def data_collection_loop():
 def main():
     print(f"Starting {SYMBOL} OI Data Analyzer")
     print(f"Configuration:")
-    print(f"  AI Analysis: {'ENABLED' if should_run_ai_analysis() else 'DISABLED'}")
+    print(f"  Multi-Model Analysis: {'ENABLED' if is_multi_model_enabled() else 'DISABLED'}")
+    print(f"  Legacy AI Analysis: {'ENABLED' if should_run_ai_analysis() else 'DISABLED'}")
     print(f"  Loop Mode: {'ENABLED' if should_run_loop() else 'DISABLED'}")
     print(f"  Stock Display: {'ENABLED' if should_display_stocks() else 'DISABLED'}")
     print(f"  Data Processing: Full Options Chains")
+    
+    if is_multi_model_enabled():
+        enabled_models = get_enabled_models()
+        print(f"  Enabled Models: {len(enabled_models)} models")
+        for model in enabled_models:
+            print(f"    - {model}")
     
     if should_run_loop():
         print(f"  Fetch interval: {get_fetch_interval()} seconds")
     else:
         print("  Single execution mode")
     
-    if should_run_ai_analysis():
-        print("  DeepSeek AI analysis will be performed")
+    if should_run_ai_analysis() and not is_multi_model_enabled():
+        print("  Legacy DeepSeek AI analysis will be performed")
+    elif is_multi_model_enabled():
+        print("  Multi-model AI analysis will be performed")
     else:
         print("  AI analysis disabled - displaying raw data only")
     

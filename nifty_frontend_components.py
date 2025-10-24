@@ -1,0 +1,810 @@
+# nifty_frontend_components.py
+"""
+Frontend components for multi-model Nifty option chain analyzer
+Contains HTML/CSS/JS components for 4-model parallel display
+"""
+
+def get_multi_model_html() -> str:
+    """
+    Returns complete HTML for 4-model parallel interface
+    """
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Nifty Option Chain - Multi-Model Analysis</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+                color: #e0e0e0;
+                min-height: 100vh;
+                padding: 20px;
+            }
+            
+            .container { 
+                max-width: 1800px; 
+                margin: 0 auto;
+                background: #2d2d2d;
+                border-radius: 12px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                overflow: hidden;
+                border: 1px solid #404040;
+            }
+            
+            .header {
+                background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                color: white;
+                padding: 30px;
+                text-align: center;
+                border-bottom: 1px solid #404040;
+            }
+            
+            .header h1 {
+                font-size: 2.5em;
+                margin-bottom: 10px;
+                font-weight: 700;
+            }
+            
+            .header p {
+                font-size: 1.2em;
+                opacity: 0.9;
+            }
+            
+            .controls-panel {
+                background: #363636;
+                padding: 25px;
+                border-bottom: 1px solid #404040;
+            }
+            
+            .global-controls {
+                display: flex;
+                justify-content: center;
+                gap: 20px;
+                margin-bottom: 25px;
+                flex-wrap: wrap;
+            }
+            
+            .model-controls {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 15px;
+            }
+            
+            .model-control-card {
+                background: #2d2d2d;
+                padding: 20px;
+                border-radius: 8px;
+                border: 2px solid #404040;
+                text-align: center;
+                transition: all 0.3s ease;
+            }
+            
+            .model-control-card.enabled {
+                border-color: #28a745;
+                background: linear-gradient(135deg, #155724 0%, #1e7e34 20%, #2d2d2d 100%);
+            }
+            
+            .model-control-card.disabled {
+                border-color: #dc3545;
+                background: linear-gradient(135deg, #721c24 0%, #c82333 20%, #2d2d2d 100%);
+            }
+            
+            .model-name {
+                font-size: 1.1em;
+                font-weight: 600;
+                margin-bottom: 10px;
+            }
+            
+            .model-status {
+                font-size: 0.9em;
+                margin-bottom: 15px;
+                padding: 5px 10px;
+                border-radius: 15px;
+                display: inline-block;
+            }
+            
+            .status-ready { background: #6c757d; color: white; }
+            .status-running { background: #ffc107; color: black; }
+            .status-completed { background: #28a745; color: white; }
+            .status-error { background: #dc3545; color: white; }
+            
+            .btn {
+                padding: 12px 20px;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                transition: all 0.3s ease;
+                min-width: 120px;
+            }
+            
+            .btn:hover:not(:disabled) {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+            
+            .btn:disabled {
+                background: #6c757d !important;
+                cursor: not-allowed;
+                transform: none !important;
+                box-shadow: none;
+                opacity: 0.6;
+            }
+            
+            .start-btn {
+                background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                color: white;
+            }
+            
+            .stop-btn {
+                background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
+                color: white;
+            }
+            
+            .toggle-btn {
+                background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
+                color: white;
+                min-width: 100px;
+            }
+            
+            .clear-btn {
+                background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+                color: black;
+                min-width: 80px;
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+            
+            .models-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 0;
+                height: 70vh;
+            }
+            
+            .model-output-panel {
+                background: #1a1a1a;
+                border-right: 1px solid #404040;
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+            }
+            
+            .model-output-panel:last-child {
+                border-right: none;
+            }
+            
+            .panel-header {
+                background: #363636;
+                padding: 15px 20px;
+                border-bottom: 1px solid #404040;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .panel-title {
+                font-size: 1.1em;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .panel-stats {
+                font-size: 0.8em;
+                color: #aaa;
+            }
+            
+            .output-container {
+                flex: 1;
+                overflow-y: auto;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 12px;
+                line-height: 1.4;
+                padding: 15px;
+                background: #1a1a1a;
+            }
+            
+            .output-line {
+                margin-bottom: 3px;
+                padding: 3px 6px;
+                border-radius: 3px;
+                animation: slideIn 0.2s ease;
+                word-wrap: break-word;
+                border-left: 2px solid transparent;
+            }
+            
+            .output-line:hover {
+                background: #2d2d2d;
+            }
+            
+            .output-line.info { border-left-color: #17a2b8; }
+            .output-line.success { border-left-color: #28a745; }
+            .output-line.warning { border-left-color: #ffc107; color: #ffc107; }
+            .output-line.error { border-left-color: #dc3545; color: #ff6b6b; }
+            .output-line.model1 { border-left-color: #28a745; }
+            .output-line.model2 { border-left-color: #17a2b8; }
+            .output-line.model3 { border-left-color: #ffc107; }
+            .output-line.model4 { border-left-color: #e83e8c; }
+            
+            .line-number {
+                color: #6c757d;
+                margin-right: 12px;
+                font-size: 0.8em;
+                user-select: none;
+                min-width: 40px;
+                display: inline-block;
+                text-align: right;
+            }
+            
+            @keyframes slideIn {
+                from { opacity: 0; transform: translateX(-5px); }
+                to { opacity: 1; transform: translateX(0); }
+            }
+            
+            .output-container::-webkit-scrollbar {
+                width: 8px;
+            }
+            
+            .output-container::-webkit-scrollbar-track {
+                background: #2d2d2d;
+                border-radius: 4px;
+            }
+            
+            .output-container::-webkit-scrollbar-thumb {
+                background: #404040;
+                border-radius: 4px;
+            }
+            
+            .output-container::-webkit-scrollbar-thumb:hover {
+                background: #555;
+            }
+            
+            .connection-status {
+                background: #2d2d2d;
+                padding: 15px 25px;
+                border-top: 1px solid #404040;
+                text-align: center;
+            }
+            
+            .status-connected {
+                color: #28a745;
+                font-weight: 600;
+            }
+            
+            .status-disconnected {
+                color: #dc3545;
+                font-weight: 600;
+            }
+            
+            .progress-bar {
+                width: 100%;
+                height: 4px;
+                background: #404040;
+                border-radius: 2px;
+                overflow: hidden;
+                margin-top: 5px;
+            }
+            
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #28a745, #20c997);
+                transition: width 0.3s ease;
+            }
+            
+            @media (max-width: 1400px) {
+                .models-grid {
+                    grid-template-columns: repeat(2, 1fr);
+                    height: 80vh;
+                }
+                
+                .model-controls {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+            
+            @media (max-width: 768px) {
+                .models-grid {
+                    grid-template-columns: 1fr;
+                    height: 60vh;
+                }
+                
+                .model-controls {
+                    grid-template-columns: 1fr;
+                }
+                
+                .global-controls {
+                    flex-direction: column;
+                    align-items: center;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🚀 Nifty Multi-Model Analysis</h1>
+                <p>Real-time analysis from 4 AI models in parallel</p>
+            </div>
+            
+            <div class="controls-panel">
+                <div class="global-controls">
+                    <button id="startAllBtn" class="btn start-btn" onclick="startAllModels()">
+                        <span>▶</span> Start All Models
+                    </button>
+                    <button id="stopAllBtn" class="btn stop-btn" onclick="stopAllModels()" disabled>
+                        <span>⏹</span> Stop All Models
+                    </button>
+                    <button id="clearAllBtn" class="btn clear-btn" onclick="clearAllOutputs()">
+                        <span>🗑️</span> Clear All
+                    </button>
+                </div>
+                
+                <div class="model-controls" id="modelControls">
+                    <!-- Model control cards will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <div class="models-grid" id="modelsGrid">
+                <!-- Model output panels will be populated by JavaScript -->
+            </div>
+            
+            <div class="connection-status">
+                <span id="connectionStatus" class="status-disconnected">🔌 Disconnected from server</span>
+            </div>
+        </div>
+
+        <script>
+            // Model configuration
+            const MODELS = {
+                'deepseek_r1': {
+                    channel: 'model1',
+                    displayName: '🧠 DeepSeek R1',
+                    enabled: true,
+                    lineCount: 0,
+                    status: 'ready'
+                },
+                'cloud_deepseek': {
+                    channel: 'model2',
+                    displayName: '☁️ DeepSeek Cloud', 
+                    enabled: false,
+                    lineCount: 0,
+                    status: 'ready'
+                },
+                'llama3': {
+                    channel: 'model3',
+                    displayName: '🦙 Llama 3',
+                    enabled: false,
+                    lineCount: 0,
+                    status: 'ready'
+                },
+                'mistral': {
+                    channel: 'model4',
+                    displayName: '🌪️ Mistral',
+                    enabled: false,
+                    lineCount: 0,
+                    status: 'ready'
+                }
+            };
+            
+            let ws = null;
+            let isConnected = false;
+            let executionInProgress = false;
+            
+            // Initialize the interface
+            function initializeInterface() {
+                createModelControls();
+                createOutputPanels();
+                connectWebSocket();
+            }
+            
+            // Create model control cards
+            function createModelControls() {
+                const container = document.getElementById('modelControls');
+                container.innerHTML = '';
+                
+                Object.entries(MODELS).forEach(([modelId, model]) => {
+                    const controlCard = document.createElement('div');
+                    controlCard.className = `model-control-card ${model.enabled ? 'enabled' : 'disabled'}`;
+                    controlCard.id = `control-${modelId}`;
+                    
+                    controlCard.innerHTML = `
+                        <div class="model-name">${model.displayName}</div>
+                        <div class="model-status status-ready" id="status-${modelId}">READY</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-${modelId}" style="width: 0%"></div>
+                        </div>
+                        <button class="btn toggle-btn" onclick="toggleModel('${modelId}')" id="toggle-${modelId}">
+                            ${model.enabled ? 'Disable' : 'Enable'}
+                        </button>
+                        <button class="btn clear-btn" onclick="clearModelOutput('${modelId}')">
+                            Clear
+                        </button>
+                    `;
+                    
+                    container.appendChild(controlCard);
+                });
+            }
+            
+            // Create output panels
+            function createOutputPanels() {
+                const container = document.getElementById('modelsGrid');
+                container.innerHTML = '';
+                
+                Object.entries(MODELS).forEach(([modelId, model]) => {
+                    const panel = document.createElement('div');
+                    panel.className = 'model-output-panel';
+                    panel.id = `panel-${modelId}`;
+                    
+                    panel.innerHTML = `
+                        <div class="panel-header">
+                            <div class="panel-title">
+                                <span>${model.displayName}</span>
+                                <span id="status-indicator-${modelId}" style="color: #6c757d">●</span>
+                            </div>
+                            <div class="panel-stats">
+                                Lines: <span id="lineCount-${modelId}">0</span>
+                            </div>
+                        </div>
+                        <div class="output-container" id="output-${modelId}">
+                            <div class="output-line info">
+                                <span class="line-number">1</span>Ready for analysis...
+                            </div>
+                        </div>
+                    `;
+                    
+                    container.appendChild(panel);
+                });
+            }
+            
+            // WebSocket connection
+            function connectWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws`;
+                
+                console.log('Connecting to:', wsUrl);
+                
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function(event) {
+                    console.log('WebSocket connected');
+                    isConnected = true;
+                    updateConnectionStatus('✅ Connected to server', 'status-connected');
+                    updateButtonStates();
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (error) {
+                        console.error('Error parsing message:', error);
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    console.log('WebSocket disconnected');
+                    isConnected = false;
+                    updateConnectionStatus('❌ Disconnected from server', 'status-disconnected');
+                    updateButtonStates();
+                    
+                    // Attempt reconnect after 3 seconds
+                    setTimeout(connectWebSocket, 3000);
+                };
+                
+                ws.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                    updateConnectionStatus('❌ Connection error', 'status-disconnected');
+                };
+            }
+            
+            // Handle WebSocket messages
+            function handleWebSocketMessage(data) {
+                switch(data.type) {
+                    case 'model_output':
+                        handleModelOutput(data);
+                        break;
+                    case 'model_status':
+                        handleModelStatus(data);
+                        break;
+                    case 'model_result':
+                        handleModelResult(data);
+                        break;
+                    case 'model_error':
+                        handleModelError(data);
+                        break;
+                    case 'model_progress':
+                        handleModelProgress(data);
+                        break;
+                    case 'execution_start':
+                        handleExecutionStart(data);
+                        break;
+                    case 'execution_complete':
+                        handleExecutionComplete(data);
+                        break;
+                    case 'broadcast':
+                        handleBroadcastMessage(data);
+                        break;
+                    case 'system_message':
+                        handleSystemMessage(data);
+                        break;
+                    default:
+                        console.log('Unknown message type:', data);
+                }
+            }
+            
+            // Handle model output
+            function handleModelOutput(data) {
+                const modelId = data.model_name;
+                const output = data.output;
+                const outputType = data.output_type || 'info';
+                
+                if (MODELS[modelId]) {
+                    addOutputLine(modelId, output, outputType);
+                }
+            }
+            
+            // Handle model status
+            function handleModelStatus(data) {
+                const modelId = data.model_name;
+                const status = data.status;
+                
+                if (MODELS[modelId]) {
+                    updateModelStatus(modelId, status);
+                }
+            }
+            
+            // Handle model result
+            function handleModelResult(data) {
+                const modelId = data.model_name;
+                const result = data.result;
+                
+                if (MODELS[modelId] && result.analysis) {
+                    addOutputLine(modelId, result.analysis, 'success');
+                }
+            }
+            
+            // Handle model error
+            function handleModelError(data) {
+                const modelId = data.model_name;
+                const error = data.error;
+                
+                if (MODELS[modelId]) {
+                    addOutputLine(modelId, `ERROR: ${error}`, 'error');
+                    updateModelStatus(modelId, 'error');
+                }
+            }
+            
+            // Handle model progress
+            function handleModelProgress(data) {
+                const modelId = data.model_name;
+                const progress = data.progress;
+                
+                if (MODELS[modelId]) {
+                    const progressBar = document.getElementById(`progress-${modelId}`);
+                    if (progressBar) {
+                        progressBar.style.width = `${progress * 100}%`;
+                    }
+                }
+            }
+            
+            // Handle execution start
+            function handleExecutionStart(data) {
+                executionInProgress = true;
+                updateButtonStates();
+                
+                Object.keys(MODELS).forEach(modelId => {
+                    if (data.models.includes(modelId)) {
+                        updateModelStatus(modelId, 'running');
+                    }
+                });
+            }
+            
+            // Handle execution complete
+            function handleExecutionComplete(data) {
+                executionInProgress = false;
+                updateButtonStates();
+                
+                const summary = data.results_summary;
+                addSystemMessage(`Execution completed: ${summary.successful_models} successful, ${summary.failed_models} failed`);
+            }
+            
+            // Handle broadcast messages
+            function handleBroadcastMessage(data) {
+                addSystemMessage(data.message);
+            }
+            
+            // Handle system messages
+            function handleSystemMessage(data) {
+                addSystemMessage(data.message);
+            }
+            
+            // Add output line to specific model
+            function addOutputLine(modelId, text, type = 'info') {
+                const outputDiv = document.getElementById(`output-${modelId}`);
+                const lineCount = ++MODELS[modelId].lineCount;
+                
+                const lineDiv = document.createElement('div');
+                lineDiv.className = `output-line ${type} ${MODELS[modelId].channel}`;
+                lineDiv.innerHTML = `<span class="line-number">${lineCount}</span>${escapeHtml(text)}`;
+                outputDiv.appendChild(lineDiv);
+                
+                // Auto-scroll to bottom
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+                
+                // Update line count
+                document.getElementById(`lineCount-${modelId}`).textContent = lineCount;
+                
+                // Limit lines to prevent memory issues
+                const maxLines = 500;
+                const lines = outputDiv.querySelectorAll('.output-line');
+                if (lines.length > maxLines) {
+                    const toRemove = lines.length - maxLines;
+                    for (let i = 0; i < toRemove; i++) {
+                        lines[i].remove();
+                    }
+                }
+            }
+            
+            // Add system message to all panels
+            function addSystemMessage(message) {
+                Object.keys(MODELS).forEach(modelId => {
+                    addOutputLine(modelId, `SYSTEM: ${message}`, 'info');
+                });
+            }
+            
+            // Update model status
+            function updateModelStatus(modelId, status) {
+                MODELS[modelId].status = status;
+                
+                const statusElement = document.getElementById(`status-${modelId}`);
+                const indicatorElement = document.getElementById(`status-indicator-${modelId}`);
+                
+                if (statusElement && indicatorElement) {
+                    statusElement.textContent = status.toUpperCase();
+                    statusElement.className = `model-status status-${status}`;
+                    
+                    // Update status indicator color
+                    const colors = {
+                        'ready': '#6c757d',
+                        'running': '#ffc107', 
+                        'completed': '#28a745',
+                        'error': '#dc3545'
+                    };
+                    indicatorElement.style.color = colors[status] || '#6c757d';
+                }
+            }
+            
+            // Update connection status
+            function updateConnectionStatus(message, className) {
+                const statusElement = document.getElementById('connectionStatus');
+                statusElement.textContent = message;
+                statusElement.className = className;
+            }
+            
+            // Update button states
+            function updateButtonStates() {
+                const startBtn = document.getElementById('startAllBtn');
+                const stopBtn = document.getElementById('stopAllBtn');
+                
+                startBtn.disabled = !isConnected || executionInProgress;
+                stopBtn.disabled = !isConnected || !executionInProgress;
+                
+                // Update individual model toggle buttons
+                Object.keys(MODELS).forEach(modelId => {
+                    const toggleBtn = document.getElementById(`toggle-${modelId}`);
+                    if (toggleBtn) {
+                        toggleBtn.disabled = executionInProgress;
+                    }
+                });
+            }
+            
+            // Control functions
+            function startAllModels() {
+                if (!isConnected) {
+                    alert('Not connected to server');
+                    return;
+                }
+                
+                fetch('/start-models', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            addSystemMessage('Started all enabled models');
+                        } else {
+                            alert('Error: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error starting models:', error);
+                        alert('Error starting models: ' + error.message);
+                    });
+            }
+            
+            function stopAllModels() {
+                if (!isConnected) {
+                    alert('Not connected to server');
+                    return;
+                }
+                
+                fetch('/stop-models', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            addSystemMessage('Stopped model execution');
+                        } else {
+                            alert('Error: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error stopping models:', error);
+                        alert('Error stopping models: ' + error.message);
+                    });
+            }
+            
+            function toggleModel(modelId) {
+                if (executionInProgress) {
+                    alert('Cannot toggle models during execution');
+                    return;
+                }
+                
+                MODELS[modelId].enabled = !MODELS[modelId].enabled;
+                
+                // Update UI
+                const controlCard = document.getElementById(`control-${modelId}`);
+                const toggleBtn = document.getElementById(`toggle-${modelId}`);
+                
+                if (controlCard && toggleBtn) {
+                    controlCard.className = `model-control-card ${MODELS[modelId].enabled ? 'enabled' : 'disabled'}`;
+                    toggleBtn.textContent = MODELS[modelId].enabled ? 'Disable' : 'Enable';
+                }
+                
+                // Send update to server
+                fetch('/update-model', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model_name: modelId,
+                        enabled: MODELS[modelId].enabled
+                    })
+                });
+            }
+            
+            function clearModelOutput(modelId) {
+                const outputDiv = document.getElementById(`output-${modelId}`);
+                if (outputDiv) {
+                    outputDiv.innerHTML = '';
+                    MODELS[modelId].lineCount = 0;
+                    document.getElementById(`lineCount-${modelId}`).textContent = '0';
+                    
+                    // Add initial message
+                    addOutputLine(modelId, 'Output cleared', 'info');
+                }
+            }
+            
+            function clearAllOutputs() {
+                Object.keys(MODELS).forEach(clearModelOutput);
+                addSystemMessage('Cleared all outputs');
+            }
+            
+            function escapeHtml(unsafe) {
+                return unsafe
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+            
+            // Initialize when page loads
+            document.addEventListener('DOMContentLoaded', initializeInterface);
+        </script>
+    </body>
+    </html>
+    """
