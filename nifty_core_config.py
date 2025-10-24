@@ -38,7 +38,7 @@ MODEL_MISTRAL_ENABLED = False
 LOCAL_AI_ENABLED = True
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_DEFAULT_MODEL = "deepseek-r1:latest"
-OLLAMA_TIMEOUT = 120
+OLLAMA_TIMEOUT = 600
 
 # Cloud AI Configuration
 CLOUD_AI_ENABLED = False

@@ -351,7 +351,7 @@ class NiftyAIAnalyzer:
                         'num_predict': model_params.get('max_tokens', 1200)
                     }
                 },
-                timeout=model_params.get('timeout', 120)
+                timeout=model_params.get('timeout', 600)
             )
             response.raise_for_status()
             
