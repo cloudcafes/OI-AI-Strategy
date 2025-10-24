@@ -37,8 +37,8 @@ class NiftyAIAnalyzer:
             ollama_config = get_ollama_config()
             base_url = ollama_config["base_url"]
             
-            # Test if Ollama is running - use correct URL
-            test_response = requests.get(f'{base_url}/tags', timeout=10)
+            # Test if Ollama is running - use correct API path
+            test_response = requests.get(f'{base_url}/api/tags', timeout=10)
             if test_response.status_code == 200:
                 print(f"✅ Local Ollama client initialized successfully (Model: {self.ollama_model})")
                 return True
@@ -336,8 +336,8 @@ class NiftyAIAnalyzer:
             # Combine system prompt and user data
             full_prompt = f"{system_prompt}\n\nUSER DATA:\n{formatted_data}"
             
-            # Use the correct URL - base_url already includes the API path
-            generate_url = f'{ollama_config["base_url"]}/generate'
+            # Use the correct URL - full API path
+            generate_url = f'{ollama_config["base_url"]}/api/generate'
             
             response = requests.post(
                 generate_url,
@@ -361,6 +361,7 @@ class NiftyAIAnalyzer:
         except Exception as e:
             print(f"⚠️ Local AI call failed: {e}")
             return f"Local AI analysis failed: {e}"
+
 
     def get_cloud_ai_analysis(self, formatted_data: str, system_prompt: str, model_params: Dict[str, Any]) -> str:
         """Get analysis from cloud DeepSeek API"""
