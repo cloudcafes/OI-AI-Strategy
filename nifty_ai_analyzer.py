@@ -347,23 +347,23 @@ class NiftyAIAnalyzer:
             print(f"🔍 Sending request to Ollama: {base_url}/api/generate")
             print(f"🔍 Model: {self.ollama_model}")
             
-            # Use EXACTLY the same simple prompt that worked in debug
-            simple_prompt = "Analyze Nifty market data in 2 sentences. Focus on sentiment."
+            # Use the actual system prompt and formatted data
+            full_prompt = f"{system_prompt}\n\n{formatted_data}"
             
-            # Make the EXACT same request as our debug script
+            # Use the model parameters from configuration
             response = requests.post(
                 f"{base_url}/api/generate",
                 json={
                     'model': self.ollama_model,
-                    'prompt': simple_prompt,
+                    'prompt': full_prompt,
                     'stream': False,
                     'options': {
-                        'temperature': 0.1,
-                        'top_p': 0.9,
-                        'num_predict': 50
+                        'temperature': model_params.get('temperature', 0.1),
+                        'top_p': model_params.get('top_p', 0.9),
+                        'num_predict': model_params.get('max_tokens', 1200)  # Use proper token limit
                     }
                 },
-                timeout=30
+                timeout=model_params.get('timeout', 120)
             )
             
             print(f"🔍 Response status: {response.status_code}")
@@ -371,8 +371,8 @@ class NiftyAIAnalyzer:
             if response.status_code == 200:
                 result = response.json()
                 raw_response = result.get('response', 'No response generated')
-                print(f"✅ Success! Response: {raw_response}")
-                return f"ANALYSIS: {raw_response}"
+                print(f"✅ Success! Got response of {len(raw_response)} characters")
+                return raw_response  # Return the full response
             else:
                 print(f"❌ Error: {response.text}")
                 response.raise_for_status()
@@ -381,10 +381,6 @@ class NiftyAIAnalyzer:
             error_msg = f"Local AI call failed: {str(e)}"
             print(f"⚠️ {error_msg}")
             return error_msg
-            
-        except Exception as e:
-            print(f"⚠️ Local AI call failed: {e}")
-            return f"Local AI analysis failed: {e}"
 
 
     def get_cloud_ai_analysis(self, formatted_data: str, system_prompt: str, model_params: Dict[str, Any]) -> str:
@@ -500,7 +496,8 @@ class NiftyAIAnalyzer:
         self.save_analysis_to_history(formatted_data, ai_response, model_name)
 
         # Return formatted AI response
-        return f"🤖 {source} AI INTRADAY ANALYSIS ({model_name.upper()}):\n\n{ai_response}"
+        return f"🤖 {source} AI INTRADAY ANALYSIS ({model_name.upper()}):\n\n{ai_response}\n\n{'='*80}"
+
 
 
 # Backward compatibility placeholder
