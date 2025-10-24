@@ -3,6 +3,7 @@ import os
 import datetime
 from typing import Dict, Any, List
 from nifty_core_config import format_greek_value
+from pathlib import Path  # This import was missing
 
 def save_ai_query_data(oi_data: List[Dict[str, Any]], 
                       oi_pcr: float, 
@@ -15,13 +16,15 @@ def save_ai_query_data(oi_data: List[Dict[str, Any]],
     Returns the file path where data was saved
     """    
     # Create directory if it doesn't exist
-    base_dir = r"C:\dev\python-projects\OI-AI-Strategy\ai-query"
-    os.makedirs(base_dir, exist_ok=True)
-    
+    #base_dir = r"C:\dev\python-projects\OI-AI-Strategy\ai-query"
+    #os.makedirs(base_dir, exist_ok=True)
+    cwd = Path.cwd()
+    base_dir = cwd / "ai-query"
+    base_dir.mkdir(parents=True, exist_ok=True)
     # Create filename with timestamp
     timestamp = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
     filename = f"ai_query_{timestamp}.txt"
-    filepath = os.path.join(base_dir, filename)
+    filepath = base_dir / filename
     
     # AI System Prompt (hardcoded as per requirement)
     system_prompt = """
