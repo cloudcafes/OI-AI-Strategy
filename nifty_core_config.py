@@ -20,7 +20,7 @@ FETCH_INTERVAL = 800
 
 # Multi-Model Feature Flags
 ENABLE_MULTI_MODEL = True  # Enable multi-model analysis
-ENABLE_AI_ANALYSIS = False  # Legacy single AI analysis
+ENABLE_AI_ANALYSIS = True  # Legacy single AI analysis
 ENABLE_LOOP_FETCHING = False
 ENABLE_STOCK_DISPLAY = False
 
