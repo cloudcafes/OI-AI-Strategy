@@ -37,13 +37,23 @@ class NiftyAIAnalyzer:
             ollama_config = get_ollama_config()
             base_url = ollama_config["base_url"]
             
-            # Test if Ollama is running - use correct API path
-            test_response = requests.get(f'{base_url}/api/tags', timeout=10)
+            # Test with a simple generate request instead of tags
+            test_response = requests.post(
+                f'{base_url}/api/generate',
+                json={
+                    'model': self.ollama_model,
+                    'prompt': 'test',
+                    'stream': False,
+                    'options': {'num_predict': 5}
+                },
+                timeout=10
+            )
+            
             if test_response.status_code == 200:
                 print(f"✅ Local Ollama client initialized successfully (Model: {self.ollama_model})")
                 return True
             else:
-                print(f"❌ Ollama not responding properly: {test_response.status_code}")
+                print(f"❌ Ollama test failed: {test_response.status_code} - {test_response.text}")
                 return False
         except Exception as e:
             print(f"❌ Failed to initialize local Ollama client: {e}")
@@ -332,31 +342,45 @@ class NiftyAIAnalyzer:
         """Get analysis from local Ollama model"""
         try:
             ollama_config = get_ollama_config()
+            base_url = ollama_config["base_url"]
             
-            # Combine system prompt and user data
-            full_prompt = f"{system_prompt}\n\nUSER DATA:\n{formatted_data}"
+            print(f"🔍 Sending request to Ollama: {base_url}/api/generate")
+            print(f"🔍 Model: {self.ollama_model}")
             
-            # Use the correct URL - full API path
-            generate_url = f'{ollama_config["base_url"]}/api/generate'
+            # Use EXACTLY the same simple prompt that worked in debug
+            simple_prompt = "Analyze Nifty market data in 2 sentences. Focus on sentiment."
             
+            # Make the EXACT same request as our debug script
             response = requests.post(
-                generate_url,
+                f"{base_url}/api/generate",
                 json={
                     'model': self.ollama_model,
-                    'prompt': full_prompt,
+                    'prompt': simple_prompt,
                     'stream': False,
                     'options': {
-                        'temperature': model_params.get('temperature', 0.1),
-                        'top_p': model_params.get('top_p', 1.0),
-                        'num_predict': model_params.get('max_tokens', 1200)
+                        'temperature': 0.1,
+                        'top_p': 0.9,
+                        'num_predict': 50
                     }
                 },
-                timeout=model_params.get('timeout', 600)
+                timeout=30
             )
-            response.raise_for_status()
             
-            raw_response = response.json().get('response', '')
-            return self._clean_ai_response(raw_response)
+            print(f"🔍 Response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                raw_response = result.get('response', 'No response generated')
+                print(f"✅ Success! Response: {raw_response}")
+                return f"ANALYSIS: {raw_response}"
+            else:
+                print(f"❌ Error: {response.text}")
+                response.raise_for_status()
+                
+        except Exception as e:
+            error_msg = f"Local AI call failed: {str(e)}"
+            print(f"⚠️ {error_msg}")
+            return error_msg
             
         except Exception as e:
             print(f"⚠️ Local AI call failed: {e}")
