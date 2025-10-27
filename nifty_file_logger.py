@@ -226,7 +226,7 @@ def send_telegram_message(text: str) -> bool:
                         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                         payload = {
                             "chat_id": CHAT_ID,
-                            "text": f"📊 Part {message_count}:\n{current_message}",
+                            "text": f"📊 Part {message_count}:\n",
                             "parse_mode": "HTML"
                         }
                         
