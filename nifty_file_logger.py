@@ -49,7 +49,7 @@ def send_telegram_message(text: str) -> bool:
                 if len(current_message) + len(line) + 1 > max_length:
                     if current_message:
                         message_count += 1
-                        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                        #url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                         payload = {
                             "chat_id": CHAT_ID,
                             "text": f"📊 Part {message_count}:\n{current_message}",
