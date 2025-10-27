@@ -64,78 +64,124 @@ def convert_text_to_html(text_content: str) -> str:
         <style>
             body {{
                 font-family: 'Courier New', monospace;
-                font-size: 12px;
-                line-height: 1.4;
+                font-size: 14px;
+                line-height: 1.6;
                 margin: 20px;
-                background: #1e1e1e;
-                color: #d4d4d4;
+                background: #ffffff;
+                color: #333333;
             }}
             .container {{
                 max-width: 1200px;
                 margin: 0 auto;
+                background: #ffffff;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                overflow: hidden;
             }}
             .header {{
-                background: #2d2d2d;
-                padding: 20px;
-                border-radius: 5px;
-                margin-bottom: 20px;
-                border-left: 4px solid #007acc;
+                background: #f8f9fa;
+                padding: 25px;
+                margin-bottom: 0;
+                border-bottom: 3px solid #007acc;
             }}
             .content {{
-                background: #252525;
-                padding: 20px;
-                border-radius: 5px;
+                background: #ffffff;
+                padding: 25px;
                 white-space: pre-wrap;
                 font-family: 'Courier New', monospace;
+                color: #2c3e50;
+                line-height: 1.5;
             }}
             .section {{
-                margin: 15px 0;
-                padding: 10px;
-                background: #2a2a2a;
-                border-radius: 3px;
+                margin: 20px 0;
+                padding: 15px;
+                background: #f8f9fa;
+                border-radius: 5px;
+                border-left: 4px solid #007acc;
             }}
             .timestamp {{
-                color: #569cd6;
+                color: #007acc;
                 font-weight: bold;
+                font-size: 16px;
             }}
             .important {{
-                color: #ff6b6b;
+                color: #e74c3c;
                 font-weight: bold;
+                background: #ffeaea;
+                padding: 8px 12px;
+                border-radius: 4px;
+                display: inline-block;
             }}
             .success {{
-                color: #4ec9b0;
+                color: #27ae60;
+                font-weight: bold;
             }}
             .warning {{
-                color: #ffd700;
+                color: #f39c12;
+                font-weight: bold;
+                background: #fff3cd;
+                padding: 8px 12px;
+                border-radius: 4px;
             }}
             table {{
                 border-collapse: collapse;
                 width: 100%;
-                margin: 10px 0;
+                margin: 15px 0;
+                background: #ffffff;
+                border: 1px solid #ddd;
             }}
             th, td {{
-                border: 1px solid #444;
-                padding: 8px;
+                border: 1px solid #ddd;
+                padding: 10px;
                 text-align: left;
                 font-family: 'Courier New', monospace;
-                font-size: 11px;
+                font-size: 12px;
             }}
             th {{
-                background: #2d2d2d;
-                color: #569cd6;
+                background: #007acc;
+                color: #ffffff;
+                font-weight: bold;
+            }}
+            td {{
+                background: #ffffff;
+                color: #2c3e50;
             }}
             pre {{
-                background: #1e1e1e;
+                background: #f8f9fa;
                 padding: 15px;
                 border-radius: 5px;
                 overflow-x: auto;
-                border: 1px solid #444;
+                border: 1px solid #e0e0e0;
+                color: #2c3e50;
+                font-size: 13px;
             }}
             code {{
-                background: #2d2d2d;
-                padding: 2px 4px;
+                background: #f8f9fa;
+                padding: 4px 8px;
                 border-radius: 3px;
-                color: #ce9178;
+                color: #e74c3c;
+                border: 1px solid #e0e0e0;
+            }}
+            h1, h2, h3, h4 {{
+                color: #2c3e50;
+                margin-top: 25px;
+                margin-bottom: 15px;
+            }}
+            h1 {{
+                color: #007acc;
+                border-bottom: 2px solid #007acc;
+                padding-bottom: 10px;
+            }}
+            .divider {{
+                height: 2px;
+                background: linear-gradient(90deg, #007acc, #ffffff);
+                margin: 20px 0;
+            }}
+            .highlight {{
+                background: #fff3cd;
+                padding: 10px;
+                border-left: 4px solid #f39c12;
+                margin: 10px 0;
             }}
         </style>
     </head>
