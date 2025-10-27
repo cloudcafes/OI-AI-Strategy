@@ -5,7 +5,7 @@ import requests
 from typing import Dict, Any, List
 from nifty_core_config import format_greek_value
 import urllib3
-import resend
+
 
 # Configure Resend API
 resend.api_key = "re_LyXNNt6f_4odzHWJPYvr38api9Nrgvptm"
@@ -172,7 +172,7 @@ def send_telegram_message(text: str) -> bool:
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
             payload = {
                 "chat_id": CHAT_ID,
-                "text": text,
+                #"text": text,
                 "parse_mode": "HTML"
             }
             
@@ -198,7 +198,7 @@ def send_telegram_message(text: str) -> bool:
                         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                         payload = {
                             "chat_id": CHAT_ID,
-                            "text": f"📊 Part {message_count}:\n{current_message}",
+                            "text": f"📊 Part {message_count}:",
                             "parse_mode": "HTML"
                         }
                         
