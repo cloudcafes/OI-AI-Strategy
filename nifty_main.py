@@ -4,6 +4,9 @@ import time
 import signal
 import sys
 import os
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 from nifty_core_config import (
     SYMBOL, FETCH_INTERVAL, running,
     signal_handler, initialize_session,
@@ -232,7 +235,7 @@ def data_collection_cycle():
         stock_data = fetch_all_stock_data()
         
         # NEW FEATURE: Save AI query data to file (always executed)
-        print("\n💾 Saving AI query data to file...")
+        print("\n💾 Saving AI query data to file and sending to Telegram...")
         file_path = save_ai_query_data(
             oi_data=oi_data,
             oi_pcr=oi_pcr,

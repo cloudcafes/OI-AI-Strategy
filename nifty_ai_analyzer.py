@@ -332,6 +332,7 @@ class NiftyAIAnalyzer:
         9. Always use historical proven threshold values for NIFTY and BANKNIFTY for making any calculation.
         10. You entire analysis should be focussed on providing intraday 20-40 points nifty scalping opportunity.
         11. I only take naked Nifty CE/PE buys for intraday.
+        12. Tips for correct calculations: "Price action overrides OI data" & "Verify gamma direction (MM short puts = long futures)" & "Calculate probabilities using distance-to-strike formula" & "Institutional selling ≠ directional betting & Validate risk-reward with expectancy calculation" & "PCR + rising price = bullish, not bearish & High call volume + uptrend = momentum confirmation" & "Maximum probability cap at 70% without statistical proof" & "Theta decay > gamma for <24hr expiry" & "Daily range boundaries override OI walls"
 
         ----------------------------------------------------------------------------------------------------------------------------------------------------------
         Provide output categorically:
