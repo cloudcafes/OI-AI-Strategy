@@ -170,8 +170,8 @@ def convert_text_to_html(text_content: str) -> str:
     <body>
         <div class="container">
             <div class="header">
-                <h1>🤖 NIFTY AI TRADING ANALYSIS</h1>
-                <p class="timestamp">Generated: {datetime.datetime.now().strftime("%d-%b-%Y %H:%M:%S")}</p>
+                <h1>work on the below query with nifty data at</h1>
+                <p class="timestamp">{datetime.datetime.now().strftime("%d-%b-%Y %H:%M:%S")}</p>
             </div>
             <div class="content">
                 {html_content}
