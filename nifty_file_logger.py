@@ -457,12 +457,12 @@ And just give me answer no other words or appreciation or any bullshit or judgem
         print(f"✅ AI query data saved to: {filepath}")
         
         # Send to Telegram
-        print("📤 Sending to Telegram...")
-        telegram_success = send_telegram_message(full_content)
-        if telegram_success:
-            print("✅ Message sent to Telegram successfully!")
-        else:
-            print("❌ Failed to send message to Telegram")
+        #print("📤 Sending to Telegram...")
+        #telegram_success = send_telegram_message(full_content)
+        #if telegram_success:
+            #print("✅ Message sent to Telegram successfully!")
+        #else:
+            #print("❌ Failed to send message to Telegram")
         
         # Send to Email via Resend API
         print("📧 Sending to Email...")
