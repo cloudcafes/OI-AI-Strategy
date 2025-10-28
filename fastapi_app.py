@@ -1,54 +1,33 @@
 # fastapi_app.py
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import subprocess
 import json
 import time
 import os
 import glob
-from typing import List
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Nifty Option Chain Fetcher", version="1.0")
 
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-        
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        print(f"New connection. Total: {len(self.active_connections)}")
-        
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-        print(f"Connection closed. Total: {len(self.active_connections)}")
-        
-    async def send_personal_message(self, message: str, websocket: WebSocket):
-        try:
-            await websocket.send_text(message)
-        except:
-            self.disconnect(websocket)
-            
-    async def broadcast(self, message: str):
-        disconnected = []
-        for connection in self.active_connections:
-            try:
-                await connection.send_text(message)
-            except:
-                disconnected.append(connection)
-        
-        for connection in disconnected:
-            self.disconnect(connection)
-
-manager = ConnectionManager()
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class ScriptRunner:
     def __init__(self):
-        self.process = None
         self.running = False
-        self.task = None
         
     def find_latest_text_file(self):
         """Find the most recently created text file in ai-query-logs directory"""
@@ -66,7 +45,7 @@ class ScriptRunner:
             return latest_file
             
         except Exception as e:
-            print(f"Error finding text files: {e}")
+            logger.error(f"Error finding text files: {e}")
             return None
     
     def read_text_file_content(self, filepath: str) -> str:
@@ -84,10 +63,12 @@ class ScriptRunner:
             return None, "Script is already running"
             
         try:
+            logger.info("Starting nifty_main.py...")
+            
             # Run nifty_main.py as a subprocess
             cmd = ["python", "nifty_main.py"]
             
-            self.process = await asyncio.create_subprocess_exec(
+            process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
@@ -98,42 +79,28 @@ class ScriptRunner:
             self.running = True
             
             # Wait for the process to complete
-            await self.process.wait()
+            await process.wait()
             self.running = False
+            
+            logger.info("nifty_main.py completed")
             
             # Find and read the latest text file
             latest_file = self.find_latest_text_file()
             if latest_file:
                 content = self.read_text_file_content(latest_file)
+                logger.info(f"Found text file: {os.path.basename(latest_file)}")
                 return content, f"Script completed successfully. File: {os.path.basename(latest_file)}"
             else:
+                logger.warning("No text file found after script completion")
                 return None, "Script completed but no text file was found"
                 
         except Exception as e:
             self.running = False
+            logger.error(f"Error running script: {e}")
             return None, f"Error running script: {str(e)}"
 
 # Global script runner
 script_runner = ScriptRunner()
-
-# WebSocket endpoint for real-time communication
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        # Send initial status
-        await manager.send_personal_message(json.dumps({
-            "type": "status",
-            "message": "🔌 Connected to server"
-        }), websocket)
-        
-        # Keep connection alive
-        while True:
-            data = await websocket.receive_text()
-            # Handle any incoming messages if needed
-            
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
 
 # API endpoints
 @app.post("/run")
@@ -143,36 +110,23 @@ async def run_script():
         raise HTTPException(status_code=400, detail="Script is already running")
     
     try:
-        # Notify clients that script is starting
-        await manager.broadcast(json.dumps({
-            "type": "status",
-            "message": "🚀 Starting Nifty script..."
-        }))
+        logger.info("Run endpoint called")
         
         # Run script and get file content
         content, status_message = await script_runner.run_script_and_get_file_content()
         
         if content:
-            # Send the file content to all connected clients
-            await manager.broadcast(json.dumps({
-                "type": "file_content",
-                "content": content,
-                "status": status_message
-            }))
-            return {"status": "success", "message": status_message}
+            return {
+                "status": "success", 
+                "message": status_message,
+                "content": content
+            }
         else:
-            await manager.broadcast(json.dumps({
-                "type": "error",
-                "message": status_message
-            }))
             return {"status": "error", "message": status_message}
             
     except Exception as e:
         error_msg = f"Error running script: {str(e)}"
-        await manager.broadcast(json.dumps({
-            "type": "error",
-            "message": error_msg
-        }))
+        logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
 
 @app.get("/status")
@@ -182,6 +136,11 @@ async def get_status():
         "running": script_runner.running,
         "status": "running" if script_runner.running else "stopped"
     }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "timestamp": time.time()}
 
 # Serve the main page
 @app.get("/")
@@ -286,9 +245,9 @@ async def get_main_page():
                 border-color: #28a745;
                 background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
             }
-            .status-disconnected {
-                border-color: #dc3545;
-                background: linear-gradient(135deg, #f8d7da 0%, #f1b0b7 100%);
+            .status-running {
+                border-color: #ffc107;
+                background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
             }
             .status-card h3 {
                 font-size: 1.2em;
@@ -389,9 +348,9 @@ async def get_main_page():
             </div>
             
             <div class="status-panel">
-                <div id="statusCard" class="status-card status-disconnected">
-                    <h3>🔌 Connection Status</h3>
-                    <p id="statusText">Disconnected from server</p>
+                <div id="statusCard" class="status-card status-connected">
+                    <h3>🔌 Server Status</h3>
+                    <p id="statusText">Ready to run analysis</p>
                 </div>
             </div>
             
@@ -410,61 +369,78 @@ async def get_main_page():
         </div>
 
         <script>
-            let ws = null;
-            let isConnected = false;
             let currentContent = "";
+            let isRunning = false;
             
-            function connectWebSocket() {
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${window.location.host}/ws`;
+            async function runScript() {
+                if (isRunning) {
+                    alert('Script is already running. Please wait...');
+                    return;
+                }
                 
-                ws = new WebSocket(wsUrl);
-                
-                ws.onopen = function(event) {
-                    console.log('WebSocket connected');
-                    isConnected = true;
-                    updateStatus('✅ Connected to server', 'status-connected');
-                };
-                
-                ws.onmessage = function(event) {
-                    try {
-                        const data = JSON.parse(event.data);
-                        handleWebSocketMessage(data);
-                    } catch (error) {
-                        console.error('Error parsing message:', error);
-                    }
-                };
-                
-                ws.onclose = function(event) {
-                    console.log('WebSocket disconnected');
-                    isConnected = false;
-                    updateStatus('❌ Disconnected from server', 'status-disconnected');
+                try {
+                    // Clear console first
+                    clearOutput();
+                    addOutputLine('🚀 Starting analysis...');
+                    updateFileInfo('Running analysis...');
+                    updateStatus('🔄 Running analysis...', 'status-running');
+                    document.getElementById('runBtn').disabled = true;
+                    isRunning = true;
                     
-                    // Attempt reconnect after 3 seconds
-                    setTimeout(connectWebSocket, 3000);
-                };
-                
-                ws.onerror = function(error) {
-                    console.error('WebSocket error:', error);
-                    updateStatus('❌ Connection error', 'status-disconnected');
-                };
+                    const response = await fetch('/run', { 
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        // Display the file content
+                        displayFileContent(result.content);
+                        updateFileInfo(result.message);
+                        updateStatus('✅ Analysis completed', 'status-connected');
+                        addOutputLine('✅ ' + result.message);
+                    } else {
+                        addOutputLine('❌ ' + result.message, 'error');
+                        updateFileInfo('Error: ' + result.message);
+                        updateStatus('❌ Analysis failed', 'status-connected');
+                    }
+                    
+                } catch (error) {
+                    console.error('Error running script:', error);
+                    addOutputLine('❌ Error: ' + error.message, 'error');
+                    updateFileInfo('Error running analysis');
+                    updateStatus('❌ Analysis failed', 'status-connected');
+                } finally {
+                    document.getElementById('runBtn').disabled = false;
+                    isRunning = false;
+                }
             }
             
-            function handleWebSocketMessage(data) {
-                switch(data.type) {
-                    case 'status':
-                        addOutputLine(data.message, 'info');
-                        break;
-                    case 'file_content':
-                        // Clear console and display new content
-                        clearOutput();
-                        displayFileContent(data.content);
-                        updateFileInfo(data.status || 'File loaded successfully');
-                        break;
-                    case 'error':
-                        addOutputLine('❌ ' + data.message, 'error');
-                        updateFileInfo('Error: ' + data.message);
-                        break;
+            async function copyOutput() {
+                if (!currentContent) {
+                    alert('No content to copy. Please run analysis first.');
+                    return;
+                }
+                
+                try {
+                    await navigator.clipboard.writeText(currentContent);
+                    addOutputLine('✅ Content copied to clipboard!', 'success');
+                } catch (error) {
+                    console.error('Error copying to clipboard:', error);
+                    
+                    // Fallback method
+                    const textArea = document.createElement('textarea');
+                    textArea.value = currentContent;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        addOutputLine('✅ Content copied to clipboard!', 'success');
+                    } catch (fallbackError) {
+                        addOutputLine('❌ Failed to copy content', 'error');
+                    }
+                    document.body.removeChild(textArea);
                 }
             }
             
@@ -514,66 +490,21 @@ async def get_main_page():
                 document.getElementById('fileInfo').textContent = info;
             }
             
-            async function runScript() {
-                if (!isConnected) {
-                    alert('Not connected to server. Please wait...');
-                    return;
-                }
-                
+            // Check server status on load
+            async function checkServerStatus() {
                 try {
-                    // Clear console first
-                    clearOutput();
-                    addOutputLine('🚀 Starting analysis...');
-                    updateFileInfo('Running analysis...');
-                    
-                    const response = await fetch('/run', { 
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    
+                    const response = await fetch('/health');
                     const result = await response.json();
-                    
-                    if (result.status === 'error') {
-                        addOutputLine('❌ ' + result.message, 'error');
-                        updateFileInfo('Error: ' + result.message);
-                    }
-                    
+                    updateStatus('✅ Server connected', 'status-connected');
                 } catch (error) {
-                    console.error('Error running script:', error);
-                    addOutputLine('❌ Error: ' + error.message, 'error');
-                    updateFileInfo('Error running analysis');
+                    updateStatus('❌ Server unavailable', 'status-connected');
                 }
             }
             
-            async function copyOutput() {
-                if (!currentContent) {
-                    alert('No content to copy. Please run analysis first.');
-                    return;
-                }
-                
-                try {
-                    await navigator.clipboard.writeText(currentContent);
-                    addOutputLine('✅ Content copied to clipboard!', 'success');
-                } catch (error) {
-                    console.error('Error copying to clipboard:', error);
-                    
-                    // Fallback method
-                    const textArea = document.createElement('textarea');
-                    textArea.value = currentContent;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    try {
-                        document.execCommand('copy');
-                        addOutputLine('✅ Content copied to clipboard!', 'success');
-                    } catch (fallbackError) {
-                        addOutputLine('❌ Failed to copy content', 'error');
-                    }
-                    document.body.removeChild(textArea);
-                }
-            }
-            
-            // Initialize
-            connectWebSocket();
+            // Initialize when page loads
+            document.addEventListener('DOMContentLoaded', function() {
+                checkServerStatus();
+            });
         </script>
     </body>
     </html>
@@ -581,4 +512,9 @@ async def get_main_page():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5001, access_log=False)
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=5001, 
+        access_log=True
+    )
