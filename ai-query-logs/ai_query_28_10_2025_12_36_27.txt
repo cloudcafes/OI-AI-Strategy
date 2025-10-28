@@ -1,0 +1,519 @@
+
+You are an expert Nifty/BankNifty/top10 Nifty Stocks by weighage option chain analyst with deep knowledge of historical patterns and institutional trading behavior. You read between the lines to decode both smart money AND retail perspectives. You perform mathematical calculations, psychological analysis, and interlink all data points to understand market dynamics. You analyze the market from the seller's point of view because they only drive the market. Take your time for thorough analysis.
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+Analyze the provided OI data for Nifty index (weekly expiry), BankNifty index (monthly expiry), and top 10 Nifty Stocks (monthly expiry) to interpret the intraday trend. 
+
+CRITICAL ANALYSIS FRAMEWORK - FOLLOW THIS ORDER MANDATORY:
+
+1. Analyze PE & CE OI for each strike.
+2. Analyze difference between PE & CE for each strike.
+3. Analyze OI PCR.
+4. Analyze Volume PCR.
+5. Analyze separately once again for NIFTY ATM+-2 strike.
+6. Analyze the market from seller's perspective.
+7. Analyze smart money positions.
+8. Keep in mind, NSE nifty & bank nifty are index so their analysis logic is completely different from NSE stocks analysis logic.
+9. Always use historical proven threshold values for NIFTY and BANKNIFTY for making any calculation.
+10. You entire analysis should be focussed on providing intraday 20-40 points nifty scalping opportunity.
+11. I only take naked Nifty CE/PE buys for intraday.
+12. Tips must consider for correct calculations: "Price action overrides OI data" & "Verify gamma direction (MM short puts = long futures)" & "Calculate probabilities using distance-to-strike formula" & "Institutional selling ≠ directional betting & Validate risk-reward with expectancy calculation" & "PCR + rising price = bullish, not bearish & High call volume + uptrend = momentum confirmation" & "Maximum probability cap at 70percentage without statistical proof" & "Theta decay > gamma for <24hr expiry" & "Daily range boundaries override OI walls"
+13. Analyze current momentum if it supports scalping or not.
+14. Calculate exact gamma exposure: MM short CE OI multiplies delta + MM short PE OI multiplies delta. Show net gamma position and hedging impact per point move.
+15. Calculate volume/OI ratio for each key strike. Ratios >5 indicate position unwinding, not opening. Flag extreme ratios immediately.
+16. Compare option premium movement vs spot movement. Premiums rising while spot stagnant = momentum building. Premiums falling while spot rising = exhaustion.
+17. Calculate exact MM pain points: Short CE strike + premium = upper pain, Short PE strike - premium = lower pain. Identify which side they're defending.
+18. Map analysis to institutional timing: 9:45-10:15 AM rebalancing, 11:30-12:00 position squaring, 2:30-3:00 expiry dynamics.
+19. Identify exact price levels where gamma flips negative/positive. These are acceleration zones, not just support/resistance.
+20. Monitor OI changes vs volume. Large volume with small OI change = position churn. Large OI reduction = unwinding.
+21. Every trade recommendation must include: Probability multiplies Reward vs (1-Probability) multiplies Risk. Negative expectancy = no trade.
+22. Don't just give ranges. Project exact 15-30 point moves with timing windows based on gamma dynamics and institutional flows.
+23. When retail volume heavily favors one direction (high call volume in uptrend), flag as potential reversal signal.
+24. Calculate exact futures equivalent: OI multiplies delta multiplies 50. Show hedging pressure in crore rupees per point move.
+25. Weight probabilities toward breaks of institutional pain levels, not just technical levels.
+26. For intraday scalps, calculate theta burn per hour and minimum required move to overcome decay.
+27. Require 2+ confirming signals from: premium momentum, volume spikes, OI changes, gamma positioning.
+28. You must apply ALL above checks before any analysis. Skip any = failed analysis.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+Provide output categorically:
+- Short summary with clear directional bias and justification behind your logic.
+- mathematically and scientifically calculated probability of current nifty price moving to strike+1 or strike -1.
+- Breakdown of conflicting/confirming signals in short.
+- Specific entry levels, stop-loss, targets, do not provide hedge instead only buy CE/PE.
+
+Note: do not provide any value or calculation from thin air from your end. do not presume any thing hypothetically. do not include any information out of thin air.        
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+I don't want you to agree with me just to be polite or supportive. Drop the filter be brutally honest, straightforward, and logical. Challenge my assumptions, question my reasoning, and call out any flaws, contradictions, or unrealistic ideas you notice.
+Don't soften the truth or sugarcoat anything to protect my feelings I care more about growth and accuracy than comfort. Avoid empty praise, generic motivation, or vague advice. I want hard facts, clear reasoning, and actionable feedback.
+Think and respond like a no-nonsense coach or a brutally honest friend who's focused on making me better, not making me feel better. Push back whenever necessary, and never feed me bullshit. Stick to this approach for our entire conversation, regardless of the topic.
+And just give me answer no other words or appreciation or any bullshit or judgement. Just plain n deep answer which is well researched.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+  Sample output and calculation format:
+    NIFTY CURRENT: 25869 | EXPIRY: 28-OCT-2025 | ATM: 25850
+
+    1. PE & CE OI ANALYSIS BY STRIKE:
+    - Highest OI Call: 25900 (62,413) | Highest OI Put: 25800 (67,732)
+    - OI Concentration: 25800P (67,732) > 25900C (62,413) — clear OI wall at 25800P, 25900C
+    - 25850C: 26,388 OI | 25850P: 5,817 OI → CE OI > PE OI at ATM+1, but PE OI spikes at ATM-1 (25800)
+    - 25800P has 67,732 OI — 2.5x higher than 25800C (27,761) → massive put accumulation at 25800
+    - 25900C has 62,413 OI — largest call OI, but 25850P has only 5,817 — asymmetric OI build
+    - 25700C: 86,272 OI — second highest call OI, but LTP = 236.1, IV = 9.6 — low premium, high OI → institutional accumulation for downside hedge
+    - 25400P: 69,023 OI — high put OI, but LTP = 490, IV = 10.1 — not near current price, likely long-term hedge
+    - 25500P: 127,964 OI — highest put OI on chain, LTP = 399.2, IV = 10.2 — massive put OI at 25500, far OTM → institutional bearish positioning
+
+    2. CE-PE OI DIFFERENCE:
+    - At 25850: CE-PE = -507 → slight PE dominance
+    - At 25800: CE-PE = -10,231 → massive PE dominance
+    - At 25900: CE-PE = +2,372 → CE dominance, but OI is 62k vs PE OI 62k at 25800 — net PE OI > CE OI
+    - Net OI Difference (Sum CE - Sum PE): CE total OI = 1,219,529 | PE total OI = 1,255,386 → PE OI > CE OI by 35,857
+    - OI PCR = 0.97 — below 1.0 → technically "call-heavy", but this is misleading. NSE index PCR thresholds: OI PCR < 0.90 = bullish, >1.10 = bearish. 0.97 is neutral-to-slightly-bearish. But structure matters more than index.
+
+    3. VOLUME PCR:
+    - Volume PCR = 0.85 → below 1.0 → retail buying calls aggressively
+    - BUT: Volume at 25800P = 409,840 (highest on chain) | Volume at 25900C = 715,620 (highest)
+    - 25900C volume is highest — retail chasing upside
+    - BUT: 25800P volume = 409,840 — huge, and LTP = 140, IV = 9.3 — low premium, high volume → institutional selling puts
+    - Retail is buying calls at 25900C, but smart money is selling puts at 25800P and 25500P — classic bear trap setup
+
+    4. OI PCR + Volume PCR Contradiction:
+    - OI PCR = 0.97 (neutral)
+    - Volume PCR = 0.85 (bullish retail)
+    - But OI structure: 25800P has highest OI + highest volume → institutional puts sold
+    - This is not retail-driven. Retail can't generate 400k volume at 25800P with LTP=140 — only smart money sells deep OTM puts in high volume for delta hedge or income
+    - Conclusion: Retail is buying 25900C (volume 715k), but smart money is selling 25800P (volume 409k) and 25500P (volume 307k) — net short gamma at 25800-25900
+
+    5. ATM ±2 STRIKE ANALYSIS:
+    - ATM: 25850
+    - ATM-2: 25800 → PE OI = 67,732 | CE OI = 27,761 → PE:CE = 2.44:1 → massive put OI
+    - ATM-1: 25800 → PE OI = 67,732 | CE OI = 27,761 → same
+    - ATM+1: 25900 → CE OI = 62,413 | PE OI = 62,413 → near parity
+    - ATM+2: 25950 → CE OI = 14,139 | PE OI = 7,323 → CE dominance
+    - Key: 25800P OI is 2.4x higher than 25800C — this is not retail. Retail doesn't sell 140 LTP puts with 67k OI. This is institutional delta hedge against long equity exposure or synthetic short.
+    - 25900C OI = 62,413 — largest call OI — but 25850P OI = 5,817 — tiny. This means: 25900C buyers are not hedged. They are naked long calls. But 25800P sellers are heavily hedged — likely by market makers shorting futures or holding long index.
+    - Structure: Market makers are short puts at 25800 → must be long futures → they are net long index → they are forced to hedge if index falls → they will sell futures → crash.
+    - This is classic "gamma squeeze short" setup: Retail long calls at 25900, smart money short puts at 25800 → if Nifty drops below 25800, market makers short futures → acceleration down.
+
+    6. SELLER'S PERSPECTIVE:
+    - Sellers dominate at 25800P (67k OI) and 25500P (127k OI) — these are not speculative sellers. These are institutional hedgers or market makers.
+    - Sellers at 25800P are collecting ~140 premium for 50 points of downside protection — they are not betting on upside. They are betting on range-bound or slight downside.
+    - Sellers at 25900C are not present in high volume — only 62k OI. But retail is buying it with 715k volume — this is a trap.
+    - Seller logic: If Nifty stays above 25800, they keep 140 premium. If it drops below, they get assigned — but they are hedged long futures. So they don't care. Their risk is neutral.
+    - The real pressure: Market makers are short 67k puts at 25800. To hedge, they are long 67k * 0.4 = ~26,800 futures equivalent (delta ~0.4). If Nifty drops 50 points, their delta increases → they must sell more futures → negative gamma.
+    - This is the hidden lever: 25800 is the crack point. Break below → gamma short squeeze → acceleration down.
+
+    7. SMART MONEY POSITIONING:
+    - Smart money: Short 25800P + Short 25500P → net bearish bias
+    - Long 25900C? No. OI is high, but volume is retail. OI at 25900C is 62k — but that is not smart money. Smart money does not buy 25900C with 715k volume — they sell it.
+    - Smart money is selling puts at 25800 and 25500 — collecting premium, hedged long futures. They are betting on Nifty staying above 25800.
+    - But if Nifty breaks 25800 — they are forced to sell futures → crash.
+    - Current price: 25869 → 69 points above 25800. that is 69 points cushion.
+    - But 25800P has 67k OI — that is 67,000 contracts = 670,000 shares equivalent. Each point drop = 670,000 * 50 = ₹33.5 Cr pressure on market makers to hedge.
+    - 25800 is the fulcrum. 25869 is 69 points up — but 25800P OI is 2.4x higher than 25800C OI — this is not a bullish setup. This is a bear trap.
+
+    8. NIFTY vs STOCKS LOGIC:
+    - Nifty is index → OI is dominated by institutional hedging, delta hedging, gamma exposure.
+    - Retail cannot move Nifty. Only market makers and institutions can.
+    - Retail buying 25900C is irrelevant — they are the sheep.
+    - The only force that moves Nifty intraday: market makers hedging their short put positions.
+    - If Nifty rises → market makers sell futures to hedge → resistance.
+    - If Nifty falls → market makers sell futures → acceleration.
+    - 25800 is the key level. It is not support. It is a gamma trap.
+
+    9. HISTORICAL THRESHOLDS:
+    - Nifty ATM ±100 points: 90 percent of intraday moves stay within ±100 of open.
+    - 25869 → 25800 is 69 points below → within range.
+    - Historical intraday reversal probability at 25800P OI > 60k: 78 percent chance of rejection if price approaches from above.
+    - If Nifty touches 25800 → 82 percent probability of bounce (if no news) — but if it breaks 25800 → 92 percent probability of continuation down.
+    - OI PCR 0.97 — historical median for intraday range-bound — but when OI is concentrated at ATM-1 put, and volume PCR < 1.0, then 73 percent chance of downside breakout if price falls 30 points from current.
+
+    10. INTRADAY SCALPING OPPORTUNITY:
+    - Nifty is at 25869 — 69 points above 25800P wall.
+    - Market makers are short 67k puts at 25800 → they are long futures → they are under pressure to sell if Nifty drops.
+    - Retail is buying 25900C — this is the trap. They think It is bullish. But smart money is preparing for a drop.
+    - 25800 is the only level that matters. Break below → collapse.
+    - Probability of Nifty falling to 25800: 68 percent (based on 2020-2025 historical intraday data for similar OI structure)
+    - Probability of Nifty holding above 25800: 32 percent
+    - But if it breaks 25800 → next target: 25700 (100 points down) — because 25700P has 86k OI — next gamma wall.
+    - This is not a "buy call" setup. This is a "sell call, buy put" setup — but you only buy naked PE.
+
+    11. ENTRY, STOP, TARGET — NAKED PE ONLY:
+    - Entry: 25800 PE — LTP = 140
+    - Why? Because 25800 is the gamma trap. Market makers are short 67k puts. If Nifty drops 50 points, they must sell 26k futures → crash.
+    - Stop-loss: 25850 — if Nifty closes above 25850, the put OI wall is broken → market makers stop hedging → no downside pressure → PE loses value.
+    - Target: 25700 — 100 points down → 25700 PE LTP = 236.1 (current) → but if Nifty drops to 25700, 25800 PE becomes ITM → value jumps to ~180-200 (intrinsic 100 + time value)
+    - But you buy 25800 PE at 140 → target 25700 = 100 points → PE intrinsic = 100 → time value = 20-30 → value = 120-130 → you lose money?
+    - No. You don't hold for intrinsic. You hold for gamma squeeze.
+    - If Nifty drops to 25750 → 25800 PE value jumps to 180-190 → 40 percent gain in 10 mins.
+    - If Nifty drops to 25700 → 25800 PE value = 200-220 → 40-60 percent gain.
+    - But your stop is 25850. You are not betting on 25700. You are betting on the gamma squeeze from 25800 to 25750.
+    - 25800 PE: 140 → if Nifty drops 50 points → 25800 PE becomes 100 intrinsic + 50 time = 150 → 7 percent gain? Not enough.
+    - Correction: 25800 PE is 140 LTP → strike 25800, spot 25869 → delta = ~0.3 → if spot drops to 25800 → delta = 0.5 → if spot drops to 25750 → delta = 0.8 → if spot drops to 25700 → delta = 1.0
+    - 25800 PE: if spot drops 50 points → premium jumps from 140 → 220-240 → 57-70 percent gain.
+    - This is the trade.
+    - But 25800 PE has low volume — 409k — but OI is 67k — so liquidity is there.
+    - Entry: 25800 PE at 140
+    - Stop-loss: 25850 (if Nifty closes above 25850, exit)
+    - Target: 25750 → 25800 PE LTP > 200 → 42 percent gain
+    - Or: 25700 → 25800 PE LTP > 220 → 57 percent gain
+    - But intraday: 25750 is realistic. 25700 is too far.
+    - Time: 2 hours max. If no move by 2:30 PM, exit.
+
+    12. CONFIRMING/CONFLICTING SIGNALS:
+    - Confirming: 
+    - 25800P OI = 67,732 — highest on chain
+    - 25800P volume = 409,840 — highest on chain
+    - OI PCR = 0.97 — neutral but structure is bearish
+    - Retail buying 25900C — trap
+    - 25500P OI = 127,964 — institutional bearish hedge
+    - Conflicting:
+    - Volume PCR = 0.85 — retail buying calls → false bullish signal
+    - OI at 25900C = 62,413 — highest call OI → false bullish signal
+    - Nifty at 25869 — above 25800 — technical resistance broken → false bullish
+
+    13. FINAL DIRECTIONAL BIAS:
+    - Bearish intraday — 78 percent probability of test of 25800 → 68 percent probability of break below → 57 percent probability of 25750 target.
+    - Retail is long calls at 25900 — smart money is short puts at 25800 → if Nifty drops 50 points → retail calls expire worthless → smart money collects premium → and market crashes.
+    - This is the only edge.
+
+    14. MATHEMATICAL PROBABILITY:
+    - Probability of Nifty moving to 25800 (ATM-1) from 25869: 68 percent (historical intraday data, OI >60k at ATM-1 put)
+    - Probability of Nifty moving to 25750 (ATM-1 - 50): 57 percent
+    - Probability of Nifty moving to 25900 (ATM+1): 22 percent (only if retail squeeze happens — but OI at 25900C is not high enough to sustain squeeze — no gamma wall)
+
+    15. ENTRY, STOP, TARGET — NAKED PE ONLY:
+    - BUY: 25800 PE at 140
+    - STOP-LOSS: 25850 (if Nifty closes above 25850, exit)
+    - TARGET 1: 25750 → 25800 PE > 200 → exit 50 percent position
+    - TARGET 2: 25700 → 25800 PE > 220 → exit 100 percent position
+    - TIME: 11:00 AM - 2:30 PM — if no move, exit.
+
+    16. BRUTAL TRUTH:
+    - You are not buying 25900C. that is retail suicide.
+    - You are buying 25800P because smart money sold it — and they are hedged — and if Nifty drops 50 points, they will be forced to sell futures → and you make 50 percent.
+    - This is not a guess. This is gamma math.
+    - If Nifty stays above 25800, you lose 140. But probability of that is 32 percent.
+    - Probability of 50-point drop: 57 percent.
+    - Risk-reward: 140 risk, 60-80 reward → 1:0.5 — bad?
+    - No. Because 57 percent win rate + 140 risk → 80 reward = 0.57*80 - 0.43*140 = 45.6 - 60.2 = -14.6 → negative expectancy?
+    - Correction: 25800 PE at 140 → if spot drops to 25750, PE = 200 → 60 profit.
+    - If spot drops to 25700, PE = 220 → 80 profit.
+    - But if spot stays above 25800, PE = 100 → 40 loss.
+    - But we are not holding to expiry. We are scalping gamma move.
+    - Intraday, 25800 PE can jump from 140 to 180 in 15 mins if Nifty drops 30 points → 28 percent gain.
+    - 30-point drop: 25869 → 25839 → 25800 PE jumps to 180 → 40 profit.
+    - Probability of 30-point drop: 72 percent
+    - Probability of 30-point rise: 18 percent
+    - So: 72 percent chance of 40 profit, 28 percent chance of 40 loss → expectancy = 0.72*40 - 0.28*40 = 16 — positive.
+    - This is the edge.
+
+    FINAL ANSWER:
+    - DIRECTIONAL BIAS: BEARISH
+    - PROBABILITY: 72 percent chance Nifty drops 30 points → 25800 PE gains 40 points → 28 percent gain
+    - ENTRY: 25800 PE at 140
+    - STOP-LOSS: 25850 (close above)
+    - TARGET: 25839 (30-point drop) → 25800 PE > 180
+    - EXIT: 100 percent at 180 or 2:30 PM, whichever first.
+
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    
+
+CURRENT DATA FOR ANALYSIS - FETCHED AT: 2025-10-28 12:36:27
+================================================================================
+NIFTY DATA:
+- Current Value: 25876
+- Expiry Date: 28-Oct-2025
+- OI PCR: 0.73
+- Volume PCR: 1.05
+
+BANKNIFTY DATA:
+- Current Value: 58016.95
+- Expiry Date: 28-Oct-2025
+- OI PCR: 0.82
+- Volume PCR: 1.01
+
+
+COMPLETE NIFTY OPTION CHAIN DATA:
+================================================================================
+OI Data for NIFTY - Current: 25876, Expiry: 28-Oct-2025
+Full Chain PCR: OI=0.73, Volume=1.05
+================================================================================
+CALL OPTION                                       |   STRIKE   |PUT OPTION                                          |  CHG OI DIFF       
+    Chg OI      Volume       LTP          OI       IV  |    Price    |      Chg OI      Volume       LTP          OI       IV  |             CE-PE
+------------------------------------------------------------------------------------------------------------------------------------------------------
+       -29          37    3240.0          93        0  |    22600    |      -19838      105811       0.5       34409     85.8  |             19809
+         0           0         0           0        0  |    22650    |       -3448       39153       0.4        3385     84.5  |              3448
+       -15          24    3150.0          17        0  |    22700    |       -1349       55386       0.6       16234     86.9  |              1334
+         0           0         0           0        0  |    22750    |        -211        4217       0.6         336     84.9  |               211
+      -131         246    3076.6         171    107.2  |    22800    |        -608       51452       0.3       16733     80.7  |               477
+         0           0         0           2        0  |    22850    |          22        2937       0.6         360     82.3  |               -22
+         0           0         0           1        0  |    22900    |        -256       46048       0.6        9737     81.6  |               256
+         0           0         0           2        0  |    22950    |       -1207       31542       0.5        2156     77.6  |              1207
+      -423        1203    2890.0        5344    120.5  |    23000    |       -7766       91581       0.5       19766     75.5  |              7343
+         0           0         0           1        0  |    23050    |         152        8863       0.7         919     78.1  |              -152
+         0           0         0           4        0  |    23100    |         259       55151       0.6       10100     76.2  |              -259
+         0           1    2704.6           2        0  |    23150    |         845       24066       0.6        1357     74.4  |              -845
+         0           1    2640.0          21        0  |    23200    |        -805       49220       0.5        4521     71.8  |               805
+         0           0         0           0        0  |    23250    |        -392       47267       0.5        1863     69.9  |               392
+        -8          22    2615.0          29    129.5  |    23300    |        1031       45162       0.5        3195     68.6  |             -1039
+         0           0         0           4        0  |    23350    |         167        2115       0.6         499     70.1  |              -167
+         0           0         0           7        0  |    23400    |          15       44906       0.6        3074     66.6  |               -15
+         0           0         0           1        0  |    23450    |       -2518       27076       0.6         818     65.3  |              2518
+     -1373        2074    2386.7        1904    104.3  |    23500    |       -9816      104034       0.5       21439     63.4  |              8443
+         0           0         0           4        0  |    23550    |        -131       46276       0.5        1670     62.8  |               131
+       -12          44    2264.8          43        0  |    23600    |       -1632       48282       0.5        1633     61.5  |              1620
+         0           0         0           9        0  |    23650    |         -39       35586       0.5        1092     60.2  |                39
+         0           1    2289.9          11    146.3  |    23700    |       -1202       51749       0.6        2992     58.9  |              1202
+         0           0         0          10        0  |    23750    |          37        6875       0.6         838     57.6  |               -37
+       -74         107    2067.6         109        0  |    23800    |       -4807       48944       0.5        7105     56.3  |              4733
+        -4           6    2049.3           9     96.3  |    23850    |         415       42561       0.6        1784     55.0  |              -419
+       -17          23    2014.5          49    103.8  |    23900    |        -617       42252       0.5        3151     53.2  |               600
+        -6          13    1952.6          27     94.5  |    23950    |        -484       34750       0.5        1918     52.9  |               478
+     -1272        2120    1889.0        2232     72.9  |    24000    |      -20159      211286       0.5       42142     50.6  |             18887
+        -1           4    1798.7          26        0  |    24050    |         373       43039       0.5        3889     49.4  |              -374
+       -14          53    1810.0         127     92.7  |    24100    |         956       57498       0.5        5377     48.1  |              -970
+         0           0         0          39        0  |    24150    |         322       45186       0.5        1740     47.3  |              -322
+       -25          57    1660.0         182        0  |    24200    |       -5800       74819       0.5        7361     46.4  |              5775
+        -1          14    1657.2          50     84.9  |    24250    |         857       47230       0.5        2504     45.1  |              -858
+       -15          58    1593.6         463        0  |    24300    |       -5312       60415       0.5        8738     43.0  |              5297
+         2           7    1520.6         105     64.6  |    24350    |       -1976       45000       0.6        2083     42.9  |              1978
+       -14         135    1478.0         336        0  |    24400    |       -8322       94366       0.5       11927     41.2  |              8308
+         0           0         0         149        0  |    24450    |       -2347       53976       0.6        3077     40.6  |              2347
+       -57         927    1381.0       11415     56.6  |    24500    |      -33644      367164       0.6       83478     39.0  |             33587
+        -1           5    1310.0         151        0  |    24550    |       -3079       81483       0.7        3343     38.6  |              3078
+       -63         373    1293.9        4664     53.1  |    24600    |      -12083      132589       0.7       28304     36.7  |             12020
+       -11          48    1199.2         259        0  |    24650    |       -3284       77782       0.6        5118     34.7  |              3273
+       -34         563    1188.4       13481     51.2  |    24700    |      -15595      187118       0.7       40619     33.7  |             15561
+        -8         476    1144.7        4726     51.4  |    24750    |       -3514       99376       0.8        7794     32.9  |              3506
+      -476        1089    1095.0       12230     49.0  |    24800    |      -11343      290059       0.7       55130     31.6  |             10867
+       -15         155    1018.2         427     46.0  |    24850    |       -1742      120219       0.8       15889     30.5  |              1727
+       -17        1573     987.5        9106     42.5  |    24900    |        8429      288961       0.7       50034     29.1  |             -8446
+       -33         111     929.1         252     38.8  |    24950    |        -894      153510       0.8       13445     27.8  |               861
+     -3408        6191     887.9       22524     39.7  |    25000    |        8998      801518       0.8      179864     26.6  |            -12406
+       -71         140     818.0         483        0  |    25050    |       -7459      177043       0.9       17396     25.6  |              7388
+      -835        2398     788.5        8009     36.3  |    25100    |      -11864      410397       0.9       61667     24.2  |             11029
+       -52         227     727.0        1286     35.4  |    25150    |       -7209      319334       0.9       35023     22.8  |              7157
+     -1103        3067     686.1       10152     32.7  |    25200    |       -2161      750371       0.9       97168     21.4  |              1058
+      -112         488     641.6        2401     29.3  |    25250    |        9412      398329       0.9       30777     20.1  |             -9524
+     -1745        4428     590.5       10130     28.4  |    25300    |       16233      940735       1.0      103691     18.8  |            -17978
+      -463        1350     539.0         768     26.9  |    25350    |       17165      665852       1.0       48554     17.3  |            -17628
+     -2384        7664     485.9       12276     24.5  |    25400    |       27156     1120682       0.9      134127     16.0  |            -29540
+      -343        2948     441.6        1301     22.7  |    25450    |        5554      668732       1.0       41614     14.5  |             -5897
+     -5656       38793     386.2       19200     19.7  |    25500    |         354     1686879       1.1      177133     13.2  |             -6010
+       259        7842     337.7        2071     17.6  |    25550    |        -864      871351       1.1       53460     11.9  |              1123
+      1295       57314     287.9       10644     16.3  |    25600    |       18092     1470554       1.4      102343     10.6  |            -16797
+       955       40978     237.2        3672     13.5  |    25650    |       42878     1967294       1.7       88952      9.4  |            -41923
+     11067      317042     188.8       26902     12.3  |    25700    |       58797     4343351       2.9      198052      8.7  |            -47730
+      4123      395549     141.2       21137     10.9  |    25750    |      101189     4941596       5.6      169949      8.1  |            -97066
+     69804     2052847      97.8      110288      9.8  |    25800    |      158538     9105519      12.1      312376      7.7  |            -88734
+    167951     3478667      60.6      193092      9.0  |    25850    |      145960     8582706      25.2      249996      7.2  |             21991
+    324755     7319631      34.5      382221      8.8  |    25900    |        1571     9852296      49.0      183736      7.0  |            323184
+    196287     5686898      18.1      263735      9.0  |    25950    |      -30451     5134676      83.0       58981      6.7  |            226738
+    313657     9542101      10.2      474302      9.5  |    26000    |      -67042     5745549     125.0       95867      5.5  |            380699
+    113616     5362481       5.8      204330     10.2  |    26050    |      -16456     1493120     170.4       17511        0  |            130072
+     91427     5980528       3.9      263068     11.1  |    26100    |      -15142     1070942     218.7       23937        0  |            106569
+     38496     3426887       2.8      117482     12.0  |    26150    |       -1871      220880     265.8        3393        0  |             40367
+     24170     3739404       2.2      184549     13.1  |    26200    |       -1848      250199     317.0        7971        0  |             26018
+     32504     2139697       2.0      102762     14.3  |    26250    |         -15       30290     366.4        1522        0  |             32519
+     45315     1922373       1.8      169095     15.5  |    26300    |       -1878       36517     414.6        5878        0  |             47193
+     15863     1126998       1.6       81918     16.8  |    26350    |        -178        5460     465.7         538        0  |             16041
+     44818     1377652       1.5      158241     18.0  |    26400    |        -469        7213     513.1        1738        0  |             45287
+     32738      822179       1.4       77607     19.2  |    26450    |          56        1565     562.8         285        0  |             32682
+     21094     1567000       1.2      251156     20.5  |    26500    |        -774       11006     614.0        5855        0  |             21868
+      8956      561980       1.2       59054     21.8  |    26550    |         131         719     664.2         198        0  |              8825
+     14530      856710       1.1      113067     22.8  |    26600    |         -91         752     721.0         652        0  |             14621
+      9981      462940       0.9       41691     23.6  |    26650    |          99         339     780.4         154     26.9  |              9882
+     12005      696937       0.9      114403     25.0  |    26700    |         -32         119     811.0         135        0  |             12037
+     13306      306199       0.9       35062     26.3  |    26750    |           5          16     855.9          33        0  |             13301
+      3301      584975       0.8      106104     27.4  |    26800    |          11          78     920.8         108        0  |              3290
+      1204      202964       0.8       19883     28.4  |    26850    |           1           4     980.8          26     33.4  |              1203
+      9664      435713       0.8       59092     29.7  |    26900    |          -1          11     992.3          74        0  |              9665
+      3564      197394       0.8       22856     31.1  |    26950    |          -1           4     906.5          15        0  |              3565
+     20437      976039       0.7      166522     31.7  |    27000    |       -1178        2880    1133.8        4364        0  |             21615
+      1342      190279       0.8       10372     33.2  |    27050    |           0           0         0           3        0  |              1342
+      2944      253115       0.7       46834     34.4  |    27100    |          -7          12    1220.0          41        0  |              2951
+      1853      124653       0.8       16790     35.9  |    27150    |          -5          13    1273.4          16        0  |              1858
+      8543      230145       0.7       43494     36.5  |    27200    |           0           1    1338.5          33     53.2  |              8543
+      3083       64983       0.6       10099     37.4  |    27250    |           0           0         0           3        0  |              3083
+     -8689      307076       0.5       35622     38.3  |    27300    |           0           0         0           6        0  |             -8689
+     -1514       81675       0.6       11519     39.1  |    27350    |           0           0         0           1        0  |             -1514
+    -12259      201139       0.5       22659     39.9  |    27400    |         -25          47    1541.0          64     61.9  |            -12234
+     -6030       58510       0.6        6105     41.8  |    27450    |           0           1    1470.0           1        0  |             -6030
+    -11462      192153       0.6       26659     42.9  |    27500    |           1          10    1611.0          22        0  |            -11463
+     -1633       29235       0.6        3335     44.1  |    27550    |           0           1    1557.7           1        0  |             -1633
+     -5239      121300       0.5       14374     44.8  |    27600    |           0           0         0           0        0  |             -5239
+     -1809       50168       0.5        4070     45.5  |    27650    |           1           2    1595.7           1        0  |             -1810
+         0       32151       0.5        3068     47.0  |    27700    |           0           4    1688.0           2        0  |                 0
+======================================================================================================================================================
+NIFTY PCR: OI PCR = 0.73, Volume PCR = 1.05
+
+
+
+COMPLETE BANKNIFTY OPTION CHAIN DATA:
+================================================================================
+OI Data for BANKNIFTY - Current: 58016.95, Expiry: 28-Oct-2025
+Full Chain PCR: OI=0.82, Volume=1.01
+================================================================================
+CALL OPTION                                       |   STRIKE   |PUT OPTION                                          |  CHG OI DIFF       
+    Chg OI      Volume       LTP          OI       IV  |    Price    |      Chg OI      Volume       LTP          OI       IV  |             CE-PE
+------------------------------------------------------------------------------------------------------------------------------------------------------
+         0           0         0          18        0  |    46000    |       -2800       11777       1.3       11878    144.6  |              2800
+         0           1   11372.4          15        0  |    46500    |        -511        1902       1.0        1302    137.3  |               511
+      -139         222   11050.0          96    151.0  |    47000    |        -213        1318       1.4         980    135.1  |                74
+         0           0         0           1        0  |    47500    |          -1         831       1.0        1242    126.0  |                 1
+       -16          66   10025.2         166        0  |    48000    |       -1219        2681       1.2        1816    121.8  |              1203
+       -14          20    9400.0          10        0  |    48500    |          72        1466       1.4         829    116.4  |               -86
+         0           0         0           0        0  |    48700    |          18         109       2.1          82    117.4  |               -18
+         0           0         0           2        0  |    48800    |          23         437       1.5         300    112.4  |               -23
+         0           0         0           0        0  |    48900    |          11          27       2.1          48    114.6  |               -11
+        -6          37    8970.0          99        0  |    49000    |        -427        2664       1.4        1260    110.6  |               421
+         0           0         0           0        0  |    49100    |         111         243       1.6         189    110.8  |              -111
+         0           0         0           0        0  |    49200    |           1          28       1.3          16    106.1  |                -1
+         0           0         0           0        0  |    49300    |           0           3       1.2          25    104.2  |                 0
+         0           0         0           0        0  |    49400    |           0           0         0          37        0  |                 0
+        -3           8    8400.0           5        0  |    49500    |        -139         310       1.5         497    106.4  |               136
+         0           0         0           0        0  |    49600    |          31          40       1.4         114    105.1  |               -31
+         0           0         0           1        0  |    49700    |          -5          49       1.4          55    100.8  |                 5
+         0           0         0           1        0  |    49800    |         -25         101       1.6          51    102.1  |                25
+         0           0         0           1        0  |    49900    |           0           0         0          48        0  |                 0
+      -434         489    7997.6         333        0  |    50000    |       -4390       22266       0.9        7929     94.3  |              3956
+         0           1    7801.0          45        0  |    50100    |          -4          65       1.5          89     96.6  |                 4
+         0           0         0           3        0  |    50200    |          63         765       1.7         207     97.0  |               -63
+         0           0         0           4        0  |    50300    |         -13          84       2.1          68     97.2  |                13
+         0           0         0           5        0  |    50400    |           1          34       2.6          85     98.0  |                -1
+       -37          59    7505.2          29        0  |    50500    |        -103         540       1.6         504     92.0  |                66
+         0           0         0           5        0  |    50600    |         -12          92       1.6          55     90.8  |                12
+         0           0         0           7        0  |    50700    |          21         119       1.7          68     92.0  |               -21
+         0           0         0           6        0  |    50800    |          -2         112       1.6          56     88.4  |                 2
+         0           0         0           6        0  |    50900    |         188        1117       1.4         304     87.0  |              -188
+      -115         133    6939.6         160        0  |    51000    |       -1361        5509       1.4        1969     86.0  |              1246
+         0           0         0           7        0  |    51100    |          93         277       1.8         150     86.0  |               -93
+         0           0         0          10        0  |    51200    |          76         122       1.8         122     84.6  |               -76
+         0           0         0          11        0  |    51300    |           6          37       2.7         148     87.0  |                -6
+         0           0         0          12        0  |    51400    |         -12          55       1.7         143     82.0  |                12
+        -3           9    6485.0          23        0  |    51500    |        -103         943       1.2        1546     78.8  |               100
+         0           0         0          18        0  |    51600    |          -7          45       1.4          66     78.4  |                 7
+         0           0         0          18        0  |    51700    |          -2          36       1.6          34     77.7  |                 2
+         0           0         0          20        0  |    51800    |          10         115       1.2         167     82.8  |               -10
+         0           0         0          14        0  |    51900    |         -10         323       2.0          78     77.4  |                10
+       -78         138    6011.4         374     99.5  |    52000    |        -886       15068       1.6       12973     74.5  |               808
+         0           0         0          12        0  |    52100    |         -29         214       2.1          94     75.1  |                29
+         0           0         0          11        0  |    52200    |         170        1363       1.6         289     71.7  |              -170
+         0           0         0          14        0  |    52300    |         -44         338       1.6         144     70.1  |                44
+         0           0         0           9        0  |    52400    |          -9         581       1.1         135     70.0  |                 9
+       -15          38    5488.9          85        0  |    52500    |       -1416        5624       1.4        2424     68.2  |              1401
+         0           0         0          13        0  |    52600    |           9         209       1.8         170     67.8  |                -9
+         0           0         0           5        0  |    52700    |         -94         971       1.8         123     66.4  |                94
+         0           0         0          15        0  |    52800    |         -10         824       1.6         314     64.6  |                10
+         0           0         0          40        0  |    52900    |          56         357       1.9         245     63.4  |               -56
+       -59         170    4930.0         751        0  |    53000    |       -2445       38494       1.4        8288     62.4  |              2386
+         0           1    4806.0           8        0  |    53100    |         -43         358       1.9         164     62.0  |                43
+         0           0         0           7        0  |    53200    |          51        1149       1.6         416     61.6  |               -51
+         0           0         0          17        0  |    53300    |          25        1136       1.6         797     59.4  |               -25
+        -1          15    4555.1         146        0  |    53400    |        -123        2631       1.9         442     59.6  |               122
+       -14         126    4449.9         417        0  |    53500    |        -643       18739       1.4        4770     56.9  |               629
+        -1           9    4300.0          68        0  |    53600    |        -163         746       1.6         514     55.7  |               162
+         0           4    4169.9          96        0  |    53700    |        -367         742       1.8         316     54.6  |               367
+        -6          13    4119.9          78        0  |    53800    |          79        2277       1.8         892     54.8  |               -85
+        -1           6    3873.7         134        0  |    53900    |         151        3540       1.6         910     53.3  |              -152
+      -374         682    3975.0        4610        0  |    54000    |       -1429       57226       1.4       22741     50.9  |              1055
+        -4          10    3709.0         219        0  |    54100    |          70        2870       1.7         923     50.8  |               -74
+        -2           6    3600.0         269        0  |    54200    |        2243       22919       1.6        3335     49.9  |             -2245
+        -2           7    3547.9         271        0  |    54300    |        -203        8201       1.8        1269     48.4  |               201
+      -134         177    3460.0         250        0  |    54400    |        -364        6153       1.8         990     47.2  |               230
+      -325         378    3492.8        5147        0  |    54500    |         560       43513       1.4       14057     45.1  |              -885
+       -49          79    3437.8         682        0  |    54600    |         338        7333       1.6        3078     44.5  |              -387
+        -7          57    3218.3         560        0  |    54700    |        2347       12239       1.4        5020     43.1  |             -2354
+       -85         102    3221.8        1090        0  |    54800    |        1001       14445       1.9        4995     43.1  |             -1086
+      -118         198    3091.0         788        0  |    54900    |        3869       17445       1.7        6107     40.8  |             -3987
+      -930        1746    3024.6       12155        0  |    55000    |        7692      156433       1.6       40738     38.9  |             -8622
+      -136         415    2884.0         529        0  |    55100    |        -375       13908       2.0        3091     38.9  |               239
+      -142         159    2775.0         453        0  |    55200    |          21       16524       1.9        3635     37.7  |              -163
+        -8         101    2660.0        2215     45.5  |    55300    |        -273       11599       2.0        3787     36.3  |               265
+      -104         166    2604.4         914     43.6  |    55400    |        -385       24426       2.0        2663     35.1  |               281
+      -573        1243    2545.8        5488        0  |    55500    |        -721      140213       1.9       21888     33.9  |               148
+       -10         134    2400.0        2217        0  |    55600    |       -1432       38609       2.0        6998     32.9  |              1422
+       -13         245    2331.4        2643        0  |    55700    |          88       25756       2.0        5521     31.3  |              -101
+      -128         195    2181.3         978        0  |    55800    |        -462       26814       2.1        3449     30.6  |               334
+       -31         189    2067.4         869        0  |    55900    |        1045       43413       2.1       10882     29.5  |             -1076
+     -1226        3227    2040.1       11810        0  |    56000    |        2235      201625       2.0       40244     27.8  |             -3461
+       -62         149    1935.4         999        0  |    56100    |        2647       44520       2.0        6652     26.5  |             -2709
+       -21         298    1856.2        1154        0  |    56200    |        3351       54298       2.1        8089     25.4  |             -3372
+       -85         171    1528.0        1877        0  |    56300    |        3549       45300       2.4        9097     24.6  |             -3634
+      -417         495    1644.2        2002        0  |    56400    |        2048       47701       2.3        7348     23.3  |             -2465
+     -1510        2435    1528.8        4207        0  |    56500    |       -6717      189905       2.2       27254     21.8  |              5207
+      -153         253    1423.7        1648        0  |    56600    |        7612       72807       2.2       14455     20.6  |             -7765
+      -202         373    1278.9        1961        0  |    56700    |        2596       93610       2.5       10213     19.7  |             -2798
+      -225         439    1236.0        1942        0  |    56800    |        2966       99095       2.4       10141     18.2  |             -3191
+      -202         362    1130.0        1897        0  |    56900    |        4258      120720       2.5        9340     17.0  |             -4460
+     -3937       10456    1041.6       16949        0  |    57000    |       -2957      439971       2.7       38419     15.8  |              -980
+      -152         651     887.9        1195        0  |    57100    |        5307      225393       3.0       12136     14.6  |             -5459
+      -114        3692     845.9        1434        0  |    57200    |        7164      294069       3.4       16592     13.5  |             -7278
+       175        8785     745.0        1765        0  |    57300    |        5084      447505       3.9       15323     12.6  |             -4909
+       -97       13304     636.8        7716        0  |    57400    |       10875      662961       5.5       20472     11.7  |            -10972
+     -1489       71729     543.0       11515        0  |    57500    |        5539     1231375       7.4       35175     10.9  |             -7028
+     -1537       60257     444.6        3633        0  |    57600    |       13869      922450      10.9       25033     10.2  |            -15406
+      1923      195419     351.9        7512      5.9  |    57700    |       21260     1234149      17.8       36673      9.7  |            -19337
+     13582      581593     265.9       19526      6.8  |    57800    |       30238     1643046      30.2       47952      9.4  |            -16656
+     28012     1028323     187.1       39653      7.4  |    57900    |       30729     1403782      52.2       47278      9.4  |             -2717
+     43683     1782570     122.3       80497      7.9  |    58000    |       -8912     1478004      88.4       45424      9.7  |             52595
+     28876     1191211      78.4       45750      8.5  |    58100    |       -4667      663622     144.2       14676     10.3  |             33543
+     33529     1367833      50.0       57294      9.2  |    58200    |       -6017      581089     215.8       12505     11.4  |             39546
+     25312     1130118      31.6       43876      9.9  |    58300    |        -276      238747     297.1        7701     12.5  |             25588
+     14993      767020      20.1       30114     10.8  |    58400    |          69       94907     386.5        2663     13.5  |             14924
+     19237     1137603      13.6       59215     11.6  |    58500    |       -1776       81421     480.0        8047     15.3  |             21013
+      9119      477167       9.8       20417     12.6  |    58600    |        -352       19718     569.2         581     16.3  |              9471
+      7389      393079       6.9       17566     13.5  |    58700    |          40       12853     673.8         521     17.5  |              7349
+      5593      378905       5.1       15948     14.4  |    58800    |         -32        3702     763.0         286     19.5  |              5625
+      3262      210105       4.2       12649     15.5  |    58900    |         -27        2435     900.0         233     23.3  |              3289
+     -4554      515770       3.8       37705     16.7  |    59000    |        -125        5221     971.2        1722     21.1  |             -4429
+      7411      139018       3.3       12288     17.8  |    59100    |          13         328    1060.0         141     24.8  |              7398
+      5415      159560       3.4       17060     19.2  |    59200    |          14         296    1275.0         125     34.9  |              5401
+      7601      112752       3.0       13987     20.4  |    59300    |          -5          50    1341.3          48     30.8  |              7606
+      8645      109045       3.0       12428     21.5  |    59400    |          -2          37    1500.0          42     42.6  |              8647
+      2123      253539       2.8       30273     22.7  |    59500    |           1         245    1513.8         309     31.4  |              2122
+      3128       67007       2.7        8172     23.9  |    59600    |           0           8    1759.4          11     54.9  |              3128
+      9194      101073       2.5       12717     24.9  |    59700    |           0           0         0          33        0  |              9194
+      2563       61483       2.5        8482     26.3  |    59800    |           0           0         0          12        0  |              2563
+      6238       69701       2.6        8211     27.6  |    59900    |           0           0         0          24        0  |              6238
+      7208      249424       2.5       44994     28.5  |    60000    |        -416        1025    1968.2         902     43.0  |              7624
+      1443       35794       2.6        2894     29.7  |    60100    |           0           0         0          16        0  |              1443
+      1173       31069       2.5        3112     31.0  |    60200    |           0           0         0           6        0  |              1173
+       968       35981       2.6        2494     32.2  |    60300    |           0           0         0           4        0  |               968
+      -664       19476       2.5        2482     33.3  |    60400    |           0           0         0           6        0  |              -664
+     15501      160101       2.5       28877     34.4  |    60500    |          -5          14    2530.0          14     60.9  |             15506
+       769       17520       2.3        2182     35.5  |    60600    |           0           0         0          16        0  |               769
+      1571       19776       2.5        4018     36.6  |    60700    |           0           0         0           4        0  |              1571
+      1057       13187       2.5        2257     37.7  |    60800    |           0           0         0           3        0  |              1057
+      2689       15894       2.5        3676     38.8  |    60900    |           0           0         0           3        0  |              2689
+     13426      119347       1.7       31318     38.7  |    61000    |         -18          29    3030.8         281     54.5  |             13444
+      4821       15831       1.7        5341     39.9  |    61100    |           0           1    3124.9           1        0  |              4821
+      7930       28178       1.8        8808     41.1  |    61200    |           0           0         0           0        0  |              7930
+        58        4086       2.0         599     42.9  |    61300    |           0           0         0           0        0  |                58
+       102        5090       2.1         612     43.8  |    61400    |           0           0         0           0        0  |               102
+      -553       29526       1.9        5495     44.7  |    61500    |           0           0         0           5        0  |              -553
+       164        1837       2.8         481     46.4  |    61600    |           0           0         0           1        0  |               164
+       318        4766       2.0        1198     47.2  |    61700    |           0           0         0           0        0  |               318
+      1842       13680       2.0        2131     48.0  |    61800    |           0           0         0           0        0  |              1842
+       858        6001       1.9        1036     49.3  |    61900    |           0           0         0           0        0  |               858
+      2952       58415       1.6       13651     49.6  |    62000    |          -7          23    4150.0         173     99.1  |              2959
+       721        3788       1.9         817     50.9  |    62100    |           0           0         0           0        0  |               721
+      1112        7356       1.6        1339     51.3  |    62200    |           0           0         0           0        0  |              1112
+       173        1213       1.8         312     53.1  |    62300    |           0           0         0           0        0  |               173
+        58         157       2.5          87     54.3  |    62400    |           0           0         0           0        0  |                58
+       925       11907       1.6        2450     54.8  |    62500    |           0           0         0           1        0  |               925
+        37         544       2.1          66     55.4  |    62600    |           0           0         0           0        0  |                37
+       131         914       1.9         175     59.8  |    62700    |           0           0         0           0        0  |               131
+       110        1732       2.0         160     58.4  |    62800    |           0           0         0           0        0  |               110
+         7         842       2.0          85     60.2  |    62900    |           0           0         0           0        0  |                 7
+      1825       35171       1.5       14163     59.1  |    63000    |         -70         185    4973.2         142     85.8  |              1895
+        49         448       1.8          78     60.8  |    63100    |           0           0         0           0        0  |                49
+      -230       24192       0.8        9468     61.7  |    63500    |           0           0         0          55        0  |              -230
+      -458        4071       0.9        1906     67.3  |    64000    |           0           0         0           0        0  |              -458
+      -416        1621       1.1         347     72.9  |    64500    |           0           0         0           0        0  |              -416
+     -3686       18054       1.2        7342     76.8  |    65000    |           0           1    6910.0           1        0  |             -3686
+        24        5657       0.7        1862     79.1  |    65500    |           0           0         0           0        0  |                24
+======================================================================================================================================================
+BANKNIFTY PCR: OI PCR = 0.82, Volume PCR = 1.01
+================================================================================
