@@ -1,15 +1,15 @@
 # fastapi_app.py
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import asyncio
 import subprocess
 import json
 import time
-import sys
 import os
+import glob
 from typing import List
-import signal
+from pathlib import Path
 
 app = FastAPI(title="Nifty Option Chain Fetcher", version="1.0")
 
@@ -52,135 +52,68 @@ class ScriptRunner:
         self.running = False
         self.task = None
         
-    async def start_script(self):
-        """Start the Nifty script asynchronously"""
+    def find_latest_text_file(self):
+        """Find the most recently created text file in ai-query-logs directory"""
+        try:
+            logs_dir = os.path.join(os.getcwd(), "ai-query-logs")
+            if not os.path.exists(logs_dir):
+                return None
+                
+            text_files = glob.glob(os.path.join(logs_dir, "*.txt"))
+            if not text_files:
+                return None
+                
+            # Get the most recently created file
+            latest_file = max(text_files, key=os.path.getctime)
+            return latest_file
+            
+        except Exception as e:
+            print(f"Error finding text files: {e}")
+            return None
+    
+    def read_text_file_content(self, filepath: str) -> str:
+        """Read the content of a text file"""
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return content
+        except Exception as e:
+            return f"Error reading file {filepath}: {str(e)}"
+    
+    async def run_script_and_get_file_content(self):
+        """Run nifty_main.py and return the content of the created text file"""
         if self.running:
-            await manager.broadcast(json.dumps({
-                "type": "error",
-                "message": "Script is already running"
-            }))
-            return False
+            return None, "Script is already running"
             
         try:
-            await manager.broadcast(json.dumps({
-                "type": "status",
-                "message": "🚀 Starting Nifty Option Chain Fetcher..."
-            }))
+            # Run nifty_main.py as a subprocess
+            cmd = ["python", "nifty_main.py"]
             
-            # Command to run the script
-            script_dir = "/home/niftyaic/OI-AI-Strategy"
-            venv_python = "/home/niftyaic/virtualenv/OI-AI-Strategy/3.10/bin/python"
-            
-            cmd = [
-                venv_python, 
-                "-u",  # Unbuffered output
-                "Nifty_Option_Chain_Fetcher_Part3.py"
-            ]
-            
-            # Create subprocess with unbuffered output
             self.process = await asyncio.create_subprocess_exec(
                 *cmd,
-                cwd=script_dir,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
-                bufsize=0,  # No buffering
+                bufsize=0,
                 env={**os.environ, 'PYTHONUNBUFFERED': '1'}
             )
             
             self.running = True
             
-            # Start output reading task
-            self.task = asyncio.create_task(self._read_output())
-            
-            await manager.broadcast(json.dumps({
-                "type": "status", 
-                "message": "✅ Script started successfully"
-            }))
-            
-            return True
-            
-        except Exception as e:
-            error_msg = f"❌ Failed to start script: {str(e)}"
-            print(error_msg)
-            await manager.broadcast(json.dumps({
-                "type": "error",
-                "message": error_msg
-            }))
-            return False
-    
-    async def _read_output(self):
-        """Read output from the script in real-time"""
-        try:
-            while self.running and self.process and self.process.stdout:
-                # Read line by line
-                line = await self.process.stdout.readline()
-                if line:
-                    decoded = line.decode('utf-8').strip()
-                    if decoded:
-                        await manager.broadcast(json.dumps({
-                            "type": "output",
-                            "data": decoded,
-                            "timestamp": time.time()
-                        }))
-                else:
-                    # Process finished
-                    if await self.process.wait() is not None:
-                        break
-        except Exception as e:
-            print(f"Error reading output: {e}")
-        
-        self.running = False
-        await manager.broadcast(json.dumps({
-            "type": "status",
-            "message": "🛑 Script stopped"
-        }))
-    
-    async def stop_script(self):
-        """Stop the running script"""
-        if not self.running or not self.process:
-            await manager.broadcast(json.dumps({
-                "type": "error", 
-                "message": "No script is running"
-            }))
-            return False
-            
-        try:
-            await manager.broadcast(json.dumps({
-                "type": "status",
-                "message": "🛑 Stopping script..."
-            }))
-            
-            # Terminate the process
-            self.process.terminate()
-            
-            # Wait for process to end
-            try:
-                await asyncio.wait_for(self.process.wait(), timeout=10.0)
-            except asyncio.TimeoutError:
-                # Force kill if not responding
-                self.process.kill()
-                await self.process.wait()
-            
+            # Wait for the process to complete
+            await self.process.wait()
             self.running = False
             
-            if self.task and not self.task.done():
-                self.task.cancel()
+            # Find and read the latest text file
+            latest_file = self.find_latest_text_file()
+            if latest_file:
+                content = self.read_text_file_content(latest_file)
+                return content, f"Script completed successfully. File: {os.path.basename(latest_file)}"
+            else:
+                return None, "Script completed but no text file was found"
                 
-            await manager.broadcast(json.dumps({
-                "type": "status",
-                "message": "✅ Script stopped successfully"
-            }))
-            
-            return True
-            
         except Exception as e:
-            error_msg = f"❌ Error stopping script: {str(e)}"
-            print(error_msg)
-            await manager.broadcast(json.dumps({
-                "type": "error",
-                "message": error_msg
-            }))
-            return False
+            self.running = False
+            return None, f"Error running script: {str(e)}"
 
 # Global script runner
 script_runner = ScriptRunner()
@@ -205,19 +138,44 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 # API endpoints
-@app.post("/start")
-async def start_script():
-    """Start the Nifty script"""
-    success = await script_runner.start_script()
-    return {"status": "success" if success else "error", 
-            "message": "Script started" if success else "Failed to start script"}
-
-@app.post("/stop")  
-async def stop_script():
-    """Stop the Nifty script"""
-    success = await script_runner.stop_script()
-    return {"status": "success" if success else "error",
-            "message": "Script stopped" if success else "Failed to stop script"}
+@app.post("/run")
+async def run_script():
+    """Run the Nifty script and return the text file content"""
+    if script_runner.running:
+        raise HTTPException(status_code=400, detail="Script is already running")
+    
+    try:
+        # Notify clients that script is starting
+        await manager.broadcast(json.dumps({
+            "type": "status",
+            "message": "🚀 Starting Nifty script..."
+        }))
+        
+        # Run script and get file content
+        content, status_message = await script_runner.run_script_and_get_file_content()
+        
+        if content:
+            # Send the file content to all connected clients
+            await manager.broadcast(json.dumps({
+                "type": "file_content",
+                "content": content,
+                "status": status_message
+            }))
+            return {"status": "success", "message": status_message}
+        else:
+            await manager.broadcast(json.dumps({
+                "type": "error",
+                "message": status_message
+            }))
+            return {"status": "error", "message": status_message}
+            
+    except Exception as e:
+        error_msg = f"Error running script: {str(e)}"
+        await manager.broadcast(json.dumps({
+            "type": "error",
+            "message": error_msg
+        }))
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @app.get("/status")
 async def get_status():
@@ -227,57 +185,55 @@ async def get_status():
         "status": "running" if script_runner.running else "stopped"
     }
 
-# Main page
+# Serve the main page
 @app.get("/")
-async def get():
+async def get_main_page():
     return HTMLResponse("""
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Nifty Option Chain - RealTime</title>
+        <title>Nifty Option Chain - AI Analysis</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
-                color: #e0e0e0;
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                color: #333;
                 min-height: 100vh;
                 padding: 20px;
             }
             .container { 
                 max-width: 1400px; 
                 margin: 0 auto;
-                background: #2d2d2d;
-                border-radius: 12px;
-                box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                background: white;
+                border-radius: 15px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
                 overflow: hidden;
-                border: 1px solid #404040;
             }
             .header {
-                background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 color: white;
                 padding: 30px;
                 text-align: center;
-                border-bottom: 1px solid #404040;
             }
             .header h1 {
-                font-size: 2.5em;
+                font-size: 2.2em;
                 margin-bottom: 10px;
                 font-weight: 700;
             }
             .header p {
-                font-size: 1.2em;
+                font-size: 1.1em;
                 opacity: 0.9;
             }
             .controls {
-                background: #363636;
+                background: #f8f9fa;
                 padding: 25px;
                 display: flex;
                 justify-content: center;
                 gap: 20px;
-                border-bottom: 1px solid #404040;
+                border-bottom: 2px solid #e9ecef;
                 flex-wrap: wrap;
             }
             .btn {
@@ -293,18 +249,18 @@ async def get():
                 align-items: center;
                 justify-content: center;
                 gap: 8px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             }
             .btn:hover:not(:disabled) {
                 transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+                box-shadow: 0 6px 20px rgba(0,0,0,0.15);
             }
-            .start-btn {
+            .run-btn {
                 background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
                 color: white;
             }
-            .stop-btn {
-                background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
+            .copy-btn {
+                background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
                 color: white;
             }
             .btn:disabled {
@@ -315,37 +271,40 @@ async def get():
                 opacity: 0.6;
             }
             .status-panel {
-                background: #2d2d2d;
-                padding: 25px;
-                border-bottom: 1px solid #404040;
+                background: #f8f9fa;
+                padding: 20px;
+                border-bottom: 2px solid #e9ecef;
             }
             .status-card {
-                background: #363636;
-                padding: 25px;
+                background: white;
+                padding: 20px;
                 border-radius: 10px;
                 text-align: center;
-                border: 2px solid #404040;
+                border: 2px solid #dee2e6;
                 transition: all 0.3s ease;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             }
             .status-connected {
                 border-color: #28a745;
-                background: linear-gradient(135deg, #155724 0%, #1e7e34 100%);
+                background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
             }
             .status-disconnected {
                 border-color: #dc3545;
-                background: linear-gradient(135deg, #721c24 0%, #c82333 100%);
+                background: linear-gradient(135deg, #f8d7da 0%, #f1b0b7 100%);
             }
             .status-card h3 {
-                font-size: 1.4em;
+                font-size: 1.2em;
                 margin-bottom: 10px;
+                color: #495057;
             }
             .output-section {
                 padding: 0;
             }
             .output-header {
-                background: #363636;
+                background: #343a40;
+                color: white;
                 padding: 20px 25px;
-                border-bottom: 1px solid #404040;
+                border-bottom: 2px solid #495057;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
@@ -356,74 +315,78 @@ async def get():
             }
             .output-stats {
                 font-size: 0.9em;
-                color: #aaa;
+                color: #adb5bd;
             }
             .output-container {
                 background: #1a1a1a;
-                height: 600px;
+                color: #e9ecef;
+                height: 70vh;
+                min-height: 500px;
                 overflow-y: auto;
                 font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 13px;
-                line-height: 1.5;
+                font-size: 12px;
+                line-height: 1.4;
                 padding: 20px;
+                white-space: pre-wrap;
+                word-wrap: break-word;
             }
             .output-line {
-                margin-bottom: 4px;
-                padding: 4px 8px;
-                border-radius: 4px;
-                animation: slideIn 0.3s ease;
-                word-wrap: break-word;
-                border-left: 3px solid transparent;
-            }
-            .output-line:hover {
-                background: #2d2d2d;
-            }
-            .output-line.info { border-left-color: #17a2b8; }
-            .output-line.success { border-left-color: #28a745; }
-            .output-line.warning { border-left-color: #ffc107; }
-            .output-line.error { border-left-color: #dc3545; }
-            
-            @keyframes slideIn {
-                from { opacity: 0; transform: translateX(-10px); }
-                to { opacity: 1; transform: translateX(0); }
+                margin-bottom: 2px;
+                animation: fadeIn 0.3s ease;
             }
             
-            .line-number {
-                color: #6c757d;
-                margin-right: 15px;
-                font-size: 0.9em;
-                user-select: none;
-                min-width: 50px;
-                display: inline-block;
-                text-align: right;
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
             }
             
-            .output-container::-webkit-scrollbar {
-                width: 12px;
+            /* Mobile Responsive */
+            @media (max-width: 768px) {
+                body { padding: 10px; }
+                .header { padding: 20px; }
+                .header h1 { font-size: 1.8em; }
+                .controls { padding: 15px; gap: 10px; }
+                .btn { 
+                    padding: 12px 20px; 
+                    min-width: 120px;
+                    font-size: 14px;
+                }
+                .output-container {
+                    height: 60vh;
+                    font-size: 11px;
+                    padding: 15px;
+                }
+                .output-header {
+                    padding: 15px 20px;
+                    flex-direction: column;
+                    gap: 10px;
+                    text-align: center;
+                }
             }
-            .output-container::-webkit-scrollbar-track {
-                background: #2d2d2d;
-                border-radius: 6px;
-            }
-            .output-container::-webkit-scrollbar-thumb {
-                background: #404040;
-                border-radius: 6px;
+            
+            @media (max-width: 480px) {
+                .controls { flex-direction: column; }
+                .btn { width: 100%; }
+                .output-container {
+                    height: 50vh;
+                    font-size: 10px;
+                }
             }
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <h1>🚀 Nifty Option Chain Fetcher</h1>
-                <p>Real-time Nifty, BankNifty, and Stock Options Analysis with AI</p>
+                <h1>🤖 Nifty AI Analysis Console</h1>
+                <p>Complete AI Query + Option Chain Data</p>
             </div>
             
             <div class="controls">
-                <button id="startBtn" class="btn start-btn" onclick="startScript()">
-                    <span>▶</span> Start Script
+                <button id="runBtn" class="btn run-btn" onclick="runScript()">
+                    <span>▶</span> RUN ANALYSIS
                 </button>
-                <button id="stopBtn" class="btn stop-btn" onclick="stopScript()" disabled>
-                    <span>⏹</span> Stop Script
+                <button id="copyBtn" class="btn copy-btn" onclick="copyOutput()">
+                    <span>📋</span> COPY OUTPUT
                 </button>
             </div>
             
@@ -436,15 +399,14 @@ async def get():
             
             <div class="output-section">
                 <div class="output-header">
-                    <h3>📊 Live Output</h3>
+                    <h3>📊 AI Analysis Output</h3>
                     <div class="output-stats">
-                        Lines: <span id="lineCount">0</span>
+                        <span id="fileInfo">No file loaded</span>
                     </div>
                 </div>
                 <div class="output-container" id="output">
-                    <div class="output-line info">
-                        <span class="line-number">1</span>🚀 Ready to connect...
-                    </div>
+                    <div class="output-line">🚀 Ready to run analysis...</div>
+                    <div class="output-line">Click RUN ANALYSIS to generate AI query data</div>
                 </div>
             </div>
         </div>
@@ -452,14 +414,11 @@ async def get():
         <script>
             let ws = null;
             let isConnected = false;
-            let lineCount = 1;
-            let reconnectTimeout = null;
+            let currentContent = "";
             
             function connectWebSocket() {
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsUrl = `${protocol}//${window.location.host}/ws`;
-                
-                console.log('Connecting to:', wsUrl);
                 
                 ws = new WebSocket(wsUrl);
                 
@@ -467,7 +426,6 @@ async def get():
                     console.log('WebSocket connected');
                     isConnected = true;
                     updateStatus('✅ Connected to server', 'status-connected');
-                    clearTimeout(reconnectTimeout);
                 };
                 
                 ws.onmessage = function(event) {
@@ -480,18 +438,12 @@ async def get():
                 };
                 
                 ws.onclose = function(event) {
-                    console.log('WebSocket disconnected:', event.code, event.reason);
+                    console.log('WebSocket disconnected');
                     isConnected = false;
                     updateStatus('❌ Disconnected from server', 'status-disconnected');
                     
-                    // Attempt reconnect after 2 seconds
-                    if (!reconnectTimeout) {
-                        reconnectTimeout = setTimeout(() => {
-                            reconnectTimeout = null;
-                            console.log('Attempting to reconnect...');
-                            connectWebSocket();
-                        }, 2000);
-                    }
+                    // Attempt reconnect after 3 seconds
+                    setTimeout(connectWebSocket, 3000);
                 };
                 
                 ws.onerror = function(error) {
@@ -502,43 +454,54 @@ async def get():
             
             function handleWebSocketMessage(data) {
                 switch(data.type) {
-                    case 'output':
-                        addOutputLine(data.data);
-                        break;
                     case 'status':
                         addOutputLine(data.message, 'info');
                         break;
-                    case 'error':
-                        addOutputLine(data.message, 'error');
+                    case 'file_content':
+                        // Clear console and display new content
+                        clearOutput();
+                        displayFileContent(data.content);
+                        updateFileInfo(data.status || 'File loaded successfully');
                         break;
-                    default:
-                        console.log('Unknown message type:', data);
+                    case 'error':
+                        addOutputLine('❌ ' + data.message, 'error');
+                        updateFileInfo('Error: ' + data.message);
+                        break;
                 }
             }
             
+            function clearOutput() {
+                const outputDiv = document.getElementById('output');
+                outputDiv.innerHTML = '';
+                currentContent = "";
+            }
+            
+            function displayFileContent(content) {
+                const outputDiv = document.getElementById('output');
+                currentContent = content;
+                
+                // Split content by lines and display
+                const lines = content.split('\n');
+                lines.forEach((line, index) => {
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = 'output-line';
+                    lineDiv.textContent = line;
+                    outputDiv.appendChild(lineDiv);
+                });
+                
+                // Auto-scroll to bottom
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            }
+            
             function addOutputLine(text, type = 'info') {
-                lineCount++;
                 const outputDiv = document.getElementById('output');
                 const lineDiv = document.createElement('div');
-                lineDiv.className = `output-line ${type}`;
-                lineDiv.innerHTML = `<span class="line-number">${lineCount}</span>${escapeHtml(text)}`;
+                lineDiv.className = 'output-line';
+                lineDiv.textContent = text;
                 outputDiv.appendChild(lineDiv);
                 
                 // Auto-scroll to bottom
                 outputDiv.scrollTop = outputDiv.scrollHeight;
-                
-                // Update line count
-                document.getElementById('lineCount').textContent = lineCount;
-                
-                // Limit lines to prevent memory issues
-                const maxLines = 1000;
-                const lines = outputDiv.querySelectorAll('.output-line');
-                if (lines.length > maxLines) {
-                    const toRemove = lines.length - maxLines;
-                    for (let i = 0; i < toRemove; i++) {
-                        lines[i].remove();
-                    }
-                }
             }
             
             function updateStatus(message, statusClass) {
@@ -549,67 +512,70 @@ async def get():
                 statusCard.className = `status-card ${statusClass}`;
             }
             
-            async function startScript() {
+            function updateFileInfo(info) {
+                document.getElementById('fileInfo').textContent = info;
+            }
+            
+            async function runScript() {
                 if (!isConnected) {
-                    alert('Not connected to server');
+                    alert('Not connected to server. Please wait...');
                     return;
                 }
                 
                 try {
-                    const response = await fetch('/start', { 
+                    // Clear console first
+                    clearOutput();
+                    addOutputLine('🚀 Starting analysis...');
+                    updateFileInfo('Running analysis...');
+                    
+                    const response = await fetch('/run', { 
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' }
                     });
+                    
                     const result = await response.json();
-                    alert(result.message);
+                    
+                    if (result.status === 'error') {
+                        addOutputLine('❌ ' + result.message, 'error');
+                        updateFileInfo('Error: ' + result.message);
+                    }
+                    
                 } catch (error) {
-                    console.error('Error starting script:', error);
-                    alert('Error starting script: ' + error.message);
+                    console.error('Error running script:', error);
+                    addOutputLine('❌ Error: ' + error.message, 'error');
+                    updateFileInfo('Error running analysis');
                 }
             }
             
-            async function stopScript() {
-                if (!isConnected) {
-                    alert('Not connected to server');
+            async function copyOutput() {
+                if (!currentContent) {
+                    alert('No content to copy. Please run analysis first.');
                     return;
                 }
                 
                 try {
-                    const response = await fetch('/stop', { 
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    const result = await response.json();
-                    alert(result.message);
+                    await navigator.clipboard.writeText(currentContent);
+                    addOutputLine('✅ Content copied to clipboard!', 'success');
                 } catch (error) {
-                    console.error('Error stopping script:', error);
-                    alert('Error stopping script: ' + error.message);
+                    console.error('Error copying to clipboard:', error);
+                    
+                    // Fallback method
+                    const textArea = document.createElement('textarea');
+                    textArea.value = currentContent;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        addOutputLine('✅ Content copied to clipboard!', 'success');
+                    } catch (fallbackError) {
+                        addOutputLine('❌ Failed to copy content', 'error');
+                    }
+                    document.body.removeChild(textArea);
                 }
-            }
-            
-            function escapeHtml(unsafe) {
-                return unsafe
-                    .replace(/&/g, "&amp;")
-                    .replace(/</g, "&lt;")
-                    .replace(/>/g, "&gt;")
-                    .replace(/"/g, "&quot;")
-                    .replace(/'/g, "&#039;");
-            }
-            
-            // Update button states based on connection
-            function updateButtonStates() {
-                const startBtn = document.getElementById('startBtn');
-                const stopBtn = document.getElementById('stopBtn');
-                
-                startBtn.disabled = !isConnected;
-                stopBtn.disabled = !isConnected;
             }
             
             // Initialize
             connectWebSocket();
-            
-            // Periodically update button states
-            setInterval(updateButtonStates, 1000);
         </script>
     </body>
     </html>
@@ -617,4 +583,4 @@ async def get():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000, access_log=True)
+    uvicorn.run(app, host="0.0.0.0", port=5000, access_log=False)
