@@ -69,8 +69,8 @@ class ScriptRunner:
         try:
             logger.info("Starting nifty_main.py...")
             
-            # Run nifty_main.py as a subprocess
-            cmd = ["python", "nifty_main.py"]
+            # Use python3 instead of python
+            cmd = ["python3", "nifty_main.py"]
             
             process = await asyncio.create_subprocess_exec(
                 *cmd,
