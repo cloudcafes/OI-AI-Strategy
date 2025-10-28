@@ -1,41 +1,71 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Nifty Option Chain - AI Analysis</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nifty AI Analysis Console</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             color: #333;
             min-height: 100vh;
             padding: 20px;
+            line-height: 1.6;
         }
-        .container { 
-            max-width: 1400px; 
+
+        .container {
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
             overflow: hidden;
         }
+
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
             text-align: center;
+            position: relative;
+            overflow: hidden;
         }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+            z-index: 1;
+        }
+
         .header h1 {
-            font-size: 2.2em;
+            font-size: 2.5em;
             margin-bottom: 10px;
             font-weight: 700;
+            position: relative;
+            z-index: 2;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
+
         .header p {
-            font-size: 1.1em;
+            font-size: 1.2em;
             opacity: 0.9;
+            position: relative;
+            z-index: 2;
         }
+
         .controls {
             background: #f8f9fa;
             padding: 25px;
@@ -45,33 +75,60 @@
             border-bottom: 2px solid #e9ecef;
             flex-wrap: wrap;
         }
+
         .btn {
             padding: 15px 30px;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 16px;
             font-weight: 600;
             transition: all 0.3s ease;
-            min-width: 140px;
+            min-width: 160px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
         }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
         .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
         }
+
         .run-btn {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
         }
+
         .copy-btn {
             background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
             color: white;
         }
+
+        .ai-btn {
+            background: linear-gradient(135deg, #9c27b0 0%, #673ab7 100%);
+            color: white;
+        }
+
         .btn:disabled {
             background: #6c757d;
             cursor: not-allowed;
@@ -79,11 +136,13 @@
             box-shadow: none;
             opacity: 0.6;
         }
+
         .status-panel {
             background: #f8f9fa;
             padding: 20px;
             border-bottom: 2px solid #e9ecef;
         }
+
         .status-card {
             background: white;
             padding: 20px;
@@ -91,24 +150,40 @@
             text-align: center;
             border: 2px solid #dee2e6;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            margin: 0 auto;
         }
+
         .status-connected {
             border-color: #28a745;
             background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
         }
+
         .status-running {
             border-color: #ffc107;
             background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
         }
+
+        .status-error {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+        }
+
         .status-card h3 {
             font-size: 1.2em;
             margin-bottom: 10px;
             color: #495057;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
+
         .output-section {
             padding: 0;
         }
+
         .output-header {
             background: #343a40;
             color: white;
@@ -118,14 +193,20 @@
             justify-content: space-between;
             align-items: center;
         }
+
         .output-header h3 {
             font-size: 1.3em;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
+
         .output-stats {
             font-size: 0.9em;
             color: #adb5bd;
         }
+
         .output-container {
             background: #1a1a1a;
             color: #e9ecef;
@@ -133,21 +214,47 @@
             min-height: 500px;
             overflow-y: auto;
             font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.4;
+            font-size: 13px;
+            line-height: 1.5;
             padding: 20px;
             white-space: pre-wrap;
             word-wrap: break-word;
         }
+
         .output-line {
-            margin-bottom: 2px;
+            margin-bottom: 3px;
+            animation: fadeIn 0.3s ease;
         }
-        
+
+        .info-line {
+            color: #17a2b8;
+        }
+
+        .success-line {
+            color: #28a745;
+        }
+
+        .error-line {
+            color: #dc3545;
+        }
+
+        .warning-line {
+            color: #ffc107;
+        }
+
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        
+
+        .footer {
+            background: #343a40;
+            color: #adb5bd;
+            text-align: center;
+            padding: 15px;
+            font-size: 0.9em;
+        }
+
         /* Mobile Responsive */
         @media (max-width: 768px) {
             body { padding: 10px; }
@@ -156,12 +263,12 @@
             .controls { padding: 15px; gap: 10px; }
             .btn { 
                 padding: 12px 20px; 
-                min-width: 120px;
+                min-width: 140px;
                 font-size: 14px;
             }
             .output-container {
                 height: 60vh;
-                font-size: 11px;
+                font-size: 12px;
                 padding: 15px;
             }
             .output-header {
@@ -171,13 +278,13 @@
                 text-align: center;
             }
         }
-        
+
         @media (max-width: 480px) {
             .controls { flex-direction: column; }
             .btn { width: 100%; }
             .output-container {
                 height: 50vh;
-                font-size: 10px;
+                font-size: 11px;
             }
         }
     </style>
@@ -185,37 +292,45 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 Nifty AI Analysis Console</h1>
-            <p>Complete AI Query + Option Chain Data</p>
+            <h1><i class="fas fa-robot"></i> Nifty AI Analysis Console</h1>
+            <p>Complete AI Query + Option Chain Data Analysis</p>
         </div>
         
         <div class="controls">
             <button id="runBtn" class="btn run-btn">
-                <span>▶</span> RUN ANALYSIS
+                <i class="fas fa-play-circle"></i> RUN ANALYSIS
             </button>
             <button id="copyBtn" class="btn copy-btn">
-                <span>📋</span> COPY OUTPUT
+                <i class="fas fa-copy"></i> COPY OUTPUT
             </button>
+            <a href="https://chat.deepseek.com" target="_blank" class="btn ai-btn">
+                <i class="fas fa-comment-alt"></i> DEEPSEEK CHAT
+            </a>
         </div>
         
         <div class="status-panel">
             <div id="statusCard" class="status-card status-connected">
-                <h3>🔌 Server Status</h3>
+                <h3><i class="fas fa-plug"></i> Server Status</h3>
                 <p id="statusText">Ready to run analysis</p>
             </div>
         </div>
         
         <div class="output-section">
             <div class="output-header">
-                <h3>📊 AI Analysis Output</h3>
+                <h3><i class="fas fa-chart-bar"></i> AI Analysis Output</h3>
                 <div class="output-stats">
                     <span id="fileInfo">No file loaded</span>
                 </div>
             </div>
             <div class="output-container" id="output">
-                <div class="output-line">🚀 Ready to run analysis...</div>
-                <div class="output-line">Click RUN ANALYSIS to generate AI query data</div>
+                <div class="output-line info-line">🚀 Ready to run analysis...</div>
+                <div class="output-line">Click "RUN ANALYSIS" to generate AI query data</div>
+                <div class="output-line">Click "DEEPSEEK CHAT" to open AI assistant in a new tab</div>
             </div>
+        </div>
+        
+        <div class="footer">
+            <p>Nifty Option Chain AI Analysis System | Real-time Data Processing</p>
         </div>
     </div>
 
@@ -233,7 +348,7 @@
         copyBtn.addEventListener('click', copyOutput);
         
         async function runScript() {
-            console.log('Run button clicked'); // Debug log
+            console.log('Run button clicked');
             
             if (isRunning) {
                 alert('Script is already running. Please wait...');
@@ -243,13 +358,13 @@
             try {
                 // Clear console first
                 clearOutput();
-                addOutputLine('🚀 Starting analysis...');
+                addOutputLine('🚀 Starting analysis...', 'info');
                 updateFileInfo('Running analysis...');
                 updateStatus('🔄 Running analysis...', 'status-running');
                 runBtn.disabled = true;
                 isRunning = true;
                 
-                console.log('Making API call to /run'); // Debug log
+                console.log('Making API call to /run');
                 
                 const response = await fetch('/run', { 
                     method: 'POST',
@@ -259,32 +374,38 @@
                     }
                 });
                 
-                console.log('Response received:', response.status); // Debug log
+                console.log('Response received:', response.status);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const result = await response.json();
-                console.log('Result:', result); // Debug log
+                console.log('Result:', result);
                 
                 if (result.status === 'success') {
                     // Display the file content
                     displayFileContent(result.content);
                     updateFileInfo(result.message);
                     updateStatus('✅ Analysis completed', 'status-connected');
-                    addOutputLine('✅ ' + result.message);
+                    addOutputLine('✅ ' + result.message, 'success');
+                    
+                    // Check if there's an AI balance error in the content
+                    if (result.content.includes('Insufficient Balance') || result.content.includes('Failed to initialize DeepSeek client')) {
+                        addOutputLine('⚠️ Note: AI analysis disabled due to API balance issues', 'warning');
+                        addOutputLine('📊 Raw option chain data is still available', 'info');
+                    }
                 } else {
                     addOutputLine('❌ ' + result.message, 'error');
                     updateFileInfo('Error: ' + result.message);
-                    updateStatus('❌ Analysis failed', 'status-connected');
+                    updateStatus('❌ Analysis failed', 'status-error');
                 }
                 
             } catch (error) {
                 console.error('Error running script:', error);
                 addOutputLine('❌ Error: ' + error.message, 'error');
                 updateFileInfo('Error running analysis');
-                updateStatus('❌ Analysis failed', 'status-connected');
+                updateStatus('❌ Analysis failed', 'status-error');
             } finally {
                 runBtn.disabled = false;
                 isRunning = false;
@@ -292,7 +413,7 @@
         }
         
         async function copyOutput() {
-            console.log('Copy button clicked'); // Debug log
+            console.log('Copy button clicked');
             
             if (!currentContent) {
                 alert('No content to copy. Please run analysis first.');
@@ -337,6 +458,18 @@
             lines.forEach((line) => {
                 const lineDiv = document.createElement('div');
                 lineDiv.className = 'output-line';
+                
+                // Add color coding based on content
+                if (line.includes('✅') || line.includes('successfully') || line.includes('completed')) {
+                    lineDiv.classList.add('success-line');
+                } else if (line.includes('❌') || line.includes('Error') || line.includes('Failed')) {
+                    lineDiv.classList.add('error-line');
+                } else if (line.includes('⚠️') || line.includes('Note:')) {
+                    lineDiv.classList.add('warning-line');
+                } else if (line.includes('🚀') || line.includes('Info:')) {
+                    lineDiv.classList.add('info-line');
+                }
+                
                 lineDiv.textContent = line;
                 outputDiv.appendChild(lineDiv);
             });
@@ -348,7 +481,7 @@
         function addOutputLine(text, type = 'info') {
             const outputDiv = document.getElementById('output');
             const lineDiv = document.createElement('div');
-            lineDiv.className = 'output-line';
+            lineDiv.className = `output-line ${type}-line`;
             lineDiv.textContent = text;
             outputDiv.appendChild(lineDiv);
             
@@ -375,13 +508,13 @@
                 const result = await response.json();
                 updateStatus('✅ Server connected', 'status-connected');
             } catch (error) {
-                updateStatus('❌ Server unavailable', 'status-connected');
+                updateStatus('❌ Server unavailable', 'status-error');
             }
         }
         
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Page loaded, initializing...'); // Debug log
+            console.log('Page loaded, initializing...');
             checkServerStatus();
         });
     </script>
