@@ -146,7 +146,7 @@ async def health_check():
 @app.get("/")
 async def get_main_page():
     return HTMLResponse("""
-    <!DOCTYPE html>
+        <!DOCTYPE html>
     <html>
     <head>
         <title>Nifty Option Chain - AI Analysis</title>
@@ -339,10 +339,10 @@ async def get_main_page():
             </div>
             
             <div class="controls">
-                <button id="runBtn" class="btn run-btn" onclick="runScript()">
+                <button id="runBtn" class="btn run-btn">
                     <span>▶</span> RUN ANALYSIS
                 </button>
-                <button id="copyBtn" class="btn copy-btn" onclick="copyOutput()">
+                <button id="copyBtn" class="btn copy-btn">
                     <span>📋</span> COPY OUTPUT
                 </button>
             </div>
@@ -372,6 +372,14 @@ async def get_main_page():
             let currentContent = "";
             let isRunning = false;
             
+            // Get button elements
+            const runBtn = document.getElementById('runBtn');
+            const copyBtn = document.getElementById('copyBtn');
+            
+            // Add event listeners
+            runBtn.addEventListener('click', runScript);
+            copyBtn.addEventListener('click', copyOutput);
+            
             async function runScript() {
                 if (isRunning) {
                     alert('Script is already running. Please wait...');
@@ -384,7 +392,7 @@ async def get_main_page():
                     addOutputLine('🚀 Starting analysis...');
                     updateFileInfo('Running analysis...');
                     updateStatus('🔄 Running analysis...', 'status-running');
-                    document.getElementById('runBtn').disabled = true;
+                    runBtn.disabled = true;
                     isRunning = true;
                     
                     const response = await fetch('/run', { 
@@ -412,7 +420,7 @@ async def get_main_page():
                     updateFileInfo('Error running analysis');
                     updateStatus('❌ Analysis failed', 'status-connected');
                 } finally {
-                    document.getElementById('runBtn').disabled = false;
+                    runBtn.disabled = false;
                     isRunning = false;
                 }
             }
