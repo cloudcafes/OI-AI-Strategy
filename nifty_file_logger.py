@@ -308,6 +308,21 @@ CRITICAL ANALYSIS FRAMEWORK - FOLLOW THIS ORDER MANDATORY:
 11. I only take naked Nifty CE/PE buys for intraday.
 12. Tips must consider for correct calculations: "Price action overrides OI data" & "Verify gamma direction (MM short puts = long futures)" & "Calculate probabilities using distance-to-strike formula" & "Institutional selling ≠ directional betting & Validate risk-reward with expectancy calculation" & "PCR + rising price = bullish, not bearish & High call volume + uptrend = momentum confirmation" & "Maximum probability cap at 70percentage without statistical proof" & "Theta decay > gamma for <24hr expiry" & "Daily range boundaries override OI walls"
 13. Analyze current momentum if it supports scalping or not.
+14. Calculate exact gamma exposure: MM short CE OI multiplies delta + MM short PE OI multiplies delta. Show net gamma position and hedging impact per point move.
+15. Calculate volume/OI ratio for each key strike. Ratios >5 indicate position unwinding, not opening. Flag extreme ratios immediately.
+16. Compare option premium movement vs spot movement. Premiums rising while spot stagnant = momentum building. Premiums falling while spot rising = exhaustion.
+17. Calculate exact MM pain points: Short CE strike + premium = upper pain, Short PE strike - premium = lower pain. Identify which side they're defending.
+18. Map analysis to institutional timing: 9:45-10:15 AM rebalancing, 11:30-12:00 position squaring, 2:30-3:00 expiry dynamics.
+19. Identify exact price levels where gamma flips negative/positive. These are acceleration zones, not just support/resistance.
+20. Monitor OI changes vs volume. Large volume with small OI change = position churn. Large OI reduction = unwinding.
+21. Every trade recommendation must include: Probability multiplies Reward vs (1-Probability) multiplies Risk. Negative expectancy = no trade.
+22. Don't just give ranges. Project exact 15-30 point moves with timing windows based on gamma dynamics and institutional flows.
+23. When retail volume heavily favors one direction (high call volume in uptrend), flag as potential reversal signal.
+24. Calculate exact futures equivalent: OI multiplies delta multiplies 50. Show hedging pressure in crore rupees per point move.
+25. Weight probabilities toward breaks of institutional pain levels, not just technical levels.
+26. For intraday scalps, calculate theta burn per hour and minimum required move to overcome decay.
+27. Require 2+ confirming signals from: premium momentum, volume spikes, OI changes, gamma positioning.
+28. You must apply ALL above checks before any analysis. Skip any = failed analysis.
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
 Provide output categorically:
