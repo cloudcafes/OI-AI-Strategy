@@ -1,7 +1,7 @@
 # fastapi_app.py
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import subprocess
 import json
@@ -13,6 +13,15 @@ from pathlib import Path
 
 app = FastAPI(title="Nifty Option Chain Fetcher", version="1.0")
 
+# Add CORS middleware to handle WebSocket connections
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -20,12 +29,12 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
-        print(f"New connection. Total: {len(self.active_connections)}")
+        print(f"New WebSocket connection. Total: {len(self.active_connections)}")
         
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-        print(f"Connection closed. Total: {len(self.active_connections)}")
+        print(f"WebSocket connection closed. Total: {len(self.active_connections)}")
         
     async def send_personal_message(self, message: str, websocket: WebSocket):
         try:
@@ -123,18 +132,28 @@ script_runner = ScriptRunner()
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
-        # Send initial status
-        await manager.send_personal_message(json.dumps({
+        # Send immediate connection confirmation
+        await websocket.send_text(json.dumps({
             "type": "status",
-            "message": "🔌 Connected to server"
-        }), websocket)
+            "message": "✅ Connected to server via WebSocket"
+        }))
         
         # Keep connection alive
         while True:
-            data = await websocket.receive_text()
-            # Handle any incoming messages if needed
-            
+            # Ping the client periodically to keep connection alive
+            try:
+                await websocket.send_text(json.dumps({
+                    "type": "ping",
+                    "timestamp": time.time()
+                }))
+                await asyncio.sleep(30)  # Ping every 30 seconds
+            except:
+                break
+                
     except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
         manager.disconnect(websocket)
 
 # API endpoints
@@ -184,6 +203,11 @@ async def get_status():
         "running": script_runner.running,
         "status": "running" if script_runner.running else "stopped"
     }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "timestamp": time.time()}
 
 # Serve the main page
 @app.get("/")
@@ -415,44 +439,62 @@ async def get_main_page():
             let ws = null;
             let isConnected = false;
             let currentContent = "";
+            let reconnectAttempts = 0;
+            const maxReconnectAttempts = 5;
             
             function connectWebSocket() {
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${window.location.host}/ws`;
-                
-                ws = new WebSocket(wsUrl);
-                
-                ws.onopen = function(event) {
-                    console.log('WebSocket connected');
-                    isConnected = true;
-                    updateStatus('✅ Connected to server', 'status-connected');
-                };
-                
-                ws.onmessage = function(event) {
-                    try {
-                        const data = JSON.parse(event.data);
-                        handleWebSocketMessage(data);
-                    } catch (error) {
-                        console.error('Error parsing message:', error);
-                    }
-                };
-                
-                ws.onclose = function(event) {
-                    console.log('WebSocket disconnected');
-                    isConnected = false;
-                    updateStatus('❌ Disconnected from server', 'status-disconnected');
+                try {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/ws`;
+                    console.log('Connecting to WebSocket:', wsUrl);
                     
-                    // Attempt reconnect after 3 seconds
-                    setTimeout(connectWebSocket, 3000);
-                };
-                
-                ws.onerror = function(error) {
-                    console.error('WebSocket error:', error);
-                    updateStatus('❌ Connection error', 'status-disconnected');
-                };
+                    ws = new WebSocket(wsUrl);
+                    
+                    ws.onopen = function(event) {
+                        console.log('WebSocket connected successfully');
+                        isConnected = true;
+                        reconnectAttempts = 0;
+                        updateStatus('✅ Connected to server', 'status-connected');
+                        updateButtonStates();
+                    };
+                    
+                    ws.onmessage = function(event) {
+                        try {
+                            const data = JSON.parse(event.data);
+                            handleWebSocketMessage(data);
+                        } catch (error) {
+                            console.error('Error parsing WebSocket message:', error);
+                        }
+                    };
+                    
+                    ws.onclose = function(event) {
+                        console.log('WebSocket disconnected:', event.code, event.reason);
+                        isConnected = false;
+                        updateStatus('❌ Disconnected from server', 'status-disconnected');
+                        updateButtonStates();
+                        
+                        // Attempt reconnect with exponential backoff
+                        if (reconnectAttempts < maxReconnectAttempts) {
+                            reconnectAttempts++;
+                            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+                            console.log(`Reconnecting in ${delay}ms... (attempt ${reconnectAttempts})`);
+                            setTimeout(connectWebSocket, delay);
+                        }
+                    };
+                    
+                    ws.onerror = function(error) {
+                        console.error('WebSocket error:', error);
+                        updateStatus('❌ WebSocket connection error', 'status-disconnected');
+                    };
+                    
+                } catch (error) {
+                    console.error('Error creating WebSocket:', error);
+                    updateStatus('❌ Failed to create WebSocket', 'status-disconnected');
+                }
             }
             
             function handleWebSocketMessage(data) {
+                console.log('WebSocket message received:', data.type);
                 switch(data.type) {
                     case 'status':
                         addOutputLine(data.message, 'info');
@@ -466,6 +508,9 @@ async def get_main_page():
                     case 'error':
                         addOutputLine('❌ ' + data.message, 'error');
                         updateFileInfo('Error: ' + data.message);
+                        break;
+                    case 'ping':
+                        // Ignore ping messages
                         break;
                 }
             }
@@ -516,9 +561,17 @@ async def get_main_page():
                 document.getElementById('fileInfo').textContent = info;
             }
             
+            function updateButtonStates() {
+                const runBtn = document.getElementById('runBtn');
+                const copyBtn = document.getElementById('copyBtn');
+                
+                runBtn.disabled = !isConnected;
+                copyBtn.disabled = !currentContent;
+            }
+            
             async function runScript() {
                 if (!isConnected) {
-                    alert('Not connected to server. Please wait...');
+                    alert('Not connected to server. Please wait for connection...');
                     return;
                 }
                 
@@ -574,8 +627,11 @@ async def get_main_page():
                 }
             }
             
-            // Initialize
-            connectWebSocket();
+            // Initialize when page loads
+            document.addEventListener('DOMContentLoaded', function() {
+                connectWebSocket();
+                updateButtonStates();
+            });
         </script>
     </body>
     </html>
@@ -583,4 +639,11 @@ async def get_main_page():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5001, access_log=False)
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=5001, 
+        access_log=True,
+        ws_ping_interval=20,
+        ws_ping_timeout=20
+    )
