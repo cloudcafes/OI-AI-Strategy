@@ -309,53 +309,9 @@ Mandatory Presumption:
 10. You will give Short summary with clear directional bias and justification behind your logic.
 11. You will not provide hedge instead only buy CE/PE.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
-
-CRITICAL ANALYSIS FRAMEWORK - FOLLOW THIS ORDER MANDATORY for al tiers and all sub-points:
-
--> TIER 1: MARKET STRUCTURE (Pre-Market & Session Open) These set the day's context. Check first.
-1. Net Gamma Regime: Negative suggests potential trend-following scalps (but confirm with volume); Positive suggests fade-the-range scalps (but limit to low-vol sessions, IV<15%). Demote to secondary filter, as gamma strategies underperform in trends; prioritize price action.
-2. Highest OI Call/Put Strikes: Provide contextual range estimation (e.g., support/resistance with 40-60 percentage historical break rates per NSE analyses), not absolute; use as secondary to price action for profit targets and invalidation, avoiding overreliance on lagging OI.
-
--> TIER 2: REAL-TIME FLOW (For Entry Timing)
-1. These are your entry confirmation signals. Must be monitored live.
-2. Volume Delta (cumulative over 5-15 min): Must confirm imbalance with context; e.g., negative delta on upmove may signal absorption, not selloff, require >1000 contracts threshold to filter noise
-3. Premium vs. Spot Momentum: Use as filter with theta adjustment; e.g., spot hits resistance but ATM Call premiums falling could be decay in near-expiry, not exhaustion; confirm with vega for IV changes .
-4. Intraday volatility gate: 5-min realized volatility ≥ 1.2 * 20-day median AND 1-min ATR(14)/Spot ≥ 0.25%.
-
--> TIER 3: SENTIMENT & POSITIONING (Bias Confirmation)
-1. These help avoid false signals but should not dictate entries.
-2. OI Change Asymmetry: Fresh Call writing on rally toward High OI Call may suggest bearish hedging, but confirm direction (opening vs. closing) via volume/OI; use to filter, but note OI lags and fails in volatility spikes.
-3. Put-Call Skew (delta-weighted): Strong put skew (higher IV for OTM puts vs. OTM calls) may indicate bullish positioning (e.g., institutions hedging long spots with puts), but lags spot; use for bias confirmation only if persistent over 15-30 min.
-
--> TIER 4: EXECUTION FILTERS (Mandatory Checks)
-1. Non-negotiable rules to enforce discipline.
-2. Price Action Override: If Price + Volume Delta scream through a High OI level, your analysis is wrong. Do not argue with the tape.
-
--> TIER 5: Additional Calculations
-1. Tips must consider for correct calculations: 'Price action overrides OI data' & 'Verify gamma direction (MM short puts may imply long futures, but check buyer ramps)' & 'Calculate probabilities using distance-to-strike with historical break rates (e.g., 40-60%)' & 'Institutional selling often ≠ directional; validate with block trades' & 'Risk-reward via expectancy (win rate * avg win - loss rate * avg loss >0)' & 'High call volume + uptrend = momentum or reversal trap ' & 'Daily range (0.5-1.5 percentage historical) overrides OI walls'.
-2. Analyze current momentum if it supports scalping or not.
-3. Estimate gamma positioning via OI concentration near spot only. No gamma exposure calculations without MM position data.
-4. Calculate volume/OI ratio for each key strike. Ratios >5 indicate position unwinding, not opening. Flag extreme ratios immediately.
-5. Compare option premium movement vs spot movement. Premiums rising while spot stagnant = momentum building. Premiums falling while spot rising = exhaustion.
-6. Identify exact price levels where gamma flips negative/positive. These are acceleration zones, not just support/resistance.
-7. Monitor OI changes vs volume.
-8. Don't just give ranges. Identify potential 15-30 point move zones with high probability timeframes.
-9. When high volume in OTM options (e.g., strikes >1 percentage from spot with volume >5x average) favors one direction (high call volume in uptrend), flag as potential retail speculation leading to momentum confirmation or reversal trap; cross-check with large block trades (if available) or PCR spikes for smart money positioning.
-10. Weight probabilities toward breaks of institutional pain levels, not just technical levels.
-11. For intraday scalps, calculate theta burn per hour and minimum required move to overcome decay.
-12. Require at least 1 tape/price-action confirmation (breakout/pullback pattern + volume percentile) AND 1 flow/derivatives confirmation (futures delta, IV/skew persistence, OI change with opening/closing)
-13. Prioritization guideline: Primary signals - Real-time Price Action + Volume Spike only. Secondary signals - Gamma/Delta for confirmation. Price action ALWAYS overrides derivatives data.
-14. Expiry day scalping requires different rules: Ignore OI analysis, focus purely on spot vs strike price proximity and gamma pinning effects.
-
--> TIER 6: MECHANICAL EXECUTION (Non-Negotiable)
-1. Entry Rule: Must be a specific price action event.
-2. Stop Loss Rule: Must be a precise, hard price level.
-3. Profit Target Rule: Must be a precise, hard price level.
-4. Position Sizing: Fixed based on stop distance and capital.
-5. Calculate the expected value of the proposed trade. If negative, the trade is rejected regardless of other signals."
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
-Mandatory output format (If a required datapoint is unavailable or stale, print NA and do not fabricate. State Data quality: PASS/FAIL at the top. If FAIL, restrict output to fields supported by data.):
+Mandatory output format:
 
 NIFTY CURRENT: <value> | Weekly EXPIRY: <Date> | ATM: <value> | days left to weekly expiry: <value> | Current Time: <Value> | Time remaining in nse market close: <value>
 
