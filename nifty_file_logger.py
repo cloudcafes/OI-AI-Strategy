@@ -310,7 +310,7 @@ Mandatory Presumption:
 11. You will not provide hedge instead only buy CE/PE.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
-CRITICAL ANALYSIS FRAMEWORK (Prioritize 3-key signal system: Price action + Volume spike + Gamma/Delta alignment. Secondary signals for confirmation only) - FOLLOW THIS ORDER MANDATORY for al tiers and all sub-points:
+CRITICAL ANALYSIS FRAMEWORK - FOLLOW THIS ORDER MANDATORY for al tiers and all sub-points:
 
 -> TIER 1: MARKET STRUCTURE (Pre-Market & Session Open) These set the day's context. Check first.
 1. Net Gamma Regime: Negative suggests potential trend-following scalps (but confirm with volume); Positive suggests fade-the-range scalps (but limit to low-vol sessions, IV<15%). Demote to secondary filter, as gamma strategies underperform in trends; prioritize price action.
@@ -320,7 +320,7 @@ CRITICAL ANALYSIS FRAMEWORK (Prioritize 3-key signal system: Price action + Volu
 1. These are your entry confirmation signals. Must be monitored live.
 2. Volume Delta (cumulative over 5-15 min): Must confirm imbalance with context; e.g., negative delta on upmove may signal absorption, not selloff, require >1000 contracts threshold to filter noise
 3. Premium vs. Spot Momentum: Use as filter with theta adjustment; e.g., spot hits resistance but ATM Call premiums falling could be decay in near-expiry, not exhaustion; confirm with vega for IV changes .
-4. Intraday volatility gate: 1-min ATR(14)/Spot ≥ 0.35% OR 5-min realized volatility (last 15 min) ≥ median multiplies 1.2; else no trade.
+4. Intraday volatility gate: 5-min realized volatility ≥ 1.2 * 20-day median AND 1-min ATR(14)/Spot ≥ 0.25%.
 
 -> TIER 3: SENTIMENT & POSITIONING (Bias Confirmation)
 1. These help avoid false signals but should not dictate entries.
@@ -329,24 +329,22 @@ CRITICAL ANALYSIS FRAMEWORK (Prioritize 3-key signal system: Price action + Volu
 
 -> TIER 4: EXECUTION FILTERS (Mandatory Checks)
 1. Non-negotiable rules to enforce discipline.
-2. Institutional Timing Windows: use adaptive windows detected by breakouts in traded volume z-score (≥ +2) and volatility expansion; do not hardcode times.
 3. Price Action Override: If Price + Volume Delta scream through a High OI level, your analysis is wrong. Do not argue with the tape.
 
 -> TIER 5: Additional Calculations
-1. Tips must consider for correct calculations: 'Price action overrides OI data' & 'Verify gamma direction (MM short puts may imply long futures, but check buyer ramps)' & 'Calculate probabilities using distance-to-strike with historical break rates (e.g., 40-60%)' & 'Institutional selling often ≠ directional; validate with block trades' & 'Risk-reward via expectancy (win rate * avg win - loss rate * avg loss >0)' & 'High call volume + uptrend = momentum or reversal trap ' & 'Cap probabilities at 55-70% with backtested proof' & 'Theta decay > gamma for <24hr—require 1.5x breakeven' & 'Daily range (0.5-1.5 percentage historical) overrides OI walls'.
+1. Tips must consider for correct calculations: 'Price action overrides OI data' & 'Verify gamma direction (MM short puts may imply long futures, but check buyer ramps)' & 'Calculate probabilities using distance-to-strike with historical break rates (e.g., 40-60%)' & 'Institutional selling often ≠ directional; validate with block trades' & 'Risk-reward via expectancy (win rate * avg win - loss rate * avg loss >0)' & 'High call volume + uptrend = momentum or reversal trap ' & 'Daily range (0.5-1.5 percentage historical) overrides OI walls'.
 2. Analyze current momentum if it supports scalping or not.
-3. Calculate gamma exposure approximately (as exact MM positions unknown): Estimate net via OI * delta; show hedging impact per point, but note transaction costs erode gains for confirmation only.
+3. Estimate gamma positioning via OI concentration near spot only. No gamma exposure calculations without MM position data.
 4. Calculate volume/OI ratio for each key strike. Ratios >5 indicate position unwinding, not opening. Flag extreme ratios immediately.
 5. Compare option premium movement vs spot movement. Premiums rising while spot stagnant = momentum building. Premiums falling while spot rising = exhaustion.
 8. Identify exact price levels where gamma flips negative/positive. These are acceleration zones, not just support/resistance.
-9. Monitor OI changes vs volume. Large volume with small OI change = position churn. Large OI reduction = unwinding.
-10. Every recommendation: Include backtested expectancy (Probability * Reward - (1-Probability) * Risk >0, with win rates from NSE data e.g., 45-55 percentage for PCR signals); negative = no trade.
+9. Monitor OI changes vs volume.
 11. Don't just give ranges. Identify potential 15-30 point move zones with high probability timeframes.
 12. When retail volume favors one direction (high call volume in uptrend), flag as potential momentum confirmation or reversal trap; cross-check with smart money blocks on PCR pitfalls.
 14. Weight probabilities toward breaks of institutional pain levels, not just technical levels.
 15. For intraday scalps, calculate theta burn per hour and minimum required move to overcome decay.
 16. Require 2+ confirming signals from: premium momentum, volume spikes, OI changes, gamma positioning.
-17. Apply a prioritized decision tree of 5-7 core checks (e.g., price action, volume delta, gamma as top); optional for others to avoid paralysis—full checks for high-conviction only.
+17. Tier 1: Real-time Price Action + Volume Spike only. Tier 2: Gamma/Delta for confirmation. Price action ALWAYS overrides derivatives data.
 18. Expiry day scalping requires different rules: Ignore OI analysis, focus purely on spot vs strike price proximity and gamma pinning effects.
 
 -> TIER 6: MECHANICAL EXECUTION (Non-Negotiable)
@@ -361,25 +359,19 @@ Mandatory output format:
 
 NIFTY CURRENT: <value> | Weekly EXPIRY: <Date> | ATM: <value> | days left to weekly expiry: <value> | Current Time: <Value> | Time remaining in nse market close: <value>
 
-Net Gamma Regime (Calculate & justify in short):
-IV Percentile Rank (Calculate & justify in short):
-Bid-Ask Imbalance at Key Strikes (Calculate & justify in short):
-Volume Delta (Calculate & justify in short):
-Premium vs. Spot Momentum (Calculate & justify in short):
+PRICE MOMENTUM: [5-min range/ATR ratio + VWAP position + Candle pattern] (Calculate & justify in short):
+VOLUME SPIKES: [5-min volume vs avg + Bid-ask spread + Volume concentration] (Calculate & justify in short):
+OI CONCENTRATION: [OI density + Key strike PCR + OI change asymmetry] (Calculate & justify in short):
+GREEKS ANALYSIS: [Gamma flip zone + Vega impact + Breakeven probability] (Calculate & justify in short):
 OI Change Asymmetry (Calculate & justify in short):
-Volume/OI Ratio (Calculate & justify in short):
-Institutional Timing Windows (Calculate & justify in short):
+RISK METRICS: [Position size + Expected value + Theta burn] (Calculate & justify in short):
 Price Action Override (Calculate & justify in short):
-Theta Filter (Calculate & justify in short):
-CE-PE OI DIFFERENCE (Calculate & justify in short):
-VOLUME PCR (Calculate & justify in short):
-OI PCR + Volume PCR Contradiction (Calculate & justify in short):
+OI PCR + Volume PCR trend (Calculate & justify in short):
 ATM ±2 STRIKE ANALYSIS (Calculate & justify in short):
 TIER 5: Additional Calculations (Calculate & justify in short):
-SELLER'S PERSPECTIVE (Calculate & justify in short):
 Institutional workflow & SMART MONEY POSITIONING (Calculate & justify in short):
 CONFIRMING/CONFLICTING SIGNALS (Calculate & justify in short):
-FINAL DIRECTIONAL BIAS (Calculate & justify in very short): Base on 2+ confirming signals; include historical win rate (e.g., 50-60 percentage for gamma+delta setups).
+FINAL DIRECTIONAL BIAS (Calculate & justify in very short): 
 MATHEMATICAL PROBABILITY (Calculate & justify in short):
 BRUTAL TRUTH (Calculate & justify in short):
 ENTRY, STOP, TARGET — NAKED CE/PE buy ONLY (Calculate & justify in short):
