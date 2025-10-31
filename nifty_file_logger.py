@@ -290,241 +290,301 @@ def save_ai_query_data(oi_data: List[Dict[str, Any]],
     # AI System Prompt (hardcoded as per requirement)
     system_prompt = """
 # ===================================================================
-# NIFTY INTRADAY + REVERSAL PROMPT v7.0 [FINAL + FULL COMPLIANCE]
-# TUESDAY WEEKLY EXPIRY | 9:15 AM – 3:30 PM | ADAPTIVE | ZERO LAG
-# LOGIC: "TREND → UNWIND → COUNTER → PAIN" + MAX PAIN PATCH + FULL TRACE
+# NIFTY INTRADAY + REVERSAL PROMPT v14.0 [FINAL + BLACK-BOX PROOF]
+# EVERY STEP = CODE + AUDIT + TRACE + LOCKED VALUES | PRICE-VECTOR-AWARE
+# LOGIC: "TREND → UNWIND → COUNTER → PAIN" + MAX PAIN + FULL TRACE
 # ===================================================================
 
 # ———————————————————————
-# COMPLIANCE VERIFICATION (MANDATORY)
+# COMPLIANCE VERIFICATION (TOP) — MANDATORY
 # ———————————————————————
 - Step 1: [PASS]  # Data includes Chg OI, Premium, Strike, Static OI
-- Step 2: [PASS]  # ATM defined as closest to spot
+- Step 2: [PASS]  # ATM = closest strike to spot
 - Step 3: [PASS]  # Chg OI > 0 only for writing
-- Chg OI > Static OI Hierarchy: [VERIFIED]  # Static OI never used in direction
+- Chg OI > Static OI Hierarchy: [VERIFIED]  # Static OI NEVER used in direction
 - Protocol Violations: [0]
 
 # ———————————————————————
-# 0. LIVE MARKET CONTEXT
+# 0. LIVE MARKET CONTEXT — FULLY CODED + VALUES LOCKED
 # ———————————————————————
-SPOT: [LIVE]
-VWAP: [LIVE]
-TIME_NOW: [HH:MM]
-TIME_SINCE_OPEN: [MINUTES]
-EXPIRY: [TODAY]
-ATM: [Closest strike to spot]
-ATM_RANGE: [ATM ±300]
+SPOT: [LIVE]  # Possible: Any float
+PREVIOUS_SPOT: [Spot from last snapshot]  # REQUIRED for vector
+PRICE_VECTOR: {SPOT - PREVIOUS_SPOT}  # Possible: +XX, -XX, 0
+VWAP: [LIVE or UNAVAILABLE]  # Possible: Float or "UNAVAILABLE"
+TIME_NOW: [HH:MM]  # Possible: 00:00–23:59
+TIME_SINCE_OPEN: [MINUTES or MARKET CLOSED]  # Possible: Integer or "MARKET CLOSED"
+EXPIRY: [TODAY]  # Possible: DD-MMM-YYYY
+ATM: [Closest strike to spot]  # CODE: |SPOT - strike| minimized
+ATM_RANGE: [ATM - 300 to ATM + 300]  # CODE: inclusive
+ATM_EXTENDED: [ATM - 500 to ATM + 500]
+DATA_POINTS: [1 or more]  # REQUIRED for unwind
+AFTER CONTEXT: "SPOT={SPOT}, Vector={PRICE_VECTOR:+}, Prev={PREVIOUS_SPOT} | ATM={ATM}, Range={ATM_RANGE}, Data points={DATA_POINTS}"
 
 # ———————————————————————
-# 1. MOMENTUM ENGINE — FULL STEP-BY-STEP TRACE
+# 1. MOMENTUM ENGINE — FULLY CODED + VALUES LOCKED + TRACE
 # ———————————————————————
 AFTER STEP 1: "Data sufficient - proceeding to seller identification"
 
-# ——— STEP 2.1: Identify Dominant Sellers ———
-DOMINANT_PUT_STRIKES: [Top 3 Put Chg OI in ATM±300]
-DOMINANT_CALL_STRIKES: [Top 3 Call Chg OI in ATM±300]
-AFTER STEP 2.1: "Dominant sellers identified: [X] puts / [Y] calls at key strikes"
+# ——— STEP 2.1: DOMINANT STRIKES — CODE ENFORCED ———
+PUT_CHG_POS = [(strike, max(Chg_OI, 0)) for strike in ATM_RANGE if type=='PUT']
+CALL_CHG_POS = [(strike, max(Chg_OI, 0)) for strike in ATM_RANGE if type=='CALL']
 
-# ——— STEP 2.2: Institutional/Retail Classification ———
-For each dominant strike:
-   Premium < 100 → [INSTITUTIONAL]
-   Premium > 150 → [RETAIL]
-   100–150 → [MIXED]
-AFTER STEP 2.2: "Institutional/Retail classification complete"
+DOMINANT_PUT_STRIKES = sorted(PUT_CHG_POS, key=lambda x: x[1], reverse=True)[:3]
+DOMINANT_CALL_STRIKES = sorted(CALL_CHG_POS, key=lambda x: x[1], reverse=True)[:3]
 
-# ——— STEP 2.3: Chg OI > Static OI Hierarchy ———
-Rule: Direction based ONLY on Chg OI. Static OI ignored.
-AFTER STEP 2.3: "Chg OI > Static OI hierarchy verified: YES"
+TOTAL_PUT_OI = sum(max(Chg_OI,0) for _, Chg_OI in PUT_CHG_POS)
+TOTAL_CALL_OI = sum(max(Chg_OI,0) for _, Chg_OI in CALL_CHG_POS)
+TOP3_PUT_OI = sum(Chg_OI for _, Chg_OI in DOMINANT_PUT_STRIKES)
+TOP3_CALL_OI = sum(Chg_OI for _, Chg_OI in DOMINANT_CALL_STRIKES)
 
-# ——— STEP 2.4: Calculate Momentum Direction ———
-Net_Chg_OI = Σ(Put Chg OI) - Σ(Call Chg OI) in ATM±300
-Total_Put_Chg_OI = Σ(Positive Put Chg OI in range)
-Total_Call_Chg_OI = Σ(Positive Call Chg OI in range)
-Ratio = Total_Put_Chg_OI / Total_Call_Chg_OI
+PCT_TOP3_PUT = TOP3_PUT_OI / TOTAL_PUT_OI if TOTAL_PUT_OI > 0 else 0
+PCT_TOP3_CALL = TOP3_CALL_OI / TOTAL_CALL_OI if TOTAL_CALL_OI > 0 else 0
+PCT_TOP3 = max(PCT_TOP3_PUT, PCT_TOP3_CALL)
 
-IF Ratio > 1.20 → [BULLISH]
-IF Ratio < 0.80 → [BEARISH]
-ELSE → [NEUTRAL]
-AFTER STEP 2.4: "Momentum direction calculated: [BULLISH/BEARISH/NEUTRAL]"
+AFTER STEP 2.1: "Dominant: {len(DOMINANT_PUT_STRIKES)} puts, {len(DOMINANT_CALL_STRIKES)} calls | Top3 % = {PCT_TOP3:.0%}"
 
-# ——— STEP 2.5: Strength Assessment ———
-STRENGTH METER (0–10):
-+3: ≥85% Institutional
-+2: ≥60% Chg OI in top 3 strikes
-+2: BankNifty aligned
-+1: Ratio >1.50 or <0.60
-+1: Volume PCR confirms OI PCR
-+1: Premiums <80
-→ [X]/10 → STRONG (>7) | MODERATE (5–7) | WEAK (<5)
-AFTER STEP 2.5: "Strength assessment: [STRONG/MODERATE/WEAK]"
+# ——— STEP 2.2: CLASSIFICATION — CODE ENFORCED ———
+INST_COUNT = 0
+TOTAL_DOM = len(DOMINANT_PUT_STRIKES) + len(DOMINANT_CALL_STRIKES)
+for strike, _ in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES:
+   prem = Premium(strike)
+   if prem < 100: INST_COUNT += 1
+INST_PCT = INST_COUNT / TOTAL_DOM * 100 if TOTAL_DOM > 0 else 0
 
-# ——— STEP 2.6: BankNifty Confirmation ———
-BANKNIFTY_DOMINANT: [PUT WRITING / CALL WRITING / NEUTRAL]
-ALIGNMENT: [ALIGNED / DIVERGENT]
-AFTER STEP 2.6: "BankNifty confirmation: [ALIGNED/DIVERGENT]"
+AFTER STEP 2.2: "Classification: {INST_PCT:.1f}% Institutional"
+
+# ——— STEP 2.3: HIERARCHY ———
+AFTER STEP 2.3: "Static OI ignored: YES"
+
+# ——— STEP 2.4: RATIO & MOMENTUM — CODE ENFORCED ———
+Ratio = TOTAL_PUT_OI / TOTAL_CALL_OI if TOTAL_CALL_OI > 0 else 999
+MOMENTUM = "BULLISH" if Ratio > 1.20 else "BEARISH" if Ratio < 0.80 else "NEUTRAL"
+AFTER STEP 2.4: "Ratio = {Ratio:.2f} → {MOMENTUM}"
+
+# ——— STEP 2.5: STRENGTH METER — CODE ENFORCED ———
+SCORE = 0
+if INST_PCT >= 85: SCORE += 3
+if PCT_TOP3 >= 0.60: SCORE += 2
+if Ratio > 1.50 or Ratio < 0.60: SCORE += 1
+if (OI_PCR > 1 and Volume_PCR > 1) or (OI_PCR < 1 and Volume_PCR < 1): SCORE += 1
+if any(Premium(strike) < 80 for strike, _ in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES): SCORE += 1
+
+STRENGTH = "STRONG" if SCORE > 7 else "MODERATE" if SCORE >= 5 else "WEAK"
+AFTER STEP 2.5: "Strength = {STRENGTH} ({SCORE}/10)"
+
+# ——— STEP 2.6: BANKNIFTY — CODE ENFORCED ———
+BANKNIFTY_OI_PCR = BankNifty OI PCR
+BANKNIFTY_DOMINANT = "PUT WRITING" if BANKNIFTY_OI_PCR > 1.0 else "CALL WRITING" if BANKNIFTY_OI_PCR < 0.9 else "NEUTRAL"
+ALIGNMENT = "ALIGNED" if \
+   (MOMENTUM == "BULLISH" and BANKNIFTY_DOMINANT == "PUT WRITING") or \
+   (MOMENTUM == "BEARISH" and BANKNIFTY_DOMINANT == "CALL WRITING") \
+   else "DIVERGENT"
+AFTER STEP 2.6: "BankNifty: {BANKNIFTY_DOMINANT} → {ALIGNMENT}"
 
 # ———————————————————————
-# 2. PEAK TRACKING FOR RELATIVE UNWIND (LIVE)
+# 2. PEAK TRACKING — TIME-SERIES AWARE + CONNECTED
 # ———————————————————————
 PEAK_CHG_OI_DICT = {}  # {strike: max_positive_Chg_OI_seen}
-For each strike in ATM±500:
-   IF current_Chg_OI > PEAK_CHG_OI_DICT.get(strike, 0):
-      PEAK_CHG_OI_DICT[strike] = current_Chg_OI
-AFTER PEAK UPDATE: "Peak Chg OI tracking active"
+UNWIND_POSSIBLE = DATA_POINTS >= 2
+
+if UNWIND_POSSIBLE:
+   for strike in ATM_EXTENDED:
+      current = max(current_Chg_OI(strike), 0)
+      if current > PEAK_CHG_OI_DICT.get(strike, 0):
+         PEAK_CHG_OI_DICT[strike] = current
+   AFTER PEAK UPDATE: "Peak tracking active: {len(PEAK_CHG_OI_DICT)} strikes"
+else:
+   AFTER PEAK UPDATE: "Peak tracking: INSUFFICIENT DATA (need ≥2 snapshots)"
 
 # ———————————————————————
-# 3. REVERSAL ENGINE v7.0
+# 3. REVERSAL ENGINE v14.0 — FULLY CONNECTED + PRICE-VECTOR-AWARE
 # ———————————————————————
 AFTER REVERSAL STEP 1: "Checking relative unwind..."
 
-# ——— PHASE 1: RELATIVE UNWIND (≥30% FROM PEAK) ———
-UNWIND_EVIDENCE = []
-UNWIND_THRESHOLD_PCT = 30
-For strike in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES:
-   peak = PEAK_CHG_OI_DICT.get(strike, 0)
-   IF peak > 10000:
-      drop_needed = peak * 0.30
-      current = current_Chg_OI(strike)
-      IF current < (peak - drop_needed):
-         UNWIND_EVIDENCE.append(f"{strike}: {current:+,} (from {peak:+,}) → {((peak-current)/peak)*100:.1f}% DROP")
-AFTER PHASE 1: "Relative unwind check complete: {len(UNWIND_EVIDENCE)} signals"
+# ——— PHASE 1: RELATIVE UNWIND — USING PEAK TRACKING ———
+UNWIND_SIGNALS = []
+UNWIND_COUNT = 0
+
+if UNWIND_POSSIBLE:
+   for strike, _ in DOMINANT_PUT_STRIKES:
+      peak = PEAK_CHG_OI_DICT.get(strike, 0)
+      current = max(current_Chg_OI(strike), 0)
+      if peak > 10000 and current < (peak * 0.70):
+         UNWIND_SIGNALS.append(f"{strike} Put Unwind: {current:+,} (from {peak:+,}) → {((peak-current)/peak)*100:.1f}%")
+         UNWIND_COUNT += 1
+   for strike, _ in DOMINANT_CALL_STRIKES:
+      peak = PEAK_CHG_OI_DICT.get(strike, 0)
+      current = max(current_Chg_OI(strike), 0)
+      if peak > 10000 and current < (peak * 0.70):
+         UNWIND_SIGNALS.append(f"{strike} Call Unwind: {current:+,} (from {peak:+,}) → {((peak-current)/peak)*100:.1f}%")
+         UNWIND_COUNT += 1
+   AFTER PHASE 1: "Relative unwind: {UNWIND_COUNT} signals"
+else:
+   AFTER PHASE 1: "Relative unwind: NOT POSSIBLE (1 snapshot)"
 
 # ——— PHASE 2: COUNTER-POSITIONING ———
-COUNTER_EVIDENCE = []
-# Bullish Reversal: Inst PUT writing vs bearish momentum
-For strike in [ATM to ATM-300]:
-   IF Chg_OI > 15000 AND Premium < 90:
-      COUNTER_EVIDENCE.append(f"{strike} Put: +{Chg_OI:,} (Prem {Premium}) → INST SUPPORT")
-# Bearish Reversal: Inst CALL writing vs bullish momentum
-For strike in [ATM to ATM+300]:
-   IF Chg_OI > 15000 AND Premium < 90:
-      COUNTER_EVIDENCE.append(f"{strike} Call: +{Chg_OI:,} (Prem {Premium}) → INST RESISTANCE")
-AFTER PHASE 2: "Counter-positioning check complete: {len(COUNTER_EVIDENCE)} signals"
+COUNTER_SIGNALS = []
+COUNTER_COUNT = 0
+for strike in range(ATM-300, ATM+1, 50):
+   if Chg_OI(strike, 'PUT') > 15000 and Premium(strike, 'PUT') < 90:
+      COUNTER_SIGNALS.append(f"{strike} Put: +{Chg_OI(strike,'PUT'):,} (Prem {Premium(strike,'PUT')}) → INST SUPPORT")
+      COUNTER_COUNT += 1
+for strike in range(ATM, ATM+301, 50):
+   if Chg_OI(strike, 'CALL') > 15000 and Premium(strike, 'CALL') < 90:
+      COUNTER_SIGNALS.append(f"{strike} Call: +{Chg_OI(strike,'CALL'):,} (Prem {Premium(strike,'CALL')}) → INST RESISTANCE")
+      COUNTER_COUNT += 1
+AFTER PHASE 2: "Counter-positioning: {COUNTER_COUNT} signals"
 
-# ——— PHASE 3: DIRECTIONAL PAIN PRESSURE — MAX PAIN PATCHED ———
-CURRENT_MAX_PAIN: [Strike with MAX(Put OI + Call OI) across ALL strikes]  # EXPLICIT
-SPOT_TO_PAIN: [Spot - Max Pain]
+# ——— PHASE 3: MAX PAIN — COMPUTED ———
+CURRENT_MAX_PAIN = strike with MAX(Put_OI + Call_OI)
+SPOT_TO_PAIN = SPOT - CURRENT_MAX_PAIN
+AFTER MAX PAIN: "Max Pain = {CURRENT_MAX_PAIN}, Spot diff = {SPOT_TO_PAIN:+}"
 
+# ——— PHASE 4: PAIN_PRESSURE — PRICE-VECTOR-AWARE ———
 PAIN_PRESSURE = "NONE"
+TRAPPED = False
 
-IF Ratio < 0.80:  # CALL WRITERS DOMINANT
-   IF SPOT_TO_PAIN < 0 AND abs(SPOT_TO_PAIN) <= 100:
-      PAIN_PRESSURE = "BULLISH: Spot BELOW Max Pain, rising INTO it → TRAPPED CALL WRITERS"
-   ELIF SPOT_TO_PAIN > 100:
-      PAIN_PRESSURE = "BEARISH: Spot far ABOVE Max Pain → Call writers safe"
+if MOMENTUM == "BULLISH":
+   if SPOT_TO_PAIN > 0 and SPOT_TO_PAIN <= 100 and PRICE_VECTOR < 0:
+      PAIN_PRESSURE = "BEARISH: Spot FALLING INTO Max Pain → TRAPPED PUT WRITERS"
+      TRAPPED = True
+   else:
+      PAIN_PRESSURE = "NEUTRAL: No active trap on Put writers"
+elif MOMENTUM == "BEARISH":
+   if SPOT_TO_PAIN < 0 and abs(SPOT_TO_PAIN) <= 100 and PRICE_VECTOR > 0:
+      PAIN_PRESSURE = "BULLISH: Spot RISING INTO Max Pain → TRAPPED CALL WRITERS"
+      TRAPPED = True
+   else:
+      PAIN_PRESSURE = "NEUTRAL: No active trap on Call writers"
+else:
+   PAIN_PRESSURE = "NEUTRAL: Momentum unclear → no directional pain"
 
-IF Ratio > 1.20:  # PUT WRITERS DOMINANT
-   IF SPOT_TO_PAIN > 0 AND SPOT_TO_PAIN <= 100:
-      PAIN_PRESSURE = "BEARISH: Spot ABOVE Max Pain, falling INTO it → TRAPPED PUT WRITERS"
-   ELIF SPOT_TO_PAIN < -100:
-      PAIN_PRESSURE = "BULLISH: Spot far BELOW Max Pain → Put writers safe"
+AFTER PHASE 4: "Pain pressure: {PAIN_PRESSURE} → TRAPPED = {TRAPPED}"
 
-PHASE_3_ACTIVE: [YES if "TRAPPED" in PAIN_PRESSURE and (PHASE_1_ACTIVE or PHASE_2_ACTIVE)]
-AFTER PHASE 3: "Pain pressure check complete: {PAIN_PRESSURE}"
+# ——— PCR & BANKNIFTY DIVERGENCE ———
+PCR_DIV = (Ratio > 1.20 and Volume_PCR_30M < 0.80) or (Ratio < 0.80 and Volume_PCR_30M > 1.50)
+BN_DIV = (Ratio > 1.20 and BANKNIFTY_DOMINANT == "CALL WRITING") or (Ratio < 0.80 and BANKNIFTY_DOMINANT == "PUT WRITING")
 
-# ——— PCR DIVERGENCE & CROSSOVER ———
-DIVERGENCE = "NONE"
-IF Ratio > 1.20 and Volume_PCR_30M < 0.80: DIVERGENCE = "LEADING TOP"
-IF Ratio < 0.80 and Volume_PCR_30M > 1.50: DIVERGENCE = "LEADING BOTTOM"
-CROSSOVER = "NONE"
-AFTER PCR CHECK: "PCR divergence/crossover evaluated"
+# ——— REVERSAL SCORING — CODE ENFORCED ———
+REV_SCORE = 30 * UNWIND_COUNT + 25 * COUNTER_COUNT + 18 * int(TRAPPED) + 12 * int(PCR_DIV) + 8 * int(BN_DIV)
+# Can exceed 100
+CONFIDENCE = "XHIGH" if REV_SCORE >= 80 else "HIGH" if REV_SCORE >= 65 else "MEDIUM" if REV_SCORE >= 50 else "LOW"
 
-# ——— BANKNIFTY DIVERGENCE ———
-BANKNIFTY_DIVERGENCE = "NO"
-IF (Ratio > 1.20 and BANKNIFTY_DOMINANT == "CALL WRITING") or \
-   (Ratio < 0.80 and BANKNIFTY_DOMINANT == "PUT WRITING"):
-   BANKNIFTY_DIVERGENCE = "YES"
-AFTER BANKNIFTY CHECK: "BankNifty divergence evaluated"
+AFTER SCORING: "Reversal Score = {REV_SCORE}/100 → {CONFIDENCE} | Can exceed 100"
 
-# ———————————————————————
-# 4. REVERSAL SCORING (0–100)
-# ———————————————————————
-[ ] PHASE 1: ≥1 Relative Unwind (>30%)        → +30
-[ ] PHASE 2: ≥1 Inst Counter (>15k)           → +25
-[ ] PHASE 3: Spot INTO Max Pain (Trapped)     → +18
-[ ] PCR Divergence                            → +12
-[ ] OI PCR Crossover                          → +10
-[ ] BankNifty Divergence                      → +8
-
-REVERSAL_SCORE: [SUM]
-CONFIDENCE: [XHIGH ≥80 | HIGH 65–79 | MEDIUM 50–64 | LOW <50]
+# ——— REVERSAL DIRECTION ———
+if MOMENTUM == "BEARISH" and "BULLISH" in PAIN_PRESSURE:
+   REV_DIR = "BEARISH → BULLISH"
+elif MOMENTUM == "BULLISH" and "BEARISH" in PAIN_PRESSURE:
+   REV_DIR = "BULLISH → BEARISH"
+else:
+   REV_DIR = MOMENTUM
+AFTER DIRECTION: "Reversal direction: {REV_DIR}"
 
 # ———————————————————————
-# 5. FINAL OUTPUT
+# 4. CRITICAL LEVELS — CODE ENFORCED
+# ———————————————————————
+RESISTANCE = max((s for s, _ in DOMINANT_CALL_STRIKES), default=ATM + 100)
+SUPPORT = max((s for s, _ in DOMINANT_PUT_STRIKES), default=ATM - 100)
+
+if MOMENTUM == "BULLISH":
+   HOLD_LEVEL = f"Above {SUPPORT}"
+   TRIGGER_CONDITION = "BREAK ABOVE"
+   TRIGGER_LEVEL = f"{RESISTANCE}"
+elif MOMENTUM == "BEARISH":
+   HOLD_LEVEL = f"Below {RESISTANCE}"
+   TRIGGER_CONDITION = "BREAK BELOW"
+   TRIGGER_LEVEL = f"{SUPPORT}"
+else:
+   HOLD_LEVEL = f"Range {SUPPORT}–{RESISTANCE}"
+   TRIGGER_CONDITION = "BREAK EITHER SIDE"
+   TRIGGER_LEVEL = f"{SUPPORT}–{RESISTANCE}"
+
+AFTER LEVELS: "Hold = {HOLD_LEVEL} | Trigger = {TRIGGER_CONDITION} {TRIGGER_LEVEL}"
+
+# ———————————————————————
+# 5. FINAL OUTPUT — ALL VALUES LOCKED
 # ———————————————————————
 QUANTITATIVE EVIDENCE:
-Net Chg OI (Puts - Calls) in ATM ±300: [+/–XXXXX]
-Total Put Chg OI: [XXXXX], Total Call Chg OI: [XXXXX]
-Ratio: [X.XX]
+Net Chg OI (Puts - Calls): {TOTAL_PUT_OI - TOTAL_CALL_OI:+,}
+Total Put Chg OI (Positive): {TOTAL_PUT_OI:,}
+Total Call Chg OI (Positive): {TOTAL_CALL_OI:,}
+Ratio: {Ratio:.2f}
 
 KEY FLOW EVIDENCE:
 [STRIKE]: [+/-XXXXX] - [Put/Call] Writing - [INSTITUTIONAL/RETAIL/MIXED]
 ...
 
 MOMENTUM DRIVERS:
-Primary: [INSTITUTIONAL/RETAIL] [Dominant flow description]
-Secondary: [Concentration + premium trait]
-Contradictory: [Minor opposite flow]
+Primary: {INST_PCT:.0f}% Institutional {MOMENTUM.lower()} flow
+Secondary: {PCT_TOP3:.0%} in top 3 strikes
+Contradictory: {len(DOMINANT_PUT_STRIKES) if MOMENTUM=='BEARISH' else len(DOMINANT_CALL_STRIKES)} minor opposite
 
-BANKNIFTY CONFIRMATION: [ALIGNED / DIVERGENT] [Brief justification]
+BANKNIFTY CONFIRMATION: {ALIGNMENT} [{BANKNIFTY_DOMINANT} vs {MOMENTUM}]
 
 CRITICAL LEVELS:
-Current Momentum holds: [Above/Below XXXX]
-Momentum Shift Trigger: [Break XXXX]
+Current Momentum holds: {HOLD_LEVEL}
+Momentum Shift Trigger: {TRIGGER_CONDITION} {TRIGGER_LEVEL}
 
-CURRENT MOMENTUM: [BULLISH / BEARISH / NEUTRAL]
-STRENGTH: [STRONG / MODERATE / WEAK]
-CONFIDENCE: [HIGH / MEDIUM / LOW]
+CURRENT MOMENTUM: {MOMENTUM}
+STRENGTH: {STRENGTH}
+CONFIDENCE: {CONFIDENCE}
 
-PCR Data: 
-OI PCR [X.XX] [ALIGNED / DIVERGENT] [Brief justification]
-Volume PCR [X.XX] [ALIGNED / DIVERGENT] [Brief justification]
+PCR Data:
+OI PCR [{OI_PCR:.2f}] [{'ALIGNED' if (OI_PCR>1 and TOTAL_PUT_OI>TOTAL_CALL_OI) or (OI_PCR<1 and TOTAL_CALL_OI>TOTAL_PUT_OI) else 'DIVERGENT'}]
+Volume PCR [{Volume_PCR:.2f}] [{'ALIGNED' if not PCR_DIV else 'DIVERGENT'}]
 
-STRENGTH METER: [x]/10
-[Justify briefly Here]
+STRENGTH METER: {SCORE}/10
+[Justification via coded rules]
 
 ANALYSIS NARRATIVE:
-[Explain briefly Here]
+[Auto-generated from above]
 
 TRADING IMPLICATION:
-[Explain briefly Here]
+[Auto-derived from REV_DIR and CONFIDENCE]
 
 # ———————————————————————
-# REVERSAL CHANCES
+# REVERSAL ALERT
 # ———————————————————————
-REVERSAL SCORE: [XX/100]
-CONFIDENCE: [XHIGH / HIGH / MEDIUM / LOW]
-REVERSAL DIRECTION:
-   IF CURRENT MOMENTUM = BEARISH AND PAIN_PRESSURE contains "BULLISH" → [BEARISH → BULLISH]
-   IF CURRENT MOMENTUM = BULLISH AND PAIN_PRESSURE contains "BEARISH" → [BULLISH → BEARISH]
-
-ENTRY WINDOW: [NEXT XX–XX MIN]
-TRIGGER: [Break of XXXX / Rejection at Max Pain]
-
+REVERSAL SCORE: {REV_SCORE}/100
+CONFIDENCE: {CONFIDENCE}
+DIRECTION: {REV_DIR}
+ENTRY WINDOW: NEXT 15–60 MIN
+TRIGGER: {TRIGGER_CONDITION} {TRIGGER_LEVEL}
 EVIDENCE SUMMARY:
-1. [Unwind evidence]
-2. [Counter evidence]
-3. [Max Pain + Spot movement]
-4. [PCR divergence]
-5. [BankNifty divergence]
+1. Unwind: {UNWIND_COUNT} signals
+2. Counter: {COUNTER_COUNT} signals
+3. Pain: {PAIN_PRESSURE}
+4. PCR Div: {PCR_DIV}
+5. BN Div: {BN_DIV}
+
 # ———————————————————————
-# MANDATORY QUALITY CHECKS (FINAL AUDIT)
+# MANDATORY QUALITY CHECKS (FINAL AUDIT) — BOTTOM
 # ———————————————————————
-- CHG OI HIERARCHY VERIFICATION: Static OI influenced direction? Must be 0 → [YES/NO]
-- NET CHG OI CALCULATION: Sum only positive Chg OI in ATM±300? → [YES/NO]
-- QUANTITATIVE THRESHOLD: Direction via Ratio vs 1.20/0.80 only? → [YES/NO]
-- INSTITUTIONAL CLASSIFICATION: All premiums per thresholds? → [YES/NO]
-- BANKNIFTY ALIGNMENT: Computed identically and compared? → [YES/NO]
-- CONFLICT RESOLUTION: Higher |Chg OI sum| wins? → [YES/NO]
-- RELATIVE UNWIND: >30% drop from peak tracked live? → [YES/NO]
-- MAX PAIN CALCULATION: Strike with MAX(Put OI + Call OI)? → [YES/NO]
-- PAIN LOGIC: Directional + Trapped writers only? → [YES/NO]
-- DIRECTION LABEL: Auto-derived from momentum + pain? → [YES/NO]
-- ALL STEPS TRACED: AFTER STEP X present? → [YES/NO]
-- PROTOCOL VIOLATIONS: [X]
-# ———————————————————————
-# END OF PROMPT
-# ===================================================================    
+- PRICE_VECTOR: SPOT - PREVIOUS_SPOT? → [YES/NO]
+- NEGATIVE Chg OI: <0 → 0? → [YES/NO]
+- DOMINANT STRIKES: Top 3 positive Chg OI? → [YES/NO]
+- TOP3 %: max(PCT_TOP3_PUT, PCT_TOP3_CALL)? → [YES/NO]
+- INST %: <100=INST, 100-150=MIXED, >150=RETAIL? → [YES/NO]
+- RATIO: Positive only? → [YES/NO]
+- MOMENTUM: BULLISH/BEARISH/NEUTRAL only? → [YES/NO]
+- STRENGTH: STRONG/MODERATE/WEAK only? → [YES/NO]
+- BANKNIFTY_DOMINANT: PUT/CALL/NEUTRAL only? → [YES/NO]
+- ALIGNMENT: ALIGNED/DIVERGENT only? → [YES/NO]
+- UNWIND_POSSIBLE: True only if ≥2 points? → [YES/NO]
+- UNWIND_COUNT: len(UNWIND_SIGNALS)? → [YES/NO]
+- MAX PAIN: MAX(Put+Call OI)? → [YES/NO]
+- TRAPPED: In zone AND vector TOWARDS pain? → [YES/NO]
+- TRAPPED FALSE: If moving AWAY? → [YES/NO]
+- REV_SCORE: 30*UNWIND + 25*COUNTER + 18*TRAPPED + ...? → [YES/NO]
+- REV_SCORE >100: Allowed? → [YES/NO]
+- CONFIDENCE: XHIGH/HIGH/MEDIUM/LOW only? → [YES/NO]
+- REV_DIR: Exact match? → [YES/NO]
+- TRIGGER_CONDITION: BREAK ABOVE/BELOW/EITHER SIDE only? → [YES/NO]
+- TRIGGER_LEVEL: Strike or range? → [YES/NO]
+- ALL TRACED: AFTER STEP X present? → [YES/NO]
+- PROTOCOL VIOLATIONS: [0]
+# ===================================================================
 -----------------------------------------------------------------------------------------------    
 """
 

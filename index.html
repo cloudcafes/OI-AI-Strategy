@@ -14,8 +14,8 @@
         }
 
         body {
-            background: linear-gradient(135deg, #5e001b 0%, #760022 100%);
-            color: #fff;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
             min-height: 100vh;
             padding: 20px;
             line-height: 1.6;
@@ -24,14 +24,14 @@
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: #fff;
+            background: white;
             border-radius: 15px;
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
             overflow: hidden;
         }
 
         .header {
-            background: linear-gradient(135deg, #71071b 0%, #691222 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
             text-align: center;
@@ -56,7 +56,7 @@
             font-weight: 700;
             position: relative;
             z-index: 2;
-            text-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            text-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
 
         .header p {
@@ -89,10 +89,9 @@
             align-items: center;
             justify-content: center;
             gap: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             position: relative;
             overflow: hidden;
-            color: white;
         }
 
         .btn::before {
@@ -112,19 +111,22 @@
 
         .btn:hover:not(:disabled) {
             transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
         }
 
         .run-btn {
-            background: linear-gradient(135deg, #71071b 0%, #5e001b 100%);
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
         }
 
         .copy-btn {
-            background: linear-gradient(135deg, #760022 0%, #691222 100%);
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
         }
 
         .ai-btn {
-            background: linear-gradient(135deg, #cb5168 0%, #71071b 100%);
+            background: linear-gradient(135deg, #9c27b0 0%, #673ab7 100%);
+            color: white;
         }
 
         .btn:disabled {
@@ -154,27 +156,24 @@
         }
 
         .status-connected {
-            border-color: #71071b;
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-            color: #691222;
+            border-color: #28a745;
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
         }
 
         .status-running {
-            border-color: #760022;
+            border-color: #ffc107;
             background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-            color: #5e001b;
         }
 
         .status-error {
             border-color: #dc3545;
             background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-            color: #691222;
         }
 
         .status-card h3 {
             font-size: 1.2em;
             margin-bottom: 10px;
-            color: inherit;
+            color: #495057;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -186,10 +185,10 @@
         }
 
         .output-header {
-            background: #5e001b;
+            background: #343a40;
             color: white;
             padding: 20px 25px;
-            border-bottom: 2px solid #760022;
+            border-bottom: 2px solid #495057;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -205,7 +204,7 @@
 
         .output-stats {
             font-size: 0.9em;
-            color: #cb5168;
+            color: #adb5bd;
         }
 
         .output-container {
@@ -228,7 +227,7 @@
         }
 
         .info-line {
-            color: #cb5168;
+            color: #17a2b8;
         }
 
         .success-line {
@@ -249,8 +248,8 @@
         }
 
         .footer {
-            background: #5e001b;
-            color: #cb5168;
+            background: #343a40;
+            color: #adb5bd;
             text-align: center;
             padding: 15px;
             font-size: 0.9em;
