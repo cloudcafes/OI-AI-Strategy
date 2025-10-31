@@ -289,58 +289,242 @@ def save_ai_query_data(oi_data: List[Dict[str, Any]],
     
     # AI System Prompt (hardcoded as per requirement)
     system_prompt = """
-COMPLIANCE VERIFICATION:
-- Step 1: [PASS]
-- Step 2: [PASS]
-- Step 3: [PASS]
-- Chg OI > Static OI Hierarchy: [VERIFIED]
+# ===================================================================
+# NIFTY INTRADAY + REVERSAL PROMPT v7.0 [FINAL + FULL COMPLIANCE]
+# TUESDAY WEEKLY EXPIRY | 9:15 AM – 3:30 PM | ADAPTIVE | ZERO LAG
+# LOGIC: "TREND → UNWIND → COUNTER → PAIN" + MAX PAIN PATCH + FULL TRACE
+# ===================================================================
+
+# ———————————————————————
+# COMPLIANCE VERIFICATION (MANDATORY)
+# ———————————————————————
+- Step 1: [PASS]  # Data includes Chg OI, Premium, Strike, Static OI
+- Step 2: [PASS]  # ATM defined as closest to spot
+- Step 3: [PASS]  # Chg OI > 0 only for writing
+- Chg OI > Static OI Hierarchy: [VERIFIED]  # Static OI never used in direction
 - Protocol Violations: [0]
 
-CURRENT MOMENTUM: [BULLISH]
-STRENGTH: [MODERATE]
-CONFIDENCE: [MEDIUM]
-QUANTITATIVE EVIDENCE:
-Net Chg OI (Puts - Calls) in ATM ±300: [+78936]
-Total Put Chg OI: [78978], Total Call Chg OI: [42]
-Ratio: [1880.43]
-KEY FLOW EVIDENCE:
-[26000]: [+78978] - [Put] Writing - [INSTITUTIONAL]
-[25900]: [+36394] - [Put] Writing - [INSTITUTIONAL]
-[25950]: [+34971] - [Put] Writing - [INSTITUTIONAL]
-[25800]: [+26454] - [Put] Writing - [INSTITUTIONAL]
-[25700]: [+29628] - [Put] Writing - [INSTITUTIONAL]
-[26100]: [+36654] - [Put] Writing - [INSTITUTIONAL]
-[26050]: [+33501] - [Put] Writing - [INSTITUTIONAL]
-[26200]: [+22575] - [Put] Writing - [INSTITUTIONAL]
-PCR Data: OI PCR [1.06], Volume PCR [0.85] - [OI PCR >1 indicates put dominance (bullish)]
-MOMENTUM DRIVERS:
-Primary: [INSTITUTIONAL] [Dominant put writing at ATM strikes with institutional traits]
-Secondary: [High concentration of put Chg OI at key strikes with premiums <100]
-Contradictory: [Minor call writing at 26000 strike with retail characteristics]
-BANKNIFTY CONFIRMATION:
-[Aligned]
-[Similar put Chg OI dominance with institutional flow at ATM equivalent strikes]
-CRITICAL LEVELS:
-Current Momentum holds above: [25700]
-Momentum Shift Trigger: Break [26000]
-STRENGTH METER: [6]/10
-[High put Chg OI concentration with 85% institutional classification, aligned BankNifty confirmation, but moderate OI levels]
+# ———————————————————————
+# 0. LIVE MARKET CONTEXT
+# ———————————————————————
+SPOT: [LIVE]
+VWAP: [LIVE]
+TIME_NOW: [HH:MM]
+TIME_SINCE_OPEN: [MINUTES]
+EXPIRY: [TODAY]
+ATM: [Closest strike to spot]
+ATM_RANGE: [ATM ±300]
 
+# ———————————————————————
+# 1. MOMENTUM ENGINE — FULL STEP-BY-STEP TRACE
+# ———————————————————————
 AFTER STEP 1: "Data sufficient - proceeding to seller identification"
-AFTER STEP 2.1: "Dominant sellers identified: [8] puts / [1] calls at key strikes"
-AFTER STEP 2.2: "Institutional/Retail classification complete"
-AFTER STEP 2.3: "Chg OI > Static OI hierarchy verified: YES"
-AFTER STEP 2.4: "Momentum direction calculated: [Bullish]"
-AFTER STEP 2.5: "Strength assessment: [Moderate]"
-AFTER STEP 2.6: "BankNifty confirmation: [Aligned]"
 
-MANDATORY QUALITY CHECKS:
-- CHG OI HIERARCHY VERIFICATION: Count instances where static OI influenced direction; must be 0? [YES]
-- NET CHG OI CALCULATION: Sum only positive Chg OI in defined range? [YES]
-- QUANTITATIVE THRESHOLD: Direction based solely on ratio vs 1.20/0.80? [YES]
-- INSTITUTIONAL CLASSIFICATION: All premiums classified per thresholds (<100=INST, >150=RET, 100-150=MIX)? [YES]
-- BANKNIFTY ALIGNMENT: Computed identically and compared per rules? [YES]
-- CONFLICT RESOLUTION: Higher |Chg OI sum| determined direction in conflicts? [YES]
+# ——— STEP 2.1: Identify Dominant Sellers ———
+DOMINANT_PUT_STRIKES: [Top 3 Put Chg OI in ATM±300]
+DOMINANT_CALL_STRIKES: [Top 3 Call Chg OI in ATM±300]
+AFTER STEP 2.1: "Dominant sellers identified: [X] puts / [Y] calls at key strikes"
+
+# ——— STEP 2.2: Institutional/Retail Classification ———
+For each dominant strike:
+   Premium < 100 → [INSTITUTIONAL]
+   Premium > 150 → [RETAIL]
+   100–150 → [MIXED]
+AFTER STEP 2.2: "Institutional/Retail classification complete"
+
+# ——— STEP 2.3: Chg OI > Static OI Hierarchy ———
+Rule: Direction based ONLY on Chg OI. Static OI ignored.
+AFTER STEP 2.3: "Chg OI > Static OI hierarchy verified: YES"
+
+# ——— STEP 2.4: Calculate Momentum Direction ———
+Net_Chg_OI = Σ(Put Chg OI) - Σ(Call Chg OI) in ATM±300
+Total_Put_Chg_OI = Σ(Positive Put Chg OI in range)
+Total_Call_Chg_OI = Σ(Positive Call Chg OI in range)
+Ratio = Total_Put_Chg_OI / Total_Call_Chg_OI
+
+IF Ratio > 1.20 → [BULLISH]
+IF Ratio < 0.80 → [BEARISH]
+ELSE → [NEUTRAL]
+AFTER STEP 2.4: "Momentum direction calculated: [BULLISH/BEARISH/NEUTRAL]"
+
+# ——— STEP 2.5: Strength Assessment ———
+STRENGTH METER (0–10):
++3: ≥85% Institutional
++2: ≥60% Chg OI in top 3 strikes
++2: BankNifty aligned
++1: Ratio >1.50 or <0.60
++1: Volume PCR confirms OI PCR
++1: Premiums <80
+→ [X]/10 → STRONG (>7) | MODERATE (5–7) | WEAK (<5)
+AFTER STEP 2.5: "Strength assessment: [STRONG/MODERATE/WEAK]"
+
+# ——— STEP 2.6: BankNifty Confirmation ———
+BANKNIFTY_DOMINANT: [PUT WRITING / CALL WRITING / NEUTRAL]
+ALIGNMENT: [ALIGNED / DIVERGENT]
+AFTER STEP 2.6: "BankNifty confirmation: [ALIGNED/DIVERGENT]"
+
+# ———————————————————————
+# 2. PEAK TRACKING FOR RELATIVE UNWIND (LIVE)
+# ———————————————————————
+PEAK_CHG_OI_DICT = {}  # {strike: max_positive_Chg_OI_seen}
+For each strike in ATM±500:
+   IF current_Chg_OI > PEAK_CHG_OI_DICT.get(strike, 0):
+      PEAK_CHG_OI_DICT[strike] = current_Chg_OI
+AFTER PEAK UPDATE: "Peak Chg OI tracking active"
+
+# ———————————————————————
+# 3. REVERSAL ENGINE v7.0
+# ———————————————————————
+AFTER REVERSAL STEP 1: "Checking relative unwind..."
+
+# ——— PHASE 1: RELATIVE UNWIND (≥30% FROM PEAK) ———
+UNWIND_EVIDENCE = []
+UNWIND_THRESHOLD_PCT = 30
+For strike in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES:
+   peak = PEAK_CHG_OI_DICT.get(strike, 0)
+   IF peak > 10000:
+      drop_needed = peak * 0.30
+      current = current_Chg_OI(strike)
+      IF current < (peak - drop_needed):
+         UNWIND_EVIDENCE.append(f"{strike}: {current:+,} (from {peak:+,}) → {((peak-current)/peak)*100:.1f}% DROP")
+AFTER PHASE 1: "Relative unwind check complete: {len(UNWIND_EVIDENCE)} signals"
+
+# ——— PHASE 2: COUNTER-POSITIONING ———
+COUNTER_EVIDENCE = []
+# Bullish Reversal: Inst PUT writing vs bearish momentum
+For strike in [ATM to ATM-300]:
+   IF Chg_OI > 15000 AND Premium < 90:
+      COUNTER_EVIDENCE.append(f"{strike} Put: +{Chg_OI:,} (Prem {Premium}) → INST SUPPORT")
+# Bearish Reversal: Inst CALL writing vs bullish momentum
+For strike in [ATM to ATM+300]:
+   IF Chg_OI > 15000 AND Premium < 90:
+      COUNTER_EVIDENCE.append(f"{strike} Call: +{Chg_OI:,} (Prem {Premium}) → INST RESISTANCE")
+AFTER PHASE 2: "Counter-positioning check complete: {len(COUNTER_EVIDENCE)} signals"
+
+# ——— PHASE 3: DIRECTIONAL PAIN PRESSURE — MAX PAIN PATCHED ———
+CURRENT_MAX_PAIN: [Strike with MAX(Put OI + Call OI) across ALL strikes]  # EXPLICIT
+SPOT_TO_PAIN: [Spot - Max Pain]
+
+PAIN_PRESSURE = "NONE"
+
+IF Ratio < 0.80:  # CALL WRITERS DOMINANT
+   IF SPOT_TO_PAIN < 0 AND abs(SPOT_TO_PAIN) <= 100:
+      PAIN_PRESSURE = "BULLISH: Spot BELOW Max Pain, rising INTO it → TRAPPED CALL WRITERS"
+   ELIF SPOT_TO_PAIN > 100:
+      PAIN_PRESSURE = "BEARISH: Spot far ABOVE Max Pain → Call writers safe"
+
+IF Ratio > 1.20:  # PUT WRITERS DOMINANT
+   IF SPOT_TO_PAIN > 0 AND SPOT_TO_PAIN <= 100:
+      PAIN_PRESSURE = "BEARISH: Spot ABOVE Max Pain, falling INTO it → TRAPPED PUT WRITERS"
+   ELIF SPOT_TO_PAIN < -100:
+      PAIN_PRESSURE = "BULLISH: Spot far BELOW Max Pain → Put writers safe"
+
+PHASE_3_ACTIVE: [YES if "TRAPPED" in PAIN_PRESSURE and (PHASE_1_ACTIVE or PHASE_2_ACTIVE)]
+AFTER PHASE 3: "Pain pressure check complete: {PAIN_PRESSURE}"
+
+# ——— PCR DIVERGENCE & CROSSOVER ———
+DIVERGENCE = "NONE"
+IF Ratio > 1.20 and Volume_PCR_30M < 0.80: DIVERGENCE = "LEADING TOP"
+IF Ratio < 0.80 and Volume_PCR_30M > 1.50: DIVERGENCE = "LEADING BOTTOM"
+CROSSOVER = "NONE"
+AFTER PCR CHECK: "PCR divergence/crossover evaluated"
+
+# ——— BANKNIFTY DIVERGENCE ———
+BANKNIFTY_DIVERGENCE = "NO"
+IF (Ratio > 1.20 and BANKNIFTY_DOMINANT == "CALL WRITING") or \
+   (Ratio < 0.80 and BANKNIFTY_DOMINANT == "PUT WRITING"):
+   BANKNIFTY_DIVERGENCE = "YES"
+AFTER BANKNIFTY CHECK: "BankNifty divergence evaluated"
+
+# ———————————————————————
+# 4. REVERSAL SCORING (0–100)
+# ———————————————————————
+[ ] PHASE 1: ≥1 Relative Unwind (>30%)        → +30
+[ ] PHASE 2: ≥1 Inst Counter (>15k)           → +25
+[ ] PHASE 3: Spot INTO Max Pain (Trapped)     → +18
+[ ] PCR Divergence                            → +12
+[ ] OI PCR Crossover                          → +10
+[ ] BankNifty Divergence                      → +8
+
+REVERSAL_SCORE: [SUM]
+CONFIDENCE: [XHIGH ≥80 | HIGH 65–79 | MEDIUM 50–64 | LOW <50]
+
+# ———————————————————————
+# 5. FINAL OUTPUT
+# ———————————————————————
+QUANTITATIVE EVIDENCE:
+Net Chg OI (Puts - Calls) in ATM ±300: [+/–XXXXX]
+Total Put Chg OI: [XXXXX], Total Call Chg OI: [XXXXX]
+Ratio: [X.XX]
+
+KEY FLOW EVIDENCE:
+[STRIKE]: [+/-XXXXX] - [Put/Call] Writing - [INSTITUTIONAL/RETAIL/MIXED]
+...
+
+MOMENTUM DRIVERS:
+Primary: [INSTITUTIONAL/RETAIL] [Dominant flow description]
+Secondary: [Concentration + premium trait]
+Contradictory: [Minor opposite flow]
+
+BANKNIFTY CONFIRMATION: [ALIGNED / DIVERGENT] [Brief justification]
+
+CRITICAL LEVELS:
+Current Momentum holds: [Above/Below XXXX]
+Momentum Shift Trigger: [Break XXXX]
+
+CURRENT MOMENTUM: [BULLISH / BEARISH / NEUTRAL]
+STRENGTH: [STRONG / MODERATE / WEAK]
+CONFIDENCE: [HIGH / MEDIUM / LOW]
+
+PCR Data: 
+OI PCR [X.XX] [ALIGNED / DIVERGENT] [Brief justification]
+Volume PCR [X.XX] [ALIGNED / DIVERGENT] [Brief justification]
+
+STRENGTH METER: [x]/10
+[Justify briefly Here]
+
+ANALYSIS NARRATIVE:
+[Explain briefly Here]
+
+TRADING IMPLICATION:
+[Explain briefly Here]
+
+# ———————————————————————
+# REVERSAL CHANCES
+# ———————————————————————
+REVERSAL SCORE: [XX/100]
+CONFIDENCE: [XHIGH / HIGH / MEDIUM / LOW]
+REVERSAL DIRECTION:
+   IF CURRENT MOMENTUM = BEARISH AND PAIN_PRESSURE contains "BULLISH" → [BEARISH → BULLISH]
+   IF CURRENT MOMENTUM = BULLISH AND PAIN_PRESSURE contains "BEARISH" → [BULLISH → BEARISH]
+
+ENTRY WINDOW: [NEXT XX–XX MIN]
+TRIGGER: [Break of XXXX / Rejection at Max Pain]
+
+EVIDENCE SUMMARY:
+1. [Unwind evidence]
+2. [Counter evidence]
+3. [Max Pain + Spot movement]
+4. [PCR divergence]
+5. [BankNifty divergence]
+# ———————————————————————
+# MANDATORY QUALITY CHECKS (FINAL AUDIT)
+# ———————————————————————
+- CHG OI HIERARCHY VERIFICATION: Static OI influenced direction? Must be 0 → [YES/NO]
+- NET CHG OI CALCULATION: Sum only positive Chg OI in ATM±300? → [YES/NO]
+- QUANTITATIVE THRESHOLD: Direction via Ratio vs 1.20/0.80 only? → [YES/NO]
+- INSTITUTIONAL CLASSIFICATION: All premiums per thresholds? → [YES/NO]
+- BANKNIFTY ALIGNMENT: Computed identically and compared? → [YES/NO]
+- CONFLICT RESOLUTION: Higher |Chg OI sum| wins? → [YES/NO]
+- RELATIVE UNWIND: >30% drop from peak tracked live? → [YES/NO]
+- MAX PAIN CALCULATION: Strike with MAX(Put OI + Call OI)? → [YES/NO]
+- PAIN LOGIC: Directional + Trapped writers only? → [YES/NO]
+- DIRECTION LABEL: Auto-derived from momentum + pain? → [YES/NO]
+- ALL STEPS TRACED: AFTER STEP X present? → [YES/NO]
+- PROTOCOL VIOLATIONS: [X]
+# ———————————————————————
+# END OF PROMPT
+# ===================================================================    
 -----------------------------------------------------------------------------------------------    
 """
 
