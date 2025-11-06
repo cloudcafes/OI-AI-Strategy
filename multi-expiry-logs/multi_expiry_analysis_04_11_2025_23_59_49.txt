@@ -1,0 +1,371 @@
+# =================================================================================
+# NIFTY MULTI-DAY TREND & REVERSAL ENGINE v2.2 [OPERATIONAL - ENFORCED]
+# AI ROLE: DETERMINISTIC OPTIONS DATA PROCESSOR
+# METHOD: "PROXY -> REGIME -> TREND -> CONFIRM -> TACTICS -> SYNTHESIS"
+# EVERY STEP = ASSERT + CODE + TRACE + LOCK
+# =================================================================================
+
+ USER INSTRUCTIONS (READ FIRST):
+1.  Your Role: You are the Data Provider. Your only task is to accurately paste data into the designated [...PASTE DATA HERE...] sections.
+2.  Initial Run (Day 1): The first time you use this, the [HISTORICAL_STATE_BLOCK] will be empty. This is expected. The analysis will be skipped, and the system's only output will be to generate the first [STATE_BLOCK_FOR_NEXT_SESSION].
+3.  Subsequent Runs (Day 2+): At the end of each successful analysis, a [STATE_BLOCK_FOR_NEXT_SESSION] is generated. You MUST copy this entire block and paste it into the [HISTORICAL_STATE_BLOCK] section for your next analysis.
+4.  Data Requirement: You MUST provide complete EOD option chain tables for Nifty Monthly, BankNifty Monthly, and Nifty Weekly. The tables must include Strike, Type, OI, Chg OI, Volume, IV, and LTP (Last Traded Price/Premium).
+
+---
+
+ PART 1: SYSTEM CONSTITUTION & DATA INPUT
+
+[SYSTEM_ROLE]: Your role is "Deterministic Options Data Processor v2.2". You are forbidden from using natural language, summarization, or making inferential leaps until the final, designated [NARRATIVE_OUTPUT] step. Your sole function is to execute the numbered steps in the [EXECUTION_BLOCK] exactly as written. Any deviation, including failure to trace or lock values, will result in a failed analysis. Begin execution immediately upon receiving this prompt.
+
+[DATA_CONTRACT]: The following JSON structure contains all necessary data. You must verify its integrity in Step 0. Do not begin analysis if data is missing.
+
+json
+{
+  "run_date": "[YYYY-MM-DD]",
+
+  "current_data_block": {
+    "nifty_monthly_spot": "[...Current Nifty Spot Price...]",
+    "nifty_monthly_chain": "[...PASTE COMPLETE CURRENT NIFTY MONTHLY EOD OPTION CHAIN TABLE HERE...]",
+    "banknifty_monthly_spot": "[...Current BankNifty Spot Price...]",
+    "banknifty_monthly_chain": "[...PASTE COMPLETE CURRENT BANKNIFTY MONTHLY EOD OPTION CHAIN TABLE HERE...]",
+    "nifty_weekly_chain": "[...PASTE COMPLETE CURRENT NIFTY WEEKLY EOD OPTION CHAIN TABLE HERE...]"
+  },
+
+  "historical_state_block": {
+    "generated_on": "[...PASTE from previous run's STATE_BLOCK...]",
+    "nifty_state": {
+      "last_3_trading_dates": "[...PASTE...]",
+      "last_3_eod_spots": "[...PASTE...]",
+      "last_3_pcr_ratios": "[...PASTE...]",
+      "previous_atm_straddle_price": "[...PASTE...]",
+      "previous_eod_oi": {
+        "[STRIKE]_[TYPE]": "[OI_VALUE]",
+        "...": "..."
+      }
+    },
+    "banknifty_state": {
+      "last_3_pcr_ratios": "[...PASTE...]",
+      "previous_eod_oi": {
+        "[STRIKE]_[TYPE]": "[OI_VALUE]",
+        "...": "..."
+      }
+    }
+  }
+}
+
+
+---
+
+ PART 2: THE EXECUTION BLOCK (DO NOT MODIFY)
+
+STEP 0: DATA INTEGRITY & INITIALIZATION
+- 0.1: ASSERT: current_data_block and all its sub-fields are present and not empty.
+- 0.2: CHECK FOR INITIAL RUN: CODE: IF historical_state_block.generated_on is empty THEN IS_INITIAL_RUN = TRUE ELSE IS_INITIAL_RUN = FALSE.
+- 0.3: TRACE: TRACE: IS_INITIAL_RUN = {IS_INITIAL_RUN}.
+- 0.4: HALT FOR INITIALIZATION (IF APPLICABLE): IF IS_INITIAL_RUN == TRUE, SET ANALYSIS_STATUS = 'INITIALIZING'. Skip all steps from 1 to 6 and proceed directly to PART 3.
+- 0.5: DATA GAP CHECK: days_since_last_run = run_date - historical_state_block.generated_on. If days_since_last_run > 4 (to account for weekends), set DATA_GAP_WARNING = TRUE else DATA_GAP_WARNING = FALSE.
+- 0.6: TRACE & LOCK: TRACE: Data Integrity Checks Passed. Data Gap Warning: {DATA_GAP_WARNING}. [LOCKED: DATA_GAP_WARNING]
+
+STEP 1: GENERATE CORE PROXIES (NIFTY MONTHLY)
+- 1.1: Calculate Price Vector.
+    - CODE: previous_spot = historical_state_block.nifty_state.last_3_eod_spots[-1].
+    - CODE: PRICE_VECTOR = current_data_block.nifty_monthly_spot - previous_spot.
+- 1.2: Calculate Premium-Volume Anchor (PVA).
+    - CODE: For each strike in nifty_monthly_chain, pva_score = (Call_Volume * Call_LTP) + (Put_Volume * Put_LTP).
+    - CODE: PVA_ANCHOR = strike with MAX(pva_score).
+- 1.3: Calculate Volatility Vector.
+    - CODE: Find ATM_STRIKE closest to nifty_monthly_spot.
+    - CODE: current_atm_straddle_price = Premium(ATM_STRIKE, 'CALL') + Premium(ATM_STRIKE, 'PUT').
+    - CODE: VOLATILITY_VECTOR = current_atm_straddle_price - historical_state_block.nifty_state.previous_atm_straddle_price.
+- 1.4: TRACE & LOCK: TRACE: PRICE_VECTOR={PRICE_VECTOR:+.2f}, PVA_ANCHOR={PVA_ANCHOR}, VOLATILITY_VECTOR={VOLATILITY_VECTOR:+.2f}. [LOCKED: PRICE_VECTOR, PVA_ANCHOR, VOLATILITY_VECTOR, current_atm_straddle_price]
+
+STEP 2: DETERMINE MARKET REGIME (NIFTY MONTHLY)
+- 2.1: Find ATM IV. CODE: ATM_IV = IV of ATM_STRIKE Call.
+- 2.2: Classify Regime.
+    - CODE: IF ATM_IV < 13, REGIME = 'LOW_VOL'.
+    - CODE: IF 13 <= ATM_IV <= 18, REGIME = 'NORMAL_VOL'.
+    - CODE: IF ATM_IV > 18, REGIME = 'HIGH_VOL'.
+- 2.3: TRACE & LOCK: TRACE: ATM_IV={ATM_IV:.2f} -> REGIME='{REGIME}'. [LOCKED: REGIME, ATM_IV]
+
+STEP 3: PRIMARY TREND ANALYSIS (NIFTY MONTHLY)
+- 3.1: Calculate Daily Change in OI.
+    - CODE: For each strike, Chg_OI = current_OI - historical_state_block.nifty_state.previous_eod_oi.get(strike, 0).
+    - CODE: total_put_chg_oi = SUM(max(0, Chg_OI) for all Puts).
+    - CODE: total_call_chg_oi = SUM(max(0, Chg_OI) for all Calls).
+- 3.2: Calculate Daily PCR. CODE: daily_pcr = total_put_chg_oi / total_call_chg_oi if total_call_chg_oi > 0 else 999.
+- 3.3: Apply Regime-Aware Thresholds.
+    - CODE: pcr_threshold_bullish = 1.15 if REGIME=='LOW_VOL' else 1.20 if REGIME=='NORMAL_VOL' else 1.50.
+    - CODE: pcr_threshold_bearish = 0.85 if REGIME=='LOW_VOL' else 0.80 if REGIME=='NORMAL_VOL' else 0.70.
+    - CODE: daily_bias = 'BULLISH' if daily_pcr > pcr_threshold_bullish else 'BEARISH' if daily_pcr < pcr_threshold_bearish else 'NEUTRAL'.
+- 3.4: Confirm Trend (3-Day Rule).
+    - CODE: all_pcrs = historical_state_block.nifty_state.last_3_pcr_ratios[1:] + [daily_pcr].
+    - CODE: bullish_days = COUNT(p > pcr_threshold_bullish for p in all_pcrs).
+    - CODE: bearish_days = COUNT(p < pcr_threshold_bearish for p in all_pcrs).
+    - CODE: PRIMARY_TREND = 'BULLISH' if bullish_days >= 2 else 'BEARISH' if bearish_days >= 2 else 'NEUTRAL_CONSOLIDATION'.
+- 3.5: TRACE & LOCK: TRACE: Daily_PCR={daily_pcr:.2f} -> Daily_Bias='{daily_bias}'. 3-Day Rule: {bullish_days} bullish, {bearish_days} bearish -> PRIMARY_TREND='{PRIMARY_TREND}'. [LOCKED: PRIMARY_TREND, daily_pcr, all_pcrs]
+
+STEP 4: CONFIRMATION ANALYSIS (BANKNIFTY MONTHLY)
+- 4.1: Repeat Step 3.1-3.3 for BankNifty data. CODE: Calculate banknifty_daily_pcr and banknifty_daily_bias.
+- 4.2: Confirm Trend (3-Day Rule). CODE: banknifty_all_pcrs = historical_state_block.banknifty_state.last_3_pcr_ratios[1:] + [banknifty_daily_pcr]. Repeat 3.4 logic to determine BANKNIFTY_TREND.
+- 4.3: Determine Alignment. CODE: ALIGNMENT = 'ALIGNED' if PRIMARY_TREND == BANKNIFTY_TREND else 'DIVERGENT' if PRIMARY_TREND != 'NEUTRAL_CONSOLIDATION' and BANKNIFTY_TREND != 'NEUTRAL_CONSOLIDATION' else 'NON_ALIGNED'.
+- 4.4: TRACE & LOCK: TRACE: BankNifty Trend is '{BANKNIFTY_TREND}'. ALIGNMENT = '{ALIGNMENT}'. [LOCKED: BANKNIFTY_TREND, ALIGNMENT, banknifty_all_pcrs]
+
+STEP 5: TACTICAL ANALYSIS (NIFTY WEEKLY)
+- 5.1: Identify Hurdles. Use static OI from the nifty_weekly_chain.
+    - CODE: WEEKLY_WALL = strike with MAX(Call_OI).
+    - CODE: WEEKLY_FLOOR = strike with MAX(Put_OI).
+- 5.2: TRACE & LOCK: TRACE: WEEKLY_WALL={WEEKLY_WALL}, WEEKLY_FLOOR={WEEKLY_FLOOR}. [LOCKED: WEEKLY_WALL, WEEKLY_FLOOR]
+
+STEP 6: SCORING & SYNTHESIS
+- 6.1: Initialize Score. Confidence_Score = 50.
+- 6.2: Apply PVA Confirmation.
+    - CODE: IF (PRIMARY_TREND=='BULLISH' and nifty_monthly_spot > PVA_ANCHOR) or (PRIMARY_TREND=='BEARISH' and nifty_monthly_spot < PVA_ANCHOR) THEN Confidence_Score += 15.
+- 6.3: Apply Volatility Vector Context.
+    - CODE: IF (PRICE_VECTOR > 0 and VOLATILITY_VECTOR < 0) or (PRICE_VECTOR < 0 and VOLATILITY_VECTOR > 0) THEN Confidence_Score += 10.
+- 6.4: Apply Alignment Modifier.
+    - CODE: IF ALIGNMENT == 'ALIGNED' THEN Confidence_Score += 20.
+    - CODE: IF ALIGNMENT == 'DIVERGENT' THEN Confidence_Score -= 30.
+- 6.5: Finalize Score. CODE: Confidence_Score = max(0, min(100, Confidence_Score)).
+- 6.6: TRACE & LOCK: TRACE: Final Confidence Score = {Confidence_Score}. [LOCKED: CONFIDENCE_SCORE]
+
+---
+
+ PART 3: OUTPUT BLOCK
+
+IF ANALYSIS_STATUS == 'INITIALIZING', display ONLY the [TRADING_IMPLICATION] and [STATE_BLOCK_FOR_NEXT_SESSION] sections. Otherwise, display all sections.
+
+[LOCKED_VALUES_SUMMARY]
+- DATA_GAP_WARNING: [Value]
+- PRICE_VECTOR: [Value]
+- PVA_ANCHOR: [Value]
+- VOLATILITY_VECTOR: [Value]
+- REGIME: [Value]
+- ATM_IV: [Value]
+- PRIMARY_TREND: [Value]
+- BANKNIFTY_TREND: [Value]
+- ALIGNMENT: [Value]
+- WEEKLY_WALL: [Value]
+- WEEKLY_FLOOR: [Value]
+- CONFIDENCE_SCORE: [Value]
+
+[ANALYSIS_NARRATIVE]
+- Primary Trend: The confirmed multi-day trend for Nifty is [LOCKED: PRIMARY_TREND], based on a 3-day analysis of Monthly OI.
+- Market Regime: The market is currently in a [LOCKED: REGIME] state, with an ATM IV of [LOCKED: ATM_IV].
+- Cross-Index Confirmation: The broader market is [LOCKED: ALIGNMENT] with the primary trend, as BankNifty's trend is [LOCKED: BANKNIFTY_TREND].
+- Daily Price Action: Today's price move was [LOCKED: PRICE_VECTOR:+.2f] points. The market's financial center of gravity (PVA) was the [LOCKED: PVA_ANCHOR] strike, with the spot closing {above/below} it.
+- Volatility Context: The Volatility Vector was [LOCKED: VOLATILITY_VECTOR:+.2f], indicating {rising/falling} fear relative to the price move.
+- Tactical Hurdles: For the short-term, expect immediate resistance at the [LOCKED: WEEKLY_WALL] and support at the [LOCKED: WEEKLY_FLOOR].
+
+[TRADING_IMPLICATION]
+- BIAS: IF IS_INITIAL_RUN, display 'AWAITING_DATA'. Else, display [LOCKED: PRIMARY_TREND].
+- CONFIDENCE: IF IS_INITIAL_RUN, display 'N/A'. Else, display [LOCKED: CONFIDENCE_SCORE]/100.
+- STRATEGY:
+    - If BULLISH: Look for long opportunities, using the [LOCKED: WEEKLY_FLOOR] as a potential entry zone or stop-loss reference.
+    - If BEARISH: Look for short opportunities, using the [LOCKED: WEEKLY_WALL] as a potential entry zone or stop-loss reference.
+    - If NEUTRAL: Expect range-bound activity between [LOCKED: WEEKLY_FLOOR] and [LOCKED: WEEKLY_WALL]. Wait for a clear trend to re-emerge.
+- WARNINGS: {IF IS_INITIAL_RUN, display "INITIALIZATION RUN COMPLETE. Please use the generated State Block for your next session."} {IF ALIGNMENT=='DIVERGENT', display "CRITICAL DIVERGENCE WITH BANKNIFTY. HIGH CAUTION ADVISED."} {IF DATA_GAP_WARNING==TRUE, display "DATA GAP DETECTED. OI CHANGES REFLECT MULTIPLE DAYS; MAGNITUDE MAY BE INFLATED."}
+
+[STATE_BLOCK_FOR_NEXT_SESSION] (COPY THIS ENTIRE BLOCK FOR YOUR NEXT RUN)
+json
+{
+  "generated_on": "[Value of 'run_date' from input]",
+  "nifty_state": {
+    "last_3_trading_dates": "[CODE: IF IS_INITIAL_RUN, create list with 3 copies of 'run_date'. Else, create list using historical_state_block.nifty_state.last_3_trading_dates[1:] + [run_date]]",
+    "last_3_eod_spots": "[CODE: IF IS_INITIAL_RUN, create list with 3 copies of 'nifty_monthly_spot'. Else, create list using historical_state_block.nifty_state.last_3_eod_spots[1:] + [nifty_monthly_spot]]",
+    "last_3_pcr_ratios": "[CODE: IF IS_INITIAL_RUN, create list [1.0, 1.0, 1.0]. Else, use value of [LOCKED: all_pcrs]]",
+    "previous_atm_straddle_price": "[CODE: IF IS_INITIAL_RUN, calculate current_atm_straddle_price. Else, use value of [LOCKED: current_atm_straddle_price]]",
+    "previous_eod_oi": {
+      "...": "..." // Generate a new key-value map of 'strike_type': 'current_oi' from the nifty_monthly_chain
+    }
+  },
+  "banknifty_state": {
+    "last_3_pcr_ratios": "[CODE: IF IS_INITIAL_RUN, create list [1.0, 1.0, 1.0]. Else, use value of [LOCKED: banknifty_all_pcrs]]",
+    "previous_eod_oi": {
+      "...": "..." // Generate a new key-value map for BankNifty
+    }
+  }
+}
+
+
+---
+
+ PART 4: MANDATORY COMPLIANCE AUDIT
+
+[Instructions: Answer YES/NO to every check. A single NO invalidates the entire output.]
+1.  Was the IS_INITIAL_RUN check performed and the main analysis correctly skipped if true? [YES/NO]
+2.  Was PVA_ANCHOR used for confirmation instead of raw volume? [YES/NO]
+3.  Was the REGIME correctly identified and used to select PCR thresholds? [YES/NO]
+4.  Was the PRIMARY_TREND based on a 3-day rule using Monthly Nifty data ONLY? [YES/NO]
+5.  Was the ALIGNMENT check with BankNifty performed and the score adjusted for divergence? [YES/NO]
+6.  Was WEEKLY_WALL/FLOOR derived from static Weekly OI only? [YES/NO]
+7.  Does the [ANALYSIS_NARRATIVE] contain ONLY values present in the [LOCKED_VALUES_SUMMARY] or input data? [YES/NO]
+8.  Was the [STATE_BLOCK_FOR_NEXT_SESSION] correctly generated with EXPLICIT logic for both initial and subsequent runs? [YES/NO]
+
+[AUDIT COMPLETE. END OF PROCESS.]
+
+=================================================================================
+
+
+MULTI-EXPIRY COMPREHENSIVE ANALYSIS - FETCHED AT: 2025-11-04 23:59:49
+
+
+NIFTY MULTI-EXPIRY COMPREHENSIVE ANALYSIS
+================================================================================
+Analysis Time: 2025-11-04 23:59:49
+Nifty Spot: 25598
+================================================================================
+
+================================================================================
+MULTI-EXPIRY SUMMARY ANALYSIS
+================================================================================
+🔴 CURRENT WEEK: 04-Nov-2025
+   PCR: OI=0.61 | Volume=1.01 | Strikes: 100
+   SENTIMENT: BEARISH
+
+🔴 NEXT WEEK: 11-Nov-2025
+   PCR: OI=0.73 | Volume=0.80 | Strikes: 91
+   SENTIMENT: BEARISH
+
+🟢 MONTHLY: 25-Nov-2025
+   PCR: OI=1.11 | Volume=0.87 | Strikes: 103
+   SENTIMENT: BULLISH
+
+================================================================================
+
+================================================================================
+🔴 NIFTY CURRENT WEEK - Current: 25598, Expiry: 04-Nov-2025
+PCR: OI=0.61, Volume=1.01, Strikes: 100
+================================================================================
+CALL OPTION                                       |   STRIKE   |PUT OPTION                                          |  CHG OI DIFF       
+    Chg OI      Volume       LTP          OI       IV  |    Price    |      Chg OI      Volume       LTP          OI       IV  |             CE-PE
+------------------------------------------------------------------------------------------------------------------------------------------------------
+       -52          79    2750.9          28    100.2  |    22850    |      -14698      101201       0.1       19819     62.3  |             14646
+         2           2    2764.4           5    151.8  |    22900    |       -3482       30546       0.1        8175     61.2  |              3484
+         9           9    2672.8          10    122.8  |    22950    |         -46       20606       0.1        5736     60.0  |                55
+      -194         259    2598.8          58     90.3  |    23000    |       -4099       34895       0.1       11419     58.9  |              3905
+        26          26    2574.3          27    120.0  |    23050    |          45        1910       0.1         247     60.7  |               -19
+         6           6    2512.5           7    107.4  |    23100    |          17        3919       0.1         904     56.7  |               -11
+         9          10    2459.9          10    102.8  |    23150    |          42        3601       0.1         759     55.6  |               -33
+        -4           7    2466.0           2    138.7  |    23200    |        -135        6697       0.1        1251     54.5  |               131
+        12          12    2407.1          14    131.9  |    23250    |         246        3393       0.1         570     53.3  |              -234
+        14          16    2323.6          16    109.3  |    23300    |        -160       42827       0.1        7420     52.2  |               174
+        11          11    2270.8          12    105.1  |    23350    |         555        4788       0.1        1118     51.1  |              -544
+        19          20    2219.6          20    102.2  |    23400    |         856       36444       0.1        8787     52.6  |              -837
+        12          12    2173.1          15    102.9  |    23450    |         -31        3008       0.1         406     51.4  |                43
+      -170         248    2099.8          61     76.0  |    23500    |       -8265       40488       0.1       12713     47.8  |              8095
+         0           0    2451.4           4        0  |    23550    |         153        6780       0.1         767     46.7  |              -153
+        10          12    2014.9          12     90.5  |    23600    |        1097       11426       0.1        2557     45.5  |             -1087
+         0           0    2395.1           3        0  |    23650    |         736        5224       0.1        1222     44.4  |              -736
+        30          35    1909.5          32     81.8  |    23700    |       -3233       32709       0.1        2961     43.3  |              3263
+        14          14    1885.5          16     98.3  |    23750    |         506        9219       0.1        1554     42.2  |              -492
+        -2           3    1900.0           1    124.0  |    23800    |        -740       21824       0.1        3335     41.1  |               738
+... and 80 more strikes
+======================================================================================================================================================
+
+================================================================================
+🔴 NIFTY NEXT WEEK - Current: 25598, Expiry: 11-Nov-2025
+PCR: OI=0.73, Volume=0.80, Strikes: 91
+================================================================================
+CALL OPTION                                       |   STRIKE   |PUT OPTION                                          |  CHG OI DIFF       
+    Chg OI      Volume       LTP          OI       IV  |    Price    |      Chg OI      Volume       LTP          OI       IV  |             CE-PE
+------------------------------------------------------------------------------------------------------------------------------------------------------
+        13          32    2323.5          28        0  |    23300    |       13407       37640       1.8       25044     27.4  |            -13394
+        -5           8    2347.7           3     49.2  |    23350    |         145         289       2.1         288     27.4  |              -150
+        -1           3    2250.6           7     36.7  |    23400    |         116        1922       1.9         849     26.6  |              -117
+         0           6    2256.7           8     49.1  |    23450    |          85         449       2.1         114     26.3  |               -85
+       451         516    2125.7         459        0  |    23500    |       23426       69742       2.1       29642     25.8  |            -22975
+        -3           5    2148.1           2     45.8  |    23550    |          19         116       2.4          66     25.5  |               -22
+         0           4    2107.1           4     46.5  |    23600    |         473        3724       2.6         927     25.3  |              -473
+        -4           6    2048.6           2     44.1  |    23650    |          87         262       2.4         116     24.5  |               -91
+        -1           5    2006.0           4     44.5  |    23700    |         126        2380       2.0         603     23.4  |              -127
+        -5           6    1946.9           2     42.1  |    23750    |          26         175       2.4         178     23.3  |               -31
+         2          11    1897.4          11     41.3  |    23800    |        6127       18934       2.6        6623     23.0  |             -6125
+        -1           8    1849.1           8     40.7  |    23850    |         189         960       2.7         260     22.5  |              -190
+        -1           8    1799.6           7     39.9  |    23900    |         592        7173       2.5        1083     21.8  |              -593
+        -1           8    1749.2           7     38.9  |    23950    |         170        1894       2.9         322     21.5  |              -171
+       415         836    1620.0         920        0  |    24000    |       31918      105186       2.6       44327     20.7  |            -31503
+         0          10    1647.6          10     36.9  |    24050    |          92         555       2.9         198     20.4  |               -92
+        -1          17    1611.5          12     38.0  |    24100    |        1026       11535       3.0        1437     19.9  |             -1027
+         1          24    1560.0          10     36.9  |    24150    |         187        1668       3.0         292     19.4  |              -186
+         7           7    1500.0          35     34.5  |    24200    |       13913       69981       3.2       16314     18.9  |            -13906
+        16          25    1445.0          23     32.9  |    24250    |         558        2997       3.1         710     18.3  |              -542
+... and 71 more strikes
+======================================================================================================================================================
+
+================================================================================
+🟢 NIFTY MONTHLY - Current: 25598, Expiry: 25-Nov-2025
+PCR: OI=1.11, Volume=0.87, Strikes: 103
+================================================================================
+CALL OPTION                                       |   STRIKE   |PUT OPTION                                          |  CHG OI DIFF       
+    Chg OI      Volume       LTP          OI       IV  |    Price    |      Chg OI      Volume       LTP          OI       IV  |             CE-PE
+------------------------------------------------------------------------------------------------------------------------------------------------------
+         0           0    3177.6          82        0  |    22700    |          -8        1582       6.7        4800     23.8  |                 8
+         0           0    3295.6           6        0  |    22750    |         -10          28       6.1          94     23.1  |                10
+        -2           2    2915.0         291        0  |    22800    |          -9         140       6.0         439     22.7  |                 7
+         0           0    3198.9           5        0  |    22850    |          -4         229       6.3          83     22.5  |                 4
+         0           0    3148.9           4        0  |    22900    |           6         171       6.0         277     22.0  |                -6
+         0           0    3099.3           4        0  |    22950    |          26          43       6.4          55     21.8  |               -26
+      -149         296    2696.9        8187        0  |    23000    |         681        8528       6.4       19101     21.5  |              -830
+         0           0    2998.9           4        0  |    23050    |           6         113       6.7          88     21.2  |                -6
+         0           0    2760.0          33        0  |    23100    |         144         381       6.0         542     20.6  |              -144
+         0           0    2901.3           4        0  |    23150    |          31         188       7.5          37     20.9  |               -31
+         2           2    2510.0          13        0  |    23200    |          -7         181       7.5         463     20.5  |                 9
+         0           0    2801.9           6        0  |    23250    |           0          34       6.9          15     19.9  |                 0
+         0           0    2602.8          90        0  |    23300    |          21         307       7.7         407     19.8  |               -21
+         0           0    2703.0           6        0  |    23350    |           0           0      21.0          27        0  |                 0
+         0           0    2655.3           5        0  |    23400    |         -29         213       6.1         603     18.5  |                29
+        -8           8    2340.0          22     28.6  |    23450    |           0           0       7.7          41        0  |                -8
+      -216         304    2199.6        3215        0  |    23500    |        -385        6220       8.4        9168     18.6  |               169
+         0           0    2506.9           7        0  |    23550    |           0           5       9.5          35     18.6  |                 0
+         0           0    2311.7          28        0  |    23600    |         -29         653       9.3         622     18.1  |                29
+         0           0    2407.2           4        0  |    23650    |           1           8       7.2          14     17.1  |                -1
+... and 83 more strikes
+======================================================================================================================================================
+
+
+================================================================================
+🔴 BANKNIFTY MONTHLY - Current: 57827.05, Expiry: 25-Nov-2025
+PCR: OI=0.83, Volume=0.96
+================================================================================
+CALL OPTION                                       |   STRIKE   |PUT OPTION                                          |  CHG OI DIFF       
+    Chg OI      Volume       LTP          OI       IV  |    Price    |      Chg OI      Volume       LTP          OI       IV  |             CE-PE
+------------------------------------------------------------------------------------------------------------------------------------------------------
+         0           0   12149.9           8        0  |    46000    |         142        1004       6.5        1069     37.4  |              -142
+         0           0   11550.0           1        0  |    46500    |           8         391       7.5         669     36.4  |                -8
+         0           0   11600.0           1        0  |    47000    |          13         559       7.2        1103     34.6  |               -13
+         0           0         0           0        0  |    47500    |          21         354       7.5         357     33.2  |               -21
+         8          10   10040.0        2302        0  |    48000    |         -49         544       7.6        2105     31.7  |                57
+         0           0    9900.0          21        0  |    48500    |           9         174       8.0         210     30.4  |                -9
+         0           0         0           0        0  |    48700    |          20         115       9.0          20     30.1  |               -20
+         0           0         0           0        0  |    48800    |           0           0         0           0        0  |                 0
+         0           0         0           0        0  |    48900    |           0           0         0           0        0  |                 0
+        -2           2    9120.0         529     36.6  |    49000    |         -38         335       8.9         981     29.2  |                36
+         0           0         0           0        0  |    49100    |          57         263       8.0          89     28.5  |               -57
+         0           0         0           0        0  |    49200    |           0           0         0           0        0  |                 0
+         0           0         0           0        0  |    49300    |           0           0         0           0        0  |                 0
+         0           0         0           0        0  |    49400    |           0           7       8.5          14     27.8  |                 0
+         0           0    8725.0          10        0  |    49500    |         -11         327       8.2         382     27.4  |                11
+... and 145 more strikes
+======================================================================================================================================================
+
+
+================================================================================
+TOP 10 NIFTY STOCKS SUMMARY (Monthly Expiry)
+================================================================================
+SYMBOL          WEIGHT     PRICE      OI PCR     VOL PCR   
+--------------------------------------------------------------------------------
+RELIANCE        0.0924     1471.1     0.74       0.72      
+HDFCBANK        0.0876     985.7      0.75       0.64      
+BHARTIARTL      0.0421     2110       0.42       0.40      
+TCS             0.0512     2987.7     0.64       0.42      
+ICICIBANK       0.0763     1336.9     0.54       0.46      
+SBIN            0.0398     954.6      0.68       0.59      
+BAJFINANCE      0.0287     1054.7     0.79       0.48      
+INFY            0.0589     1468       0.58       0.39      
+ITC             0.0271     408.8      0.53       0.61      
+LT              0.0263     3925       0.51       0.62      
+================================================================================
+
+================================================================================
+END OF MULTI-EXPIRY ANALYSIS DATA
+================================================================================

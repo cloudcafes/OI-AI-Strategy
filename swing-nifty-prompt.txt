@@ -1,0 +1,204 @@
+# =================================================================================
+# NIFTY MULTI-DAY TREND & REVERSAL ENGINE v2.2 [OPERATIONAL - ENFORCED]
+# AI ROLE: DETERMINISTIC OPTIONS DATA PROCESSOR
+# METHOD: "PROXY -> REGIME -> TREND -> CONFIRM -> TACTICS -> SYNTHESIS"
+# EVERY STEP = ASSERT + CODE + TRACE + LOCK
+# =================================================================================
+
+ USER INSTRUCTIONS (READ FIRST):
+1.  Your Role: You are the Data Provider. Your only task is to accurately paste data into the designated [...PASTE DATA HERE...] sections.
+2.  Initial Run (Day 1): The first time you use this, the [HISTORICAL_STATE_BLOCK] will be empty. This is expected. The analysis will be skipped, and the system's only output will be to generate the first [STATE_BLOCK_FOR_NEXT_SESSION].
+3.  Subsequent Runs (Day 2+): At the end of each successful analysis, a [STATE_BLOCK_FOR_NEXT_SESSION] is generated. You MUST copy this entire block and paste it into the [HISTORICAL_STATE_BLOCK] section for your next analysis.
+4.  Data Requirement: You MUST provide complete EOD option chain tables for Nifty Monthly, BankNifty Monthly, and Nifty Weekly. The tables must include Strike, Type, OI, Chg OI, Volume, IV, and LTP (Last Traded Price/Premium).
+
+---
+
+ PART 1: SYSTEM CONSTITUTION & DATA INPUT
+
+[SYSTEM_ROLE]: Your role is "Deterministic Options Data Processor v2.2". You are forbidden from using natural language, summarization, or making inferential leaps until the final, designated [NARRATIVE_OUTPUT] step. Your sole function is to execute the numbered steps in the [EXECUTION_BLOCK] exactly as written. Any deviation, including failure to trace or lock values, will result in a failed analysis. Begin execution immediately upon receiving this prompt.
+
+[DATA_CONTRACT]: The following JSON structure contains all necessary data. You must verify its integrity in Step 0. Do not begin analysis if data is missing.
+
+json
+{
+  "run_date": "[YYYY-MM-DD]",
+
+  "current_data_block": {
+    "nifty_monthly_spot": "[...Current Nifty Spot Price...]",
+    "nifty_monthly_chain": "[...PASTE COMPLETE CURRENT NIFTY MONTHLY EOD OPTION CHAIN TABLE HERE...]",
+    "banknifty_monthly_spot": "[...Current BankNifty Spot Price...]",
+    "banknifty_monthly_chain": "[...PASTE COMPLETE CURRENT BANKNIFTY MONTHLY EOD OPTION CHAIN TABLE HERE...]",
+    "nifty_weekly_chain": "[...PASTE COMPLETE CURRENT NIFTY WEEKLY EOD OPTION CHAIN TABLE HERE...]"
+  },
+
+  "historical_state_block": {
+    "generated_on": "[...PASTE from previous run's STATE_BLOCK...]",
+    "nifty_state": {
+      "last_3_trading_dates": "[...PASTE...]",
+      "last_3_eod_spots": "[...PASTE...]",
+      "last_3_pcr_ratios": "[...PASTE...]",
+      "previous_atm_straddle_price": "[...PASTE...]",
+      "previous_eod_oi": {
+        "[STRIKE]_[TYPE]": "[OI_VALUE]",
+        "...": "..."
+      }
+    },
+    "banknifty_state": {
+      "last_3_pcr_ratios": "[...PASTE...]",
+      "previous_eod_oi": {
+        "[STRIKE]_[TYPE]": "[OI_VALUE]",
+        "...": "..."
+      }
+    }
+  }
+}
+
+
+---
+
+ PART 2: THE EXECUTION BLOCK (DO NOT MODIFY)
+
+STEP 0: DATA INTEGRITY & INITIALIZATION
+- 0.1: ASSERT: current_data_block and all its sub-fields are present and not empty.
+- 0.2: CHECK FOR INITIAL RUN: CODE: IF historical_state_block.generated_on is empty THEN IS_INITIAL_RUN = TRUE ELSE IS_INITIAL_RUN = FALSE.
+- 0.3: TRACE: TRACE: IS_INITIAL_RUN = {IS_INITIAL_RUN}.
+- 0.4: HALT FOR INITIALIZATION (IF APPLICABLE): IF IS_INITIAL_RUN == TRUE, SET ANALYSIS_STATUS = 'INITIALIZING'. Skip all steps from 1 to 6 and proceed directly to PART 3.
+- 0.5: DATA GAP CHECK: days_since_last_run = run_date - historical_state_block.generated_on. If days_since_last_run > 4 (to account for weekends), set DATA_GAP_WARNING = TRUE else DATA_GAP_WARNING = FALSE.
+- 0.6: TRACE & LOCK: TRACE: Data Integrity Checks Passed. Data Gap Warning: {DATA_GAP_WARNING}. [LOCKED: DATA_GAP_WARNING]
+
+STEP 1: GENERATE CORE PROXIES (NIFTY MONTHLY)
+- 1.1: Calculate Price Vector.
+    - CODE: previous_spot = historical_state_block.nifty_state.last_3_eod_spots[-1].
+    - CODE: PRICE_VECTOR = current_data_block.nifty_monthly_spot - previous_spot.
+- 1.2: Calculate Premium-Volume Anchor (PVA).
+    - CODE: For each strike in nifty_monthly_chain, pva_score = (Call_Volume * Call_LTP) + (Put_Volume * Put_LTP).
+    - CODE: PVA_ANCHOR = strike with MAX(pva_score).
+- 1.3: Calculate Volatility Vector.
+    - CODE: Find ATM_STRIKE closest to nifty_monthly_spot.
+    - CODE: current_atm_straddle_price = Premium(ATM_STRIKE, 'CALL') + Premium(ATM_STRIKE, 'PUT').
+    - CODE: VOLATILITY_VECTOR = current_atm_straddle_price - historical_state_block.nifty_state.previous_atm_straddle_price.
+- 1.4: TRACE & LOCK: TRACE: PRICE_VECTOR={PRICE_VECTOR:+.2f}, PVA_ANCHOR={PVA_ANCHOR}, VOLATILITY_VECTOR={VOLATILITY_VECTOR:+.2f}. [LOCKED: PRICE_VECTOR, PVA_ANCHOR, VOLATILITY_VECTOR, current_atm_straddle_price]
+
+STEP 2: DETERMINE MARKET REGIME (NIFTY MONTHLY)
+- 2.1: Find ATM IV. CODE: ATM_IV = IV of ATM_STRIKE Call.
+- 2.2: Classify Regime.
+    - CODE: IF ATM_IV < 13, REGIME = 'LOW_VOL'.
+    - CODE: IF 13 <= ATM_IV <= 18, REGIME = 'NORMAL_VOL'.
+    - CODE: IF ATM_IV > 18, REGIME = 'HIGH_VOL'.
+- 2.3: TRACE & LOCK: TRACE: ATM_IV={ATM_IV:.2f} -> REGIME='{REGIME}'. [LOCKED: REGIME, ATM_IV]
+
+STEP 3: PRIMARY TREND ANALYSIS (NIFTY MONTHLY)
+- 3.1: Calculate Daily Change in OI.
+    - CODE: For each strike, Chg_OI = current_OI - historical_state_block.nifty_state.previous_eod_oi.get(strike, 0).
+    - CODE: total_put_chg_oi = SUM(max(0, Chg_OI) for all Puts).
+    - CODE: total_call_chg_oi = SUM(max(0, Chg_OI) for all Calls).
+- 3.2: Calculate Daily PCR. CODE: daily_pcr = total_put_chg_oi / total_call_chg_oi if total_call_chg_oi > 0 else 999.
+- 3.3: Apply Regime-Aware Thresholds.
+    - CODE: pcr_threshold_bullish = 1.15 if REGIME=='LOW_VOL' else 1.20 if REGIME=='NORMAL_VOL' else 1.50.
+    - CODE: pcr_threshold_bearish = 0.85 if REGIME=='LOW_VOL' else 0.80 if REGIME=='NORMAL_VOL' else 0.70.
+    - CODE: daily_bias = 'BULLISH' if daily_pcr > pcr_threshold_bullish else 'BEARISH' if daily_pcr < pcr_threshold_bearish else 'NEUTRAL'.
+- 3.4: Confirm Trend (3-Day Rule).
+    - CODE: all_pcrs = historical_state_block.nifty_state.last_3_pcr_ratios[1:] + [daily_pcr].
+    - CODE: bullish_days = COUNT(p > pcr_threshold_bullish for p in all_pcrs).
+    - CODE: bearish_days = COUNT(p < pcr_threshold_bearish for p in all_pcrs).
+    - CODE: PRIMARY_TREND = 'BULLISH' if bullish_days >= 2 else 'BEARISH' if bearish_days >= 2 else 'NEUTRAL_CONSOLIDATION'.
+- 3.5: TRACE & LOCK: TRACE: Daily_PCR={daily_pcr:.2f} -> Daily_Bias='{daily_bias}'. 3-Day Rule: {bullish_days} bullish, {bearish_days} bearish -> PRIMARY_TREND='{PRIMARY_TREND}'. [LOCKED: PRIMARY_TREND, daily_pcr, all_pcrs]
+
+STEP 4: CONFIRMATION ANALYSIS (BANKNIFTY MONTHLY)
+- 4.1: Repeat Step 3.1-3.3 for BankNifty data. CODE: Calculate banknifty_daily_pcr and banknifty_daily_bias.
+- 4.2: Confirm Trend (3-Day Rule). CODE: banknifty_all_pcrs = historical_state_block.banknifty_state.last_3_pcr_ratios[1:] + [banknifty_daily_pcr]. Repeat 3.4 logic to determine BANKNIFTY_TREND.
+- 4.3: Determine Alignment. CODE: ALIGNMENT = 'ALIGNED' if PRIMARY_TREND == BANKNIFTY_TREND else 'DIVERGENT' if PRIMARY_TREND != 'NEUTRAL_CONSOLIDATION' and BANKNIFTY_TREND != 'NEUTRAL_CONSOLIDATION' else 'NON_ALIGNED'.
+- 4.4: TRACE & LOCK: TRACE: BankNifty Trend is '{BANKNIFTY_TREND}'. ALIGNMENT = '{ALIGNMENT}'. [LOCKED: BANKNIFTY_TREND, ALIGNMENT, banknifty_all_pcrs]
+
+STEP 5: TACTICAL ANALYSIS (NIFTY WEEKLY)
+- 5.1: Identify Hurdles. Use static OI from the nifty_weekly_chain.
+    - CODE: WEEKLY_WALL = strike with MAX(Call_OI).
+    - CODE: WEEKLY_FLOOR = strike with MAX(Put_OI).
+- 5.2: TRACE & LOCK: TRACE: WEEKLY_WALL={WEEKLY_WALL}, WEEKLY_FLOOR={WEEKLY_FLOOR}. [LOCKED: WEEKLY_WALL, WEEKLY_FLOOR]
+
+STEP 6: SCORING & SYNTHESIS
+- 6.1: Initialize Score. Confidence_Score = 50.
+- 6.2: Apply PVA Confirmation.
+    - CODE: IF (PRIMARY_TREND=='BULLISH' and nifty_monthly_spot > PVA_ANCHOR) or (PRIMARY_TREND=='BEARISH' and nifty_monthly_spot < PVA_ANCHOR) THEN Confidence_Score += 15.
+- 6.3: Apply Volatility Vector Context.
+    - CODE: IF (PRICE_VECTOR > 0 and VOLATILITY_VECTOR < 0) or (PRICE_VECTOR < 0 and VOLATILITY_VECTOR > 0) THEN Confidence_Score += 10.
+- 6.4: Apply Alignment Modifier.
+    - CODE: IF ALIGNMENT == 'ALIGNED' THEN Confidence_Score += 20.
+    - CODE: IF ALIGNMENT == 'DIVERGENT' THEN Confidence_Score -= 30.
+- 6.5: Finalize Score. CODE: Confidence_Score = max(0, min(100, Confidence_Score)).
+- 6.6: TRACE & LOCK: TRACE: Final Confidence Score = {Confidence_Score}. [LOCKED: CONFIDENCE_SCORE]
+
+---
+
+ PART 3: OUTPUT BLOCK
+
+IF ANALYSIS_STATUS == 'INITIALIZING', display ONLY the [TRADING_IMPLICATION] and [STATE_BLOCK_FOR_NEXT_SESSION] sections. Otherwise, display all sections.
+
+[LOCKED_VALUES_SUMMARY]
+- DATA_GAP_WARNING: [Value]
+- PRICE_VECTOR: [Value]
+- PVA_ANCHOR: [Value]
+- VOLATILITY_VECTOR: [Value]
+- REGIME: [Value]
+- ATM_IV: [Value]
+- PRIMARY_TREND: [Value]
+- BANKNIFTY_TREND: [Value]
+- ALIGNMENT: [Value]
+- WEEKLY_WALL: [Value]
+- WEEKLY_FLOOR: [Value]
+- CONFIDENCE_SCORE: [Value]
+
+[ANALYSIS_NARRATIVE]
+- Primary Trend: The confirmed multi-day trend for Nifty is [LOCKED: PRIMARY_TREND], based on a 3-day analysis of Monthly OI.
+- Market Regime: The market is currently in a [LOCKED: REGIME] state, with an ATM IV of [LOCKED: ATM_IV].
+- Cross-Index Confirmation: The broader market is [LOCKED: ALIGNMENT] with the primary trend, as BankNifty's trend is [LOCKED: BANKNIFTY_TREND].
+- Daily Price Action: Today's price move was [LOCKED: PRICE_VECTOR:+.2f] points. The market's financial center of gravity (PVA) was the [LOCKED: PVA_ANCHOR] strike, with the spot closing {above/below} it.
+- Volatility Context: The Volatility Vector was [LOCKED: VOLATILITY_VECTOR:+.2f], indicating {rising/falling} fear relative to the price move.
+- Tactical Hurdles: For the short-term, expect immediate resistance at the [LOCKED: WEEKLY_WALL] and support at the [LOCKED: WEEKLY_FLOOR].
+
+[TRADING_IMPLICATION]
+- BIAS: IF IS_INITIAL_RUN, display 'AWAITING_DATA'. Else, display [LOCKED: PRIMARY_TREND].
+- CONFIDENCE: IF IS_INITIAL_RUN, display 'N/A'. Else, display [LOCKED: CONFIDENCE_SCORE]/100.
+- STRATEGY:
+    - If BULLISH: Look for long opportunities, using the [LOCKED: WEEKLY_FLOOR] as a potential entry zone or stop-loss reference.
+    - If BEARISH: Look for short opportunities, using the [LOCKED: WEEKLY_WALL] as a potential entry zone or stop-loss reference.
+    - If NEUTRAL: Expect range-bound activity between [LOCKED: WEEKLY_FLOOR] and [LOCKED: WEEKLY_WALL]. Wait for a clear trend to re-emerge.
+- WARNINGS: {IF IS_INITIAL_RUN, display "INITIALIZATION RUN COMPLETE. Please use the generated State Block for your next session."} {IF ALIGNMENT=='DIVERGENT', display "CRITICAL DIVERGENCE WITH BANKNIFTY. HIGH CAUTION ADVISED."} {IF DATA_GAP_WARNING==TRUE, display "DATA GAP DETECTED. OI CHANGES REFLECT MULTIPLE DAYS; MAGNITUDE MAY BE INFLATED."}
+
+[STATE_BLOCK_FOR_NEXT_SESSION] (COPY THIS ENTIRE BLOCK FOR YOUR NEXT RUN)
+json
+{
+  "generated_on": "[Value of 'run_date' from input]",
+  "nifty_state": {
+    "last_3_trading_dates": "[CODE: IF IS_INITIAL_RUN, create list with 3 copies of 'run_date'. Else, create list using historical_state_block.nifty_state.last_3_trading_dates[1:] + [run_date]]",
+    "last_3_eod_spots": "[CODE: IF IS_INITIAL_RUN, create list with 3 copies of 'nifty_monthly_spot'. Else, create list using historical_state_block.nifty_state.last_3_eod_spots[1:] + [nifty_monthly_spot]]",
+    "last_3_pcr_ratios": "[CODE: IF IS_INITIAL_RUN, create list [1.0, 1.0, 1.0]. Else, use value of [LOCKED: all_pcrs]]",
+    "previous_atm_straddle_price": "[CODE: IF IS_INITIAL_RUN, calculate current_atm_straddle_price. Else, use value of [LOCKED: current_atm_straddle_price]]",
+    "previous_eod_oi": {
+      "...": "..." // Generate a new key-value map of 'strike_type': 'current_oi' from the nifty_monthly_chain
+    }
+  },
+  "banknifty_state": {
+    "last_3_pcr_ratios": "[CODE: IF IS_INITIAL_RUN, create list [1.0, 1.0, 1.0]. Else, use value of [LOCKED: banknifty_all_pcrs]]",
+    "previous_eod_oi": {
+      "...": "..." // Generate a new key-value map for BankNifty
+    }
+  }
+}
+
+
+---
+
+ PART 4: MANDATORY COMPLIANCE AUDIT
+
+[Instructions: Answer YES/NO to every check. A single NO invalidates the entire output.]
+1.  Was the IS_INITIAL_RUN check performed and the main analysis correctly skipped if true? [YES/NO]
+2.  Was PVA_ANCHOR used for confirmation instead of raw volume? [YES/NO]
+3.  Was the REGIME correctly identified and used to select PCR thresholds? [YES/NO]
+4.  Was the PRIMARY_TREND based on a 3-day rule using Monthly Nifty data ONLY? [YES/NO]
+5.  Was the ALIGNMENT check with BankNifty performed and the score adjusted for divergence? [YES/NO]
+6.  Was WEEKLY_WALL/FLOOR derived from static Weekly OI only? [YES/NO]
+7.  Does the [ANALYSIS_NARRATIVE] contain ONLY values present in the [LOCKED_VALUES_SUMMARY] or input data? [YES/NO]
+8.  Was the [STATE_BLOCK_FOR_NEXT_SESSION] correctly generated with EXPLICIT logic for both initial and subsequent runs? [YES/NO]
+
+[AUDIT COMPLETE. END OF PROCESS.]

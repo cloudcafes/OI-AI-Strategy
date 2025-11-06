@@ -226,7 +226,7 @@ def send_telegram_message(text: str) -> bool:
                         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
                         payload = {
                             "chat_id": CHAT_ID,
-                            "text": f"📊 Part {message_count}:\n",
+                            "text": f"📊 Part {message_count}:\n{current_message}",
                             "parse_mode": "HTML"
                         }
                         
@@ -266,16 +266,152 @@ def send_telegram_message(text: str) -> bool:
         print(f"❌ Error sending Telegram message: {e}")
         return False
 
-# ... [Keep all your existing resend_latest_ai_query, resend_specific_ai_query, list_ai_query_files functions] ...
+def is_multi_expiry_data(oi_data) -> bool:
+    """Check if data is in multi-expiry format"""
+    return isinstance(oi_data, dict) and any(key in oi_data for key in ['current_week', 'next_week', 'monthly'])
+
+def format_multi_expiry_for_file(expiry_data: Dict[str, Any], 
+                                pcr_values: Dict[str, Any],
+                                current_nifty: float,
+                                banknifty_data: Dict[str, Any] = None) -> str:
+    """Format multi-expiry data for file output"""
+    data_section = f"\n\nNIFTY MULTI-EXPIRY ANALYSIS DATA\n"
+    data_section += "=" * 80 + "\n"
+    
+    # Summary of all expiries
+    data_section += "EXPIRY SUMMARY:\n"
+    for expiry_type in ['current_week', 'next_week', 'monthly']:
+        if expiry_type in expiry_data and expiry_data[expiry_type]:
+            oi_data = expiry_data[expiry_type]
+            expiry_date = oi_data[0]['expiry_date'] if oi_data else "N/A"
+            pcr_info = pcr_values.get(expiry_type, {})
+            oi_pcr = pcr_info.get('oi_pcr', 1.0)
+            volume_pcr = pcr_info.get('volume_pcr', 1.0)
+            strike_count = pcr_info.get('strike_count', 0)
+            
+            data_section += f"- {expiry_type.upper().replace('_', ' ')}: {expiry_date} | "
+            data_section += f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f} | "
+            data_section += f"Strikes: {strike_count}\n"
+    
+    data_section += "\n"
+    
+    # Detailed data for each expiry
+    for expiry_type in ['current_week', 'next_week', 'monthly']:
+        if expiry_type in expiry_data and expiry_data[expiry_type]:
+            oi_data = expiry_data[expiry_type]
+            current_value = oi_data[0]['nifty_value'] if oi_data else current_nifty
+            expiry_date = oi_data[0]['expiry_date'] if oi_data else "N/A"
+            
+            pcr_info = pcr_values.get(expiry_type, {})
+            oi_pcr = pcr_info.get('oi_pcr', 1.0)
+            volume_pcr = pcr_info.get('volume_pcr', 1.0)
+            
+            data_section += f"\n{'='*80}\n"
+            data_section += f"NIFTY {expiry_type.upper().replace('_', ' ')} - Current: {current_value}, Expiry: {expiry_date}\n"
+            data_section += f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}\n"
+            data_section += f"{'='*80}\n"
+            data_section += f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}\n"
+            data_section += f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  " \
+                           f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  " \
+                           f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}\n"
+            data_section += "-" * 150 + "\n"
+            
+            for data in oi_data:
+                strike_price = data['strike_price']
+                
+                # Format data exactly like console display
+                ce_oi_formatted = str(data['ce_change_oi'])
+                ce_volume_formatted = str(data['ce_volume'])
+                ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+                ce_oi_total_formatted = str(data['ce_oi'])
+                ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+                
+                pe_oi_formatted = str(data['pe_change_oi'])
+                pe_volume_formatted = str(data['pe_volume'])
+                pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+                pe_oi_total_formatted = str(data['pe_oi'])
+                pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+                
+                chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+                chg_oi_diff_formatted = str(chg_oi_diff)
+                
+                # Format the row exactly like console
+                formatted_row = (
+                    f"{ce_oi_formatted.rjust(10)}  {ce_volume_formatted.rjust(10)}  {ce_ltp_formatted.rjust(8)}  "
+                    f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  |  "
+                    f"{str(strike_price).center(9)}  |  "
+                    f"{pe_oi_formatted.rjust(10)}  {pe_volume_formatted.rjust(10)}  {pe_ltp_formatted.rjust(8)}  "
+                    f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  |  "
+                    f"{chg_oi_diff_formatted.rjust(16)}"
+                )
+                
+                data_section += formatted_row + "\n"
+            
+            data_section += "=" * 150 + "\n"
+    
+    # Add BankNifty data if available
+    if banknifty_data and 'data' in banknifty_data:
+        banknifty_monthly_data = banknifty_data['data'].get('monthly', [])
+        if banknifty_monthly_data:
+            banknifty_current = banknifty_data.get('current_value', 0)
+            banknifty_expiry = banknifty_data.get('expiry_date', 'N/A')
+            banknifty_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('oi_pcr', 0)
+            banknifty_volume_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('volume_pcr', 0)
+            
+            data_section += f"\n\n{'='*80}\n"
+            data_section += f"BANKNIFTY MONTHLY - Current: {banknifty_current}, Expiry: {banknifty_expiry}\n"
+            data_section += f"PCR: OI={banknifty_pcr:.2f}, Volume={banknifty_volume_pcr:.2f}\n"
+            data_section += f"{'='*80}\n"
+            data_section += f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}\n"
+            data_section += f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  " \
+                           f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  " \
+                           f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}\n"
+            data_section += "-" * 150 + "\n"
+            
+            for data in banknifty_monthly_data:
+                strike_price = data['strike_price']
+                
+                # Format BankNifty data
+                ce_oi_formatted = str(data['ce_change_oi'])
+                ce_volume_formatted = str(data['ce_volume'])
+                ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+                ce_oi_total_formatted = str(data['ce_oi'])
+                ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+                
+                pe_oi_formatted = str(data['pe_change_oi'])
+                pe_volume_formatted = str(data['pe_volume'])
+                pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+                pe_oi_total_formatted = str(data['pe_oi'])
+                pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+                
+                chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+                chg_oi_diff_formatted = str(chg_oi_diff)
+                
+                formatted_row = (
+                    f"{ce_oi_formatted.rjust(10)}  {ce_volume_formatted.rjust(10)}  {ce_ltp_formatted.rjust(8)}  "
+                    f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  |  "
+                    f"{str(strike_price).center(9)}  |  "
+                    f"{pe_oi_formatted.rjust(10)}  {pe_volume_formatted.rjust(10)}  {pe_ltp_formatted.rjust(8)}  "
+                    f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  |  "
+                    f"{chg_oi_diff_formatted.rjust(16)}"
+                )
+                
+                data_section += formatted_row + "\n"
+            
+            data_section += "=" * 150 + "\n"
+    
+    return data_section
 
 def save_ai_query_data(oi_data: List[Dict[str, Any]], 
                       oi_pcr: float, 
                       volume_pcr: float, 
                       current_nifty: float,
                       expiry_date: str,
-                      banknifty_data: Dict[str, Any] = None) -> str:
+                      banknifty_data: Dict[str, Any] = None,
+                      pcr_values: Dict[str, Any] = None) -> str:
     """
     Save AI query data to a text file with timestamp in filename and send to Telegram & Email
+    Enhanced to handle both single and multi-expiry data
     Returns the file path where data was saved
     """    
     # Create directory if it doesn't exist
@@ -375,10 +511,7 @@ AFTER STEP 2.5: "Strength = {STRENGTH} ({SCORE}/10)"
 # ——— STEP 2.6: BANKNIFTY — CODE ENFORCED ———
 BANKNIFTY_OI_PCR = BankNifty OI PCR
 BANKNIFTY_DOMINANT = "PUT WRITING" if BANKNIFTY_OI_PCR > 1.0 else "CALL WRITING" if BANKNIFTY_OI_PCR < 0.9 else "NEUTRAL"
-ALIGNMENT = "ALIGNED" if \
-   (MOMENTUM == "BULLISH" and BANKNIFTY_DOMINANT == "PUT WRITING") or \
-   (MOMENTUM == "BEARISH" and BANKNIFTY_DOMINANT == "CALL WRITING") \
-   else "DIVERGENT"
+ALIGNMENT = "ALIGNED" if    (MOMENTUM == "BULLISH" and BANKNIFTY_DOMINANT == "PUT WRITING") or    (MOMENTUM == "BEARISH" and BANKNIFTY_DOMINANT == "CALL WRITING")    else "DIVERGENT"
 AFTER STEP 2.6: "BankNifty: {BANKNIFTY_DOMINANT} → {ALIGNMENT}"
 
 # ———————————————————————
@@ -584,87 +717,41 @@ EVIDENCE SUMMARY:
 - TRIGGER_LEVEL: Strike or range? → [YES/NO]
 - ALL TRACED: AFTER STEP X present? → [YES/NO]
 - PROTOCOL VIOLATIONS: [0]
-# ===================================================================
 -----------------------------------------------------------------------------------------------    
 """
 
-    # Format the data section
+    # Format the data section based on data type
     fetch_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    data_section = f"\n\nCURRENT DATA FOR ANALYSIS - FETCHED AT: {fetch_time}\n"
-    data_section += "=" * 80 + "\n"
-    data_section += f"NIFTY DATA:\n"
-    data_section += f"- Current Value: {current_nifty}\n"
-    data_section += f"- Expiry Date: {expiry_date}\n"
-    data_section += f"- OI PCR: {oi_pcr:.2f}\n"
-    data_section += f"- Volume PCR: {volume_pcr:.2f}\n"
-    
-    # Add BankNifty data if available
-    if banknifty_data:
-        data_section += f"\nBANKNIFTY DATA:\n"
-        data_section += f"- Current Value: {banknifty_data.get('current_value', 0)}\n"
-        data_section += f"- Expiry Date: {banknifty_data.get('expiry_date', 'N/A')}\n"
-        data_section += f"- OI PCR: {banknifty_data.get('oi_pcr', 0):.2f}\n"
-        data_section += f"- Volume PCR: {banknifty_data.get('volume_pcr', 0):.2f}\n"
-    
-    # Add COMPLETE Nifty option chain data in the same format as console
-    data_section += f"\n\nCOMPLETE NIFTY OPTION CHAIN DATA:\n"
-    data_section += "=" * 80 + "\n"
-    data_section += f"OI Data for NIFTY - Current: {current_nifty}, Expiry: {expiry_date}\n"
-    data_section += f"Full Chain PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}\n"
-    data_section += "=" * 80 + "\n"
-    data_section += f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}\n"
-    data_section += f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  " \
-                   f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  " \
-                   f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}\n"
-    data_section += "-" * 150 + "\n"
-    
-    for data in oi_data:  # ALL strikes, not just first 20
-        strike_price = data['strike_price']
-        
-        # Format data exactly like console display
-        ce_oi_formatted = str(data['ce_change_oi'])
-        ce_volume_formatted = str(data['ce_volume'])
-        ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
-        ce_oi_total_formatted = str(data['ce_oi'])
-        ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
-        
-        pe_oi_formatted = str(data['pe_change_oi'])
-        pe_volume_formatted = str(data['pe_volume'])
-        pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
-        pe_oi_total_formatted = str(data['pe_oi'])
-        pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
-        
-        chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
-        chg_oi_diff_formatted = str(chg_oi_diff)
-        
-        # Format the row exactly like console
-        formatted_row = (
-            f"{ce_oi_formatted.rjust(10)}  {ce_volume_formatted.rjust(10)}  {ce_ltp_formatted.rjust(8)}  "
-            f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  |  "
-            f"{str(strike_price).center(9)}  |  "
-            f"{pe_oi_formatted.rjust(10)}  {pe_volume_formatted.rjust(10)}  {pe_ltp_formatted.rjust(8)}  "
-            f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  |  "
-            f"{chg_oi_diff_formatted.rjust(16)}"
-        )
-        
-        data_section += formatted_row + "\n"
-    
-    data_section += "=" * 150 + "\n"
-    data_section += f"NIFTY PCR: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}\n\n"
-    
-    # Add COMPLETE BankNifty option chain data if available
-    if banknifty_data and 'data' in banknifty_data:
-        banknifty_oi_data = banknifty_data['data']
-        banknifty_current = banknifty_data.get('current_value', 0)
-        banknifty_expiry = banknifty_data.get('expiry_date', 'N/A')
-        banknifty_oi_pcr = banknifty_data.get('oi_pcr', 0)
-        banknifty_volume_pcr = banknifty_data.get('volume_pcr', 0)
-        
-        data_section += f"\n\nCOMPLETE BANKNIFTY OPTION CHAIN DATA:\n"
+    # Check if data is multi-expiry format
+    if is_multi_expiry_data(oi_data):
+        data_section = f"\n\nMULTI-EXPIRY DATA FOR ANALYSIS - FETCHED AT: {fetch_time}\n"
+        data_section += format_multi_expiry_for_file(oi_data, pcr_values or {}, current_nifty, banknifty_data)
+    else:
+        # Original single expiry formatting (backward compatible)
+        data_section = f"\n\nCURRENT DATA FOR ANALYSIS - FETCHED AT: {fetch_time}\n"
         data_section += "=" * 80 + "\n"
-        data_section += f"OI Data for BANKNIFTY - Current: {banknifty_current}, Expiry: {banknifty_expiry}\n"
-        data_section += f"Full Chain PCR: OI={banknifty_oi_pcr:.2f}, Volume={banknifty_volume_pcr:.2f}\n"
+        data_section += f"NIFTY DATA:\n"
+        data_section += f"- Current Value: {current_nifty}\n"
+        data_section += f"- Expiry Date: {expiry_date}\n"
+        data_section += f"- OI PCR: {oi_pcr:.2f}\n"
+        data_section += f"- Volume PCR: {volume_pcr:.2f}\n"
+        
+        # Add BankNifty data if available
+        if banknifty_data:
+            data_section += f"\nBANKNIFTY DATA:\n"
+            data_section += f"- Current Value: {banknifty_data.get('current_value', 0)}\n"
+            data_section += f"- Expiry Date: {banknifty_data.get('expiry_date', 'N/A')}\n"
+            banknifty_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('oi_pcr', 0)
+            banknifty_volume_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('volume_pcr', 0)
+            data_section += f"- OI PCR: {banknifty_pcr:.2f}\n"
+            data_section += f"- Volume PCR: {banknifty_volume_pcr:.2f}\n"
+        
+        # Add COMPLETE Nifty option chain data in the same format as console
+        data_section += f"\n\nCOMPLETE NIFTY OPTION CHAIN DATA:\n"
+        data_section += "=" * 80 + "\n"
+        data_section += f"OI Data for NIFTY - Current: {current_nifty}, Expiry: {expiry_date}\n"
+        data_section += f"Full Chain PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}\n"
         data_section += "=" * 80 + "\n"
         data_section += f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}\n"
         data_section += f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  " \
@@ -672,10 +759,10 @@ EVIDENCE SUMMARY:
                        f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}\n"
         data_section += "-" * 150 + "\n"
         
-        for data in banknifty_oi_data:  # ALL BankNifty strikes
+        for data in oi_data:  # ALL strikes, not just first 20
             strike_price = data['strike_price']
             
-            # Format BankNifty data exactly like console display
+            # Format data exactly like console display
             ce_oi_formatted = str(data['ce_change_oi'])
             ce_volume_formatted = str(data['ce_volume'])
             ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
@@ -704,7 +791,61 @@ EVIDENCE SUMMARY:
             data_section += formatted_row + "\n"
         
         data_section += "=" * 150 + "\n"
-        data_section += f"BANKNIFTY PCR: OI PCR = {banknifty_oi_pcr:.2f}, Volume PCR = {banknifty_volume_pcr:.2f}\n"
+        data_section += f"NIFTY PCR: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}\n\n"
+        
+        # Add COMPLETE BankNifty option chain data if available
+        if banknifty_data and 'data' in banknifty_data:
+            banknifty_oi_data = banknifty_data['data'].get('monthly', [])
+            if banknifty_oi_data:
+                banknifty_current = banknifty_data.get('current_value', 0)
+                banknifty_expiry = banknifty_data.get('expiry_date', 'N/A')
+                banknifty_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('oi_pcr', 0)
+                banknifty_volume_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('volume_pcr', 0)
+                
+                data_section += f"\n\nCOMPLETE BANKNIFTY OPTION CHAIN DATA:\n"
+                data_section += "=" * 80 + "\n"
+                data_section += f"OI Data for BANKNIFTY - Current: {banknifty_current}, Expiry: {banknifty_expiry}\n"
+                data_section += f"Full Chain PCR: OI={banknifty_pcr:.2f}, Volume={banknifty_volume_pcr:.2f}\n"
+                data_section += "=" * 80 + "\n"
+                data_section += f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}\n"
+                data_section += f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  " \
+                               f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  " \
+                               f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}\n"
+                data_section += "-" * 150 + "\n"
+                
+                for data in banknifty_oi_data:  # ALL BankNifty strikes
+                    strike_price = data['strike_price']
+                    
+                    # Format BankNifty data exactly like console display
+                    ce_oi_formatted = str(data['ce_change_oi'])
+                    ce_volume_formatted = str(data['ce_volume'])
+                    ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+                    ce_oi_total_formatted = str(data['ce_oi'])
+                    ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+                    
+                    pe_oi_formatted = str(data['pe_change_oi'])
+                    pe_volume_formatted = str(data['pe_volume'])
+                    pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+                    pe_oi_total_formatted = str(data['pe_oi'])
+                    pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+                    
+                    chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+                    chg_oi_diff_formatted = str(chg_oi_diff)
+                    
+                    # Format the row exactly like console
+                    formatted_row = (
+                        f"{ce_oi_formatted.rjust(10)}  {ce_volume_formatted.rjust(10)}  {ce_ltp_formatted.rjust(8)}  "
+                        f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  |  "
+                        f"{str(strike_price).center(9)}  |  "
+                        f"{pe_oi_formatted.rjust(10)}  {pe_volume_formatted.rjust(10)}  {pe_ltp_formatted.rjust(8)}  "
+                        f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  |  "
+                        f"{chg_oi_diff_formatted.rjust(16)}"
+                    )
+                    
+                    data_section += formatted_row + "\n"
+                
+                data_section += "=" * 150 + "\n"
+                data_section += f"BANKNIFTY PCR: OI PCR = {banknifty_pcr:.2f}, Volume PCR = {banknifty_volume_pcr:.2f}\n"
     
     data_section += "=" * 80 + "\n"
     
@@ -716,14 +857,6 @@ EVIDENCE SUMMARY:
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(full_content)
         print(f"✅ AI query data saved to: {filepath}")
-        
-        # Send to Telegram
-        #print("📤 Sending to Telegram...")
-        #telegram_success = send_telegram_message(full_content)
-        #if telegram_success:
-            #print("✅ Message sent to Telegram successfully!")
-        #else:
-            #print("❌ Failed to send message to Telegram")
         
         # Send to Email via Resend API
         print("📧 Sending to Email...")

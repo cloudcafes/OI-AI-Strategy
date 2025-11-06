@@ -16,21 +16,21 @@ from nifty_core_config import (
     signal_handler, initialize_session,
     format_greek_value, should_run_ai_analysis,
     should_run_loop, should_display_stocks, get_fetch_interval,
-    TOP_NIFTY_STOCKS
+    TOP_NIFTY_STOCKS, should_enable_multi_expiry, get_expiry_type_constants
 )
 from nifty_data_fetcher import (
     fetch_option_chain, parse_option_chain, calculate_pcr_values,
-    fetch_banknifty_data, fetch_all_stock_data
+    calculate_pcr_for_expiry_data, fetch_banknifty_data, fetch_all_stock_data
 )
 from nifty_ai_analyzer import NiftyAIAnalyzer
 from nifty_file_logger import save_ai_query_data
-
-
+from multi_expiry_file_logger import save_multi_expiry_ai_query_data, save_daily_eod_state_block
+MULTI_EXPIRY_LOGGER_AVAILABLE = True
 # Initialize AI analyzer globally
 ai_analyzer = NiftyAIAnalyzer()
 
-def display_nifty_data(oi_data, oi_pcr, volume_pcr):
-    """Display Nifty OI data without Greeks - Show ALL strikes"""
+def display_nifty_single_expiry(oi_data, oi_pcr, volume_pcr):
+    """Display Nifty OI data for single expiry (backward compatible)"""
     if not oi_data:
         return
     
@@ -83,17 +83,98 @@ def display_nifty_data(oi_data, oi_pcr, volume_pcr):
     print("=" * 150)
     print(f"NIFTY PCR: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}")
 
+def display_nifty_multi_expiry(expiry_data, pcr_values):
+    """Display Nifty OI data for multiple expiries"""
+    if not expiry_data:
+        return
+    
+    constants = get_expiry_type_constants()
+    
+    # Display each expiry type
+    for expiry_type in constants['ALL_TYPES']:
+        if expiry_type in expiry_data and expiry_data[expiry_type]:
+            oi_data = expiry_data[expiry_type]
+            current_value = oi_data[0]['nifty_value']
+            expiry_date = oi_data[0]['expiry_date']
+            
+            # Get PCR values for this expiry
+            expiry_pcr = pcr_values.get(expiry_type, {})
+            oi_pcr = expiry_pcr.get('oi_pcr', 1.0)
+            volume_pcr = expiry_pcr.get('volume_pcr', 1.0)
+            strike_count = expiry_pcr.get('strike_count', 0)
+            
+            # Display header with expiry type
+            print(f"\n{'='*80}")
+            expiry_label = expiry_type.upper().replace('_', ' ')
+            print(f"📅 NIFTY {expiry_label} - Current: {current_value}, Expiry: {expiry_date}")
+            print(f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}, Strikes: {strike_count}")
+            print(f"{'='*80}")
+            
+            # Show table header
+            print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
+            print(
+                f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
+                f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
+                f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}"
+            )
+            print("-" * 150)
+            
+            # Display data rows
+            for data in oi_data:
+                strike_price = data['strike_price']
+                
+                # Format data
+                ce_oi_formatted = str(data['ce_change_oi'])
+                ce_volume_formatted = str(data['ce_volume'])
+                ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+                ce_oi_total_formatted = str(data['ce_oi'])
+                ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+                
+                pe_oi_formatted = str(data['pe_change_oi'])
+                pe_volume_formatted = str(data['pe_volume'])
+                pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+                pe_oi_total_formatted = str(data['pe_oi'])
+                pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+                
+                chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+                chg_oi_diff_formatted = str(chg_oi_diff)
+                
+                # Format the row
+                formatted_row = (
+                    f"{ce_oi_formatted.rjust(10)}  {ce_volume_formatted.rjust(10)}  {ce_ltp_formatted.rjust(8)}  "
+                    f"{ce_oi_total_formatted.rjust(10)}  {ce_iv_formatted.rjust(7)}  |  "
+                    f"{str(strike_price).center(9)}  |  "
+                    f"{pe_oi_formatted.rjust(10)}  {pe_volume_formatted.rjust(10)}  {pe_ltp_formatted.rjust(8)}  "
+                    f"{pe_oi_total_formatted.rjust(10)}  {pe_iv_formatted.rjust(7)}  |  "
+                    f"{chg_oi_diff_formatted.rjust(16)}"
+                )
+                
+                print(formatted_row)
+            
+            print("=" * 150)
+
 def display_banknifty_data(banknifty_data):
     """Display BANKNIFTY OI data without Greeks - Show ALL strikes"""
-    if not banknifty_data:
+    if not banknifty_data or 'data' not in banknifty_data:
+        return
+    
+    # Extract monthly data (BankNifty always monthly)
+    monthly_data = banknifty_data['data'].get('monthly', [])
+    if not monthly_data:
         return
     
     current_value = banknifty_data['current_value']
     expiry_date = banknifty_data['expiry_date']
     
+    # Get PCR values
+    pcr_values = banknifty_data.get('pcr_values', {})
+    monthly_pcr = pcr_values.get('monthly', {})
+    oi_pcr = monthly_pcr.get('oi_pcr', 1.0)
+    volume_pcr = monthly_pcr.get('volume_pcr', 1.0)
+    
     print(f"\n{'='*80}")
-    print(f"OI Data for BANKNIFTY - Current: {current_value}, Expiry: {expiry_date}")
-    print(f"Full Chain PCR: OI={banknifty_data['oi_pcr']:.2f}, Volume={banknifty_data['volume_pcr']:.2f}")
+    print(f"🏦 BANKNIFTY MONTHLY - Current: {current_value}, Expiry: {expiry_date}")
+    print(f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}")
     print(f"{'='*80}")
     print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
     print(
@@ -103,7 +184,7 @@ def display_banknifty_data(banknifty_data):
     )
     print("-" * 150)
     
-    for data in banknifty_data['data']:
+    for data in monthly_data:
         strike_price = data['strike_price']
         
         # Use raw values directly without formatting
@@ -135,7 +216,7 @@ def display_banknifty_data(banknifty_data):
         print(formatted_row)
     
     print("=" * 150)
-    print(f"BANKNIFTY PCR: OI PCR = {banknifty_data['oi_pcr']:.2f}, Volume PCR = {banknifty_data['volume_pcr']:.2f}")
+    print(f"BANKNIFTY PCR: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}")
 
 def display_stock_data(stock_data):
     """Display stock OI data without Greeks in required format - Show ALL strikes"""
@@ -222,13 +303,26 @@ def data_collection_cycle():
         # Fetch Nifty data
         print(f"Fetching {SYMBOL} option chain...")
         data = fetch_option_chain(session)
-        oi_data = parse_option_chain(data)
         
-        # Calculate PCR values for full chain
-        oi_pcr, volume_pcr = calculate_pcr_values(oi_data)
+        # Parse with multi-expiry support
+        expiry_data = parse_option_chain(data)
         
-        # Display Nifty data (ALL strikes)
-        display_nifty_data(oi_data, oi_pcr, volume_pcr)
+        # Calculate PCR values for all expiries
+        pcr_values = calculate_pcr_for_expiry_data(expiry_data)
+        
+        # Display Nifty data based on multi-expiry mode
+        if should_enable_multi_expiry() and len(expiry_data) > 1:
+            print(f"\n🎯 Multi-Expiry Analysis Enabled ({len(expiry_data)} timeframes)")
+            display_nifty_multi_expiry(expiry_data, pcr_values)
+        else:
+            # Fallback to single expiry display
+            constants = get_expiry_type_constants()
+            current_week_data = expiry_data.get(constants['CURRENT_WEEK'], [])
+            if current_week_data:
+                current_pcr = pcr_values.get(constants['CURRENT_WEEK'], {})
+                oi_pcr = current_pcr.get('oi_pcr', 1.0)
+                volume_pcr = current_pcr.get('volume_pcr', 1.0)
+                display_nifty_single_expiry(current_week_data, oi_pcr, volume_pcr)
         
         # Fetch BANKNIFTY data
         banknifty_data = fetch_banknifty_data()
@@ -240,14 +334,68 @@ def data_collection_cycle():
         
         # NEW FEATURE: Save AI query data to file (always executed)
         print("\n💾 Saving AI query data to file and sending to Telegram...")
+
+        # Prepare data for logger (backward compatible)
+        constants = get_expiry_type_constants()
+        current_week_data = expiry_data.get(constants['CURRENT_WEEK'], [])
+        current_pcr = pcr_values.get(constants['CURRENT_WEEK'], {})
+        oi_pcr = current_pcr.get('oi_pcr', 1.0)
+        volume_pcr = current_pcr.get('volume_pcr', 1.0)
+        current_nifty = current_week_data[0]['nifty_value'] if current_week_data else 0
+        expiry_date = current_week_data[0]['expiry_date'] if current_week_data else "N/A"
+
+        # Call ORIGINAL file logger (backward compatible)
         file_path = save_ai_query_data(
-            oi_data=oi_data,
+            oi_data=current_week_data,
             oi_pcr=oi_pcr,
             volume_pcr=volume_pcr,
-            current_nifty=oi_data[0]['nifty_value'],
-            expiry_date=oi_data[0]['expiry_date'],
+            current_nifty=current_nifty,
+            expiry_date=expiry_date,
             banknifty_data=banknifty_data
         )
+
+        # Call MULTI-EXPIRY file logger (new feature)
+        try:
+            from multi_expiry_file_logger import save_multi_expiry_ai_query_data
+            
+            # Call multi-expiry logger with full multi-expiry data
+            multi_file_path = save_multi_expiry_ai_query_data(
+                expiry_data=expiry_data,  # Full multi-expiry data
+                pcr_values=pcr_values,    # PCR values for all expiries
+                current_nifty=current_nifty,  # Now properly defined
+                banknifty_data=banknifty_data,
+                stock_data=stock_data
+            )
+            
+            if multi_file_path:
+                print(f"✅ Multi-expiry data saved to: {multi_file_path}")
+            else:
+                print("⚠️ Multi-expiry logging disabled or failed")
+                
+        except ImportError:
+            print("⚠️ Multi-expiry logger not available")
+        except Exception as e:
+            print(f"⚠️ Multi-expiry logging failed: {e}")
+        
+        # NEW FEATURE: Save daily EOD state block
+        print("\n📊 Generating daily EOD state block...")
+        try:
+            # Call the new EOD state block function directly
+            eod_filepath = save_daily_eod_state_block(
+                expiry_data=expiry_data,
+                pcr_values=pcr_values,
+                current_nifty=current_nifty,
+                banknifty_data=banknifty_data,
+                stock_data=stock_data
+            )
+            
+            if eod_filepath:
+                print(f"✅ Daily EOD state block saved to: {eod_filepath}")
+            else:
+                print("⚠️ Daily EOD state block generation failed")
+                
+        except Exception as e:
+            print(f"⚠️ Error generating daily EOD state block: {e}")
         
         # Display stocks summary if enabled
         if should_display_stocks() and stock_data:
@@ -264,12 +412,13 @@ def data_collection_cycle():
             print("="*80)
             
             try:
+                # Pass multi-expiry data to AI analyzer
                 ai_analysis = ai_analyzer.get_ai_analysis(
-                    oi_data=oi_data,
+                    oi_data=expiry_data,  # Now passing multi-expiry data
                     oi_pcr=oi_pcr,
                     volume_pcr=volume_pcr,
-                    current_nifty=oi_data[0]['nifty_value'],
-                    expiry_date=oi_data[0]['expiry_date'],
+                    current_nifty=current_nifty,
+                    expiry_date=expiry_date,
                     stock_data=stock_data,
                     banknifty_data=banknifty_data
                 )
@@ -281,7 +430,10 @@ def data_collection_cycle():
         print("="*80)
         
         # Display brief info
-        print(f"Nifty: {oi_data[0]['nifty_value']}, Expiry: {oi_data[0]['expiry_date']}")
+        constants = get_expiry_type_constants()
+        current_week_data = expiry_data.get(constants['CURRENT_WEEK'], [])
+        if current_week_data:
+            print(f"Nifty: {current_week_data[0]['nifty_value']}, Expiry: {current_week_data[0]['expiry_date']}")
         if banknifty_data:
             print(f"BankNifty: {banknifty_data['current_value']}, Expiry: {banknifty_data['expiry_date']}")
         
@@ -349,6 +501,7 @@ def main():
     print(f"  AI Analysis: {'ENABLED' if should_run_ai_analysis() else 'DISABLED'}")
     print(f"  Loop Mode: {'ENABLED' if should_run_loop() else 'DISABLED'}")
     print(f"  Stock Display: {'ENABLED' if should_display_stocks() else 'DISABLED'}")
+    print(f"  Multi-Expiry: {'ENABLED' if should_enable_multi_expiry() else 'DISABLED'}")
     print(f"  Data Processing: Full Options Chains")
     
     if should_run_loop():
@@ -360,6 +513,11 @@ def main():
         print("  DeepSeek AI analysis will be performed")
     else:
         print("  AI analysis disabled - displaying raw data only")
+    
+    if should_enable_multi_expiry():
+        print("  Multi-expiry analysis enabled - showing current_week, next_week, monthly")
+    else:
+        print("  Single expiry mode - showing current week only")
     
     # Set up signal handlers
     signal.signal(signal.SIGINT, signal_handler)
