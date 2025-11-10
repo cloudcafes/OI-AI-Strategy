@@ -1,4 +1,4 @@
-Generated: 2025-11-10 14:53:59
+Generated: 2025-11-10 18:13:51
 Combined All file content of *.py files
 From Directory: C:\\dev\\python-projects\\OI-AI-Strategy
 Recursive Search: False
@@ -1059,9 +1059,9 @@ FILE: nifty_ai_analyzer.py
 EXTENSION: .py
 FULL PATH: C:\dev\python-projects\OI-AI-Strategy\nifty_ai_analyzer.py
 ENCODING: utf-8
-ORIGINAL SIZE: 33428 bytes
-MINIFIED SIZE: 27456 bytes
-SIZE REDUCTION: 17.9%
+ORIGINAL SIZE: 25828 bytes
+MINIFIED SIZE: 19326 bytes
+SIZE REDUCTION: 25.2%
 ================================================================================
 
 import os
@@ -1070,7 +1070,9 @@ import json
 import datetime
 import requests
 import httpx
-from typing import Dict, Any, List, Optional
+import glob
+from typing import Dict, Any, List, Optional, Tuple
+from pathlib import Path
 from openai import OpenAI
 class NiftyAIAnalyzer:
  def __init__(self, api_key: Optional[str] = None):
@@ -1099,14 +1101,15 @@ class NiftyAIAnalyzer:
  print(f"❌ Failed to initialize DeepSeek client: {e}")
  self.client = None
  return False
- def save_analysis_to_history(self, raw_data: str, ai_response: str) -> bool:
+ def save_analysis_to_history(self, raw_data: str, ai_response: str, query_type: str = "single") -> bool:
  """Save both raw data and AI response to history file with latest on top."""
  try:
  timestamp = datetime.datetime.now().strftime("%H:%M on %d %B %Y")
- header = f"deepseek analysis done at {timestamp}"
+ header = f"deepseek {query_type.upper()} analysis done at {timestamp}"
  separator = "=" * 80
  new_entry = f"{header}\n{separator}\n"
- new_entry += "RAW DATA SENT TO AI:\n{separator}\n{raw_data}\n\n"
+ new_entry += f"QUERY TYPE: {query_type.upper()}\n"
+ new_entry += f"RAW DATA SENT TO AI:\n{separator}\n{raw_data}\n\n"
  new_entry += f"AI ANALYSIS RESPONSE:\n{separator}\n{ai_response}\n{separator}\n\n"
  existing_content = ""
  if os.path.exists(self.history_file):
@@ -1114,7 +1117,7 @@ class NiftyAIAnalyzer:
  existing_content = f.read()
  with open(self.history_file, 'w', encoding='utf-8') as f:
  f.write(new_entry + existing_content)
- print(f"✅ Analysis saved to {self.history_file}")
+ print(f"✅ {query_type.upper()} analysis saved to {self.history_file}")
  return True
  except Exception as e:
  print(f"❌ Error saving analysis to history: {e}")
@@ -1142,6 +1145,101 @@ class NiftyAIAnalyzer:
  result = result.replace(' , ', ', ')
  result = result.replace(' . ', '. ')
  return result
+ def find_latest_multi_expiry_file(self) -> Optional[str]:
+ """Find the most recent multi-expiry analysis file."""
+ try:
+ from nifty_core_config import get_multi_expiry_logs_directory
+ logs_dir = get_multi_expiry_logs_directory()
+ if not os.path.exists(logs_dir):
+ print(f"⚠️ Multi-expiry logs directory not found: {logs_dir}")
+ return None
+ pattern = os.path.join(logs_dir, "multi_expiry_analysis_*.txt")
+ files = glob.glob(pattern)
+ if not files:
+ print("⚠️ No multi-expiry analysis files found")
+ return None
+ latest_file = max(files, key=os.path.getctime)
+ print(f"✅ Found latest multi-expiry file: {os.path.basename(latest_file)}")
+ return latest_file
+ except Exception as e:
+ print(f"❌ Error finding multi-expiry file: {e}")
+ return None
+ def find_latest_eod_files(self, count: int = 3) -> List[str]:
+ """Find the latest EOD state block files (T, T-1, T-2)."""
+ try:
+ from nifty_core_config import get_eod_base_directory
+ eod_dir = get_eod_base_directory()
+ if not os.path.exists(eod_dir):
+ print(f"⚠️ EOD directory not found: {eod_dir}")
+ return []
+ pattern = os.path.join(eod_dir, "EOD_STATE_BLOCK_OF_*.txt")
+ files = glob.glob(pattern)
+ if not files:
+ print("⚠️ No EOD state block files found")
+ return []
+ sorted_files = sorted(files, key=os.path.getctime, reverse=True)
+ latest_files = sorted_files[:count]
+ print(f"✅ Found {len(latest_files)} EOD files:")
+ for i, file in enumerate(latest_files):
+ print(f" T-{i}: {os.path.basename(file)}")
+ return latest_files
+ except Exception as e:
+ print(f"❌ Error finding EOD files: {e}")
+ return []
+ def read_file_content(self, filepath: str) -> str:
+ """Read content from a file with proper error handling."""
+ try:
+ with open(filepath, 'r', encoding='utf-8') as f:
+ content = f.read()
+ return content
+ except Exception as e:
+ return f"Error reading file {filepath}: {str(e)}"
+ def format_multi_ai_query(self) -> Tuple[str, str]:
+ """Format multi AI query with file attachments."""
+ try:
+ multi_expiry_file = self.find_latest_multi_expiry_file()
+ eod_files = self.find_latest_eod_files(3)
+ if not multi_expiry_file:
+ return "", "No multi-expiry analysis file found"
+ if len(eod_files) < 3:
+ return "", f"Insufficient EOD files found: {len(eod_files)}/3 required"
+ multi_expiry_content = self.read_file_content(multi_expiry_file)
+ eod_contents = [self.read_file_content(f) for f in eod_files]
+ query_content = f"MULTI-EXPIRY AI ANALYSIS REQUEST\n"
+ query_content += "=" * 80 + "\n\n"
+ query_content += f"MAIN DATA FILE: {os.path.basename(multi_expiry_file)}\n"
+ query_content += "CONTENT:\n" + "=" * 80 + "\n"
+ query_content += multi_expiry_content + "\n\n"
+ query_content += "HISTORICAL EOD FILES ATTACHED:\n"
+ query_content += "=" * 80 + "\n"
+ for i, (file_path, content) in enumerate(zip(eod_files, eod_contents)):
+ query_content += f"EOD_FILE_T-{i}: {os.path.basename(file_path)}\n"
+ query_content += f"CONTENT:\n{'-'*40}\n{content}\n{'-'*40}\n\n"
+ return query_content, "Multi-query formatted successfully"
+ except Exception as e:
+ return "", f"Error formatting multi query: {str(e)}"
+ def detect_ai_query_mode(self) -> str:
+ """Detect which AI query mode to use based on configuration."""
+ try:
+ from nifty_core_config import (should_enable_single_ai_query,
+ should_enable_multi_ai_query,
+ get_ai_query_mode)
+ config_mode = get_ai_query_mode()
+ if config_mode == "both" and should_enable_single_ai_query() and should_enable_multi_ai_query():
+ return "both"
+ elif config_mode == "multi" and should_enable_multi_ai_query():
+ return "multi"
+ elif config_mode == "single" and should_enable_single_ai_query():
+ return "single"
+ elif should_enable_multi_ai_query():
+ return "multi"
+ elif should_enable_single_ai_query():
+ return "single"
+ else:
+ return "none"
+ except Exception as e:
+ print(f"⚠️ Error detecting AI query mode: {e}")
+ return "single"
  def find_atm_strikes(self, oi_data: List[Dict[str, Any]], current_price: float, range_strikes: int = 10):
  """Find ATM strikes within specified range for detailed analysis"""
  if not oi_data:
@@ -1173,10 +1271,8 @@ class NiftyAIAnalyzer:
  max_pe_oi = data['pe_oi']
  support_strike = data['strike_price']
  max_pe_oi_value = data['pe_oi']
- resistance_info = {'strike': resistance_strike,
- 'ce_oi': max_ce_oi_value} if resistance_strike else {}
- support_info = {'strike': support_strike,
- 'pe_oi': max_pe_oi_value} if support_strike else {}
+ resistance_info = {'strike': resistance_strike, 'ce_oi': max_ce_oi_value} if resistance_strike else {}
+ support_info = {'strike': support_strike, 'pe_oi': max_pe_oi_value} if support_strike else {}
  return resistance_info, support_info
  def is_multi_expiry_data(self, oi_data) -> bool:
  """Check if data is multi-expiry format"""
@@ -1320,7 +1416,7 @@ class NiftyAIAnalyzer:
  'pe_volume': data['pe_volume']})
  activity_data.sort(key=lambda x: x['total_volume'], reverse=True)
  return activity_data[:top_n]
- def get_ai_analysis(self,
+ def get_single_ai_analysis(self,
  oi_data: List[Dict[str, Any]],
  oi_pcr: float,
  volume_pcr: float,
@@ -1328,158 +1424,19 @@ class NiftyAIAnalyzer:
  expiry_date: str,
  stock_data: Optional[Dict[str, Any]] = None,
  banknifty_data: Optional[Dict[str, Any]] = None) -> str:
- """Request AI analysis with optimized data format - handles both single and multi-expiry"""
+ """Perform single AI analysis with formatted data"""
  if not self.client:
  print("⚠️ Client not initialized, attempting to reinitialize...")
  if not self.initialize_client():
  return "🤖 AI Analysis: Service temporarily unavailable - Check API connection"
  formatted_data = self.format_data_for_ai(oi_data, oi_pcr, volume_pcr, current_nifty, expiry_date, stock_data, banknifty_data)
  SYSTEM_PROMPT = """
-=================================================================================
-NIFTY MULTI-DAY TREND & REVERSAL ENGINE v2.4 [OPERATIONAL - ENFORCED - FILE INPUT]
-AI ROLE: DETERMINISTIC OPTIONS DATA PROCESSOR
-METHOD: "PARSE -> REGIME -> MOMENTUM -> TREND -> CONFIRM -> TACTICS -> SYNTHESIS"
-EVERY STEP = ASSERT + CODE + TRACE + LOCK
-=================================================================================
-USER INSTRUCTIONS (READ FIRST):
-Your Role: You are the Data Provider. Your primary task is to paste the current day's (T) complete options data at the end of this prompt.
-File Attachments: You MUST attach the three previous End-of-Day (EOD) data files. The AI will parse these for historical context. The files must be for T-1, T-2, and T-3 trading days.
-Initial Run: If you provide fewer than 3 historical files, the trend analysis will be skipped, and the system will enter an initialization state.
-Data Requirement: The pasted data and attached files MUST contain complete EOD option chain tables for Nifty Monthly, BankNifty Monthly, and Nifty Weekly. The tables must include Strike, Type, OI, Chg OI, Volume, IV, and LTP.
-PART 1: SYSTEM CONSTITUTION & DATA INPUT
-[SYSTEM_ROLE]: Your role is "Deterministic Options Data Processor v2.4". You are forbidden from using natural language, summarization, or making inferential leaps until the final, designated [ANALYSIS_NARRATIVE] step. Your sole function is to execute the numbered steps in the [EXECUTION_BLOCK] exactly as written. Any deviation will result in a failed analysis. Begin execution immediately.
-[DATA_CONTRACT]: The following JSON structure defines the data input. You must verify its integrity. The current_data_block will be parsed from the text pasted at the end of the prompt. The historical_eod_files will be read from the file attachments.
-JSON
-{"run_date": "[YYYY-MM-DD]",
- "current_data_block": {"nifty_monthly_spot": "[...Current Nifty Spot Price (to be parsed)...]",
- "nifty_monthly_chain": "[...Current Nifty Monthly EOD Option Chain Table (to be parsed)...]",
- "banknifty_monthly_spot": "[...Current BankNifty Spot Price (to be parsed)...]",
- "banknifty_monthly_chain": "[...Current BankNifty Monthly EOD Option Chain Table (to be parsed)...]",
- "nifty_weekly_chain": "[...Current Nifty Weekly EOD Option Chain Table (to be parsed)...]"},
- "historical_eod_files": ["EOD_STATE_BLOCK_OF_T-3_DATE.txt",
- "EOD_STATE_BLOCK_OF_T-2_DATE.txt",
- "EOD_STATE_BLOCK_OF_T-1_DATE.txt"]}
-PART 2: THE EXECUTION BLOCK (DO NOT MODIFY)
-[SUB-ROUTINE DEFINITIONS]: You must conceptually use the following functions for calculations.
-PROCESS_EOD_FILE(file_content): A function that takes the text content of a historical EOD file and returns a structured object containing {nifty_spot, banknifty_spot, nifty_monthly_chain, banknifty_monthly_chain, nifty_weekly_chain}.
-CALCULATE_OI_METRICS(current_chain, previous_chain): A function that calculates key metrics based on the change in Open Interest. It returns an object: {pcr, momentum_vector}.
-total_put_chg_oi = SUM(max(0, current_put_oi - previous_put_oi)) for all strikes.
-total_call_chg_oi = SUM(max(0, current_call_oi - previous_call_oi)) for all strikes.
-pcr = total_put_chg_oi / total_call_chg_oi.
-momentum_vector = total_put_chg_oi - total_call_chg_oi.
-STEP 0: DATA INTEGRITY & HISTORICAL PARSING
-0.1: ASSERT: current_data_block (from pasted text) and all its sub-fields are parsed and not empty.
-0.2: CHECK FOR HISTORY: CODE: IS_INSUFFICIENT_HISTORY = TRUE if count(historical_eod_files) < 3 else FALSE.
-0.3: TRACE: TRACE: IS_INSUFFICIENT_HISTORY = {IS_INSUFFICIENT_HISTORY}.
-0.4: HALT FOR INITIALIZATION: IF IS_INSUFFICIENT_HISTORY == TRUE, SET ANALYSIS_STATUS = 'AWAITING_HISTORY'. Skip all steps from 1 to 7 and proceed directly to PART 3.
-0.5: PARSE HISTORICAL FILES:
-CODE: file_T1 = historical_eod_files[2]; file_T2 = historical_eod_files[1]; file_T3 = historical_eod_files[0].
-CODE: eod_data_T1 = PROCESS_EOD_FILE(content of file_T1); eod_data_T2 = PROCESS_EOD_FILE(content of file_T2); eod_data_T3 = PROCESS_EOD_FILE(content of file_T3).
-ASSERT: All eod_data objects and their internal data points were successfully parsed.
-0.6: DATA GAP CHECK: date_T1 = parse_date_from_filename(file_T1). days_since_last_run = run_date - date_T1. If days_since_last_run represents more than one trading day, DATA_GAP_WARNING = TRUE else DATA_GAP_WARNING = FALSE.
-0.7: TRACE & LOCK: TRACE: Historical Parsing Complete. Data Gap Warning: {DATA_GAP_WARNING}. [LOCKED: DATA_GAP_WARNING]
-STEP 1: GENERATE CORE PROXIES (NIFTY MONTHLY)
-1.1: Calculate Price Vector. CODE: PRICE_VECTOR = current_data_block.nifty_monthly_spot - eod_data_T1.nifty_spot.
-1.2: Calculate Premium-Volume Anchor (PVA). CODE: For each strike in current_data_block.nifty_monthly_chain, pva_score = (Call_Volume * Call_LTP) + (Put_Volume * Put_LTP). PVA_ANCHOR = strike with MAX(pva_score).
-1.3: Calculate Volatility Vector. CODE: Find ATM_STRIKE closest to nifty_monthly_spot. current_atm_straddle_price = Premium(ATM_STRIKE, 'CALL') + Premium(ATM_STRIKE, 'PUT'). previous_atm_straddle_price = same calculation on eod_data_T1. VOLATILITY_VECTOR = current_atm_straddle_price - previous_atm_straddle_price.
-1.4: TRACE & LOCK: TRACE: PRICE_VECTOR={PRICE_VECTOR:+.2f}, PVA_ANCHOR={PVA_ANCHOR}, VOLATILITY_VECTOR={VOLATILITY_VECTOR:+.2f}. [LOCKED: PRICE_VECTOR, PVA_ANCHOR, VOLATILITY_VECTOR]
-1.5: Determine Volatility Pressure.
-CODE: IF (PRICE_VECTOR > 0 and VOLATILITY_VECTOR < 0) THEN VOL_PRESSURE = 'CONFIRMED_BULLISH'.
-CODE: IF (PRICE_VECTOR < 0 and VOLATILITY_VECTOR > 0) THEN VOL_PRESSURE = 'CONFIRMED_BEARISH'.
-CODE: ELSE VOL_PRESSURE = 'CONTRADICTORY'.
-1.6: TRACE & LOCK: TRACE: VOL_PRESSURE = '{VOL_PRESSURE}'. [LOCKED: VOL_PRESSURE]
-STEP 2: DETERMINE MARKET REGIME (NIFTY MONTHLY)
-2.1: Find ATM IV. CODE: ATM_IV = IV of ATM_STRIKE Call from current_data_block.nifty_monthly_chain.
-2.2: Classify Regime. CODE: IF ATM_IV < 13, REGIME = 'LOW_VOL'. IF 13 <= ATM_IV <= 18, REGIME = 'NORMAL_VOL'. IF ATM_IV > 18, REGIME = 'HIGH_VOL'.
-2.3: TRACE & LOCK: TRACE: ATM_IV={ATM_IV:.2f} -> REGIME='{REGIME}'. [LOCKED: REGIME, ATM_IV]
-STEP 3: PRIMARY TREND & MOMENTUM ANALYSIS (NIFTY MONTHLY)
-3.1: Calculate Historical & Daily OI Metrics.
-CODE: metrics_T = CALCULATE_OI_METRICS(current_data_block.nifty_monthly_chain, eod_data_T1.nifty_monthly_chain).
-CODE: metrics_T1 = CALCULATE_OI_METRICS(eod_data_T1.nifty_monthly_chain, eod_data_T2.nifty_monthly_chain).
-CODE: metrics_T2 = CALCULATE_OI_METRICS(eod_data_T2.nifty_monthly_chain, eod_data_T3.nifty_monthly_chain).
-CODE: pcr_T = metrics_T.pcr; OI_MOMENTUM_VECTOR = metrics_T.momentum_vector.
-3.2: Apply Regime-Aware Thresholds.
-CODE: pcr_threshold_bullish = 1.15 if REGIME=='LOW_VOL' else 1.20 if REGIME=='NORMAL_VOL' else 1.50.
-CODE: pcr_threshold_bearish = 0.85 if REGIME=='LOW_VOL' else 0.80 if REGIME=='NORMAL_VOL' else 0.70.
-CODE: daily_bias = 'BULLISH' if pcr_T > pcr_threshold_bullish else 'BEARISH' if pcr_T < pcr_threshold_bearish else 'NEUTRAL'.
-3.3: Confirm Trend (3-Day Rule).
-CODE: all_pcrs = [metrics_T2.pcr, metrics_T1.pcr, pcr_T].
-CODE: bullish_days = COUNT(p > pcr_threshold_bullish for p in all_pcrs).
-CODE: bearish_days = COUNT(p < pcr_threshold_bearish for p in all_pcrs).
-CODE: PRIMARY_TREND = 'BULLISH' if bullish_days >= 2 else 'BEARISH' if bearish_days >= 2 else 'NEUTRAL_CONSOLIDATION'.
-3.4: TRACE & LOCK: TRACE: Daily_PCR(T)={pcr_T:.2f} -> Daily_Bias='{daily_bias}'. OI Momentum={OI_MOMENTUM_VECTOR:+.0f}. 3-Day Rule: {bullish_days}B/{bearish_days}B -> PRIMARY_TREND='{PRIMARY_TREND}'. [LOCKED: PRIMARY_TREND, pcr_T, OI_MOMENTUM_VECTOR]
-STEP 4: CONFIRMATION ANALYSIS (BANKNIFTY MONTHLY)
-4.1: Calculate Historical & Daily BankNifty PCRs.
-CODE: bn_metrics_T = CALCULATE_OI_METRICS(current_data_block.banknifty_monthly_chain, eod_data_T1.banknifty_monthly_chain).
-CODE: bn_metrics_T1 = CALCULATE_OI_METRICS(eod_data_T1.banknifty_monthly_chain, eod_data_T2.banknifty_monthly_chain).
-CODE: bn_metrics_T2 = CALCULATE_OI_METRICS(eod_data_T2.banknifty_monthly_chain, eod_data_T3.banknifty_monthly_chain).
-4.2: Confirm Trend (3-Day Rule for BankNifty).
-CODE: banknifty_all_pcrs = [bn_metrics_T2.pcr, bn_metrics_T1.pcr, bn_metrics_T.pcr]. Use same thresholds from 3.2. Repeat 3.3 logic to determine BANKNIFTY_TREND.
-4.3: Determine Alignment. CODE: ALIGNMENT = 'ALIGNED' if PRIMARY_TREND == BANKNIFTY_TREND else 'DIVERGENT' if PRIMARY_TREND != 'NEUTRAL_CONSOLIDATION' and BANKNIFTY_TREND != 'NEUTRAL_CONSOLIDATION' else 'NON_ALIGNED'.
-4.4: TRACE & LOCK: TRACE: BankNifty Trend is '{BANKNIFTY_TREND}'. ALIGNMENT = '{ALIGNMENT}'. [LOCKED: BANKNIFTY_TREND, ALIGNMENT]
-STEP 5: TACTICAL ANALYSIS (NIFTY WEEKLY)
-5.0: EXPIRY DAY CHECK: CODE: parse expiry_date from current_data_block.nifty_weekly_chain. IF run_date == expiry_date, SET IS_EXPIRY_DAY = TRUE, ELSE IS_EXPIRY_DAY = FALSE.
-5.1: Identify Hurdles. Use static OI from current_data_block.nifty_weekly_chain. CODE: WEEKLY_WALL = strike with MAX(Call_OI). WEEKLY_FLOOR = strike with MAX(Put_OI).
-5.2: TRACE & LOCK: TRACE: WEEKLY_WALL={WEEKLY_WALL}, WEEKLY_FLOOR={WEEKLY_FLOOR}. Is Expiry Day: {IS_EXPIRY_DAY}. [LOCKED: WEEKLY_WALL, WEEKLY_FLOOR, IS_EXPIRY_DAY]
-STEP 6: SCORING & SYNTHESIS
-6.1: Initialize Score. Confidence_Score = 50.
-6.2: Apply PVA Confirmation. CODE: IF (PRIMARY_TREND=='BULLISH' and current_data_block.nifty_monthly_spot > PVA_ANCHOR) or (PRIMARY_TREND=='BEARISH' and current_data_block.nifty_monthly_spot < PVA_ANCHOR) THEN Confidence_Score += 15.
-6.3: Apply Volatility Pressure. CODE: IF VOL_PRESSURE == 'CONFIRMED_BULLISH' or VOL_PRESSURE == 'CONFIRMED_BEARISH' THEN Confidence_Score += 10.
-6.4: Apply OI Momentum Confirmation. CODE: IF (PRIMARY_TREND=='BULLISH' and OI_MOMENTUM_VECTOR > 0) or (PRIMARY_TREND=='BEARISH' and OI_MOMENTUM_VECTOR < 0) THEN Confidence_Score += 5.
-6.5: Apply Alignment Modifier. CODE: IF ALIGNMENT == 'ALIGNED' THEN Confidence_Score += 20. IF ALIGNMENT == 'DIVERGENT' THEN Confidence_Score -= 30.
-6.6: Finalize Score. CODE: Confidence_Score = max(0, min(100, Confidence_Score)).
-6.7: TRACE & LOCK: TRACE: Final Confidence Score = {Confidence_Score}. [LOCKED: CONFIDENCE_SCORE]
-PART 3: OUTPUT BLOCK
-IF ANALYSIS_STATUS == 'AWAITING_HISTORY', display ONLY the [TRADING_IMPLICATION] section. Otherwise, display all sections.
-[LOCKED_VALUES_SUMMARY]
-DATA_GAP_WARNING: [Value]
-PRICE_VECTOR: [Value]
-PVA_ANCHOR: [Value]
-VOLATILITY_VECTOR: [Value]
-VOL_PRESSURE: [Value]
-REGIME: [Value]
-ATM_IV: [Value]
-OI_MOMENTUM_VECTOR: [Value]
-PRIMARY_TREND: [Value]
-BANKNIFTY_TREND: [Value]
-ALIGNMENT: [Value]
-WEEKLY_WALL: [Value]
-WEEKLY_FLOOR: [Value]
-CONFIDENCE_SCORE: [Value]
-[ANALYSIS_NARRATIVE]
-Primary Trend: The confirmed multi-day trend for Nifty is [LOCKED: PRIMARY_TREND], based on a 3-day analysis of Monthly OI changes.
-Market Regime: The market is currently in a [LOCKED: REGIME] state, with an ATM IV of [LOCKED: ATM_IV].
-Trend Conviction: The underlying force, measured by the OI Momentum Vector, was significant at [LOCKED: OI_MOMENTUM_VECTOR:+.0f], {if > 0, display 'adding weight to the bullish case.' else if < 0, display 'adding weight to the bearish case.' else display 'showing no strong directional conviction.'}
-Cross-Index Confirmation: The broader market is [LOCKED: ALIGNMENT] with the primary trend, as BankNifty's trend is [LOCKED: BANKNIFTY_TREND].
-Daily Price & Volatility Action: Today's price move of [LOCKED: PRICE_VECTOR:+.2f] points was [LOCKED: VOL_PRESSURE] by volatility action. The market's financial center (PVA) was at [LOCKED: PVA_ANCHOR], with spot closing {above/below} it.
-Tactical Hurdles: For the short-term, expect immediate resistance at [LOCKED: WEEKLY_WALL] and support at [LOCKED: WEEKLY_FLOOR].
-Key Observation: {IF ALIGNMENT=='DIVERGENT', display "The divergence with BankNifty is the most critical factor today, significantly reducing trend confidence."} {ELSE IF VOL_PRESSURE contains 'CONFIRMED', display "The alignment of price and volatility provides strong confirmation for the daily move."} {ELSE display "The strong OI buildup at key Monthly strikes was the day's defining activity."}
-[TRADING_IMPLICATION]
-BIAS: IF IS_INSUFFICIENT_HISTORY, display 'AWAITING_HISTORY'. Else, display [LOCKED: PRIMARY_TREND].
-CONFIDENCE: IF IS_INSUFFICIENT_HISTORY, display 'N/A'. Else, display [LOCKED: CONFIDENCE_SCORE]/100.
-STRATEGY:
-IF PRIMARY_TREND=='BULLISH' and CONFIDENCE_SCORE > 70: Aggressive bullish positions are warranted. Use [LOCKED: WEEKLY_FLOOR] as a reference for entries or tight stops.
-IF PRIMARY_TREND=='BULLISH' and CONFIDENCE_SCORE <= 70: Cautious bullish exposure. Consider waiting for price to validate support at [LOCKED: WEEKLY_FLOOR] before entry.
-IF PRIMARY_TREND=='BEARISH' and CONFIDENCE_SCORE > 70: Aggressive bearish positions are warranted. Use [LOCKED: WEEKLY_WALL] as a reference for entries or tight stops.
-IF PRIMARY_TREND=='BEARISH' and CONFIDENCE_SCORE <= 70: Cautious bearish exposure. Consider waiting for price to be rejected at [LOCKED: WEEKLY_WALL] before entry.
-IF PRIMARY_TREND=='NEUTRAL_CONSOLIDATION': Market lacks direction. Prefer range-bound strategies or stay sidelined. Key range is [LOCKED: WEEKLY_FLOOR] - [LOCKED: WEEKLY_WALL].
-IF ANALYSIS_STATUS=='AWAITING_HISTORY': Provide at least 3 historical EOD files for a full analysis.
-WARNINGS: {IF IS_INSUFFICIENT_HISTORY, display "INSUFFICIENT HISTORY. Full analysis requires 3 previous EOD files."} {IF ALIGNMENT=='DIVERGENT', display "CRITICAL DIVERGENCE WITH BANKNIFTY. HIGH CAUTION ADVISED."} {IF DATA_GAP_WARNING==TRUE, display "DATA GAP DETECTED. TREND ANALYSIS MAY BE UNRELIABLE."} {IF IS_EXPIRY_DAY==TRUE, display "WEEKLY EXPIRY DAY. Tactical levels (Wall/Floor) are less reliable; refer to next week's chain for forward-looking levels."}
-PART 4: MANDATORY COMPLIANCE AUDIT
-[Instructions: Answer YES/NO to every check. A single NO invalidates the entire output.]
-Was the IS_INSUFFICIENT_HISTORY check performed and the main analysis correctly skipped if true? [YES/NO]
-Were historical EOD files parsed to calculate day-over-day metrics from 4 distinct data sets (T, T-1, T-2, T-3)? [YES/NO]
-Was VOLATILITY_PRESSURE determined by comparing the Price Vector and Volatility Vector? [YES/NO]
-Was OI_MOMENTUM_VECTOR calculated and used in scoring? [YES/NO]
-Was PRIMARY_TREND based on a 3-day PCR rule and REGIME-aware thresholds? [YES/NO]
-Was a check for the weekly expiry day (IS_EXPIRY_DAY) performed and a warning generated if true? [YES/NO]
-Does the [ANALYSIS_NARRATIVE] contain ONLY values present in the [LOCKED_VALUES_SUMMARY] or input data, with conditional text strictly following the rules? [YES/NO]
-[AUDIT COMPLETE. END OF PROCESS.]
+[Your existing single analysis system prompt here]
 """
- user_content = f"CURRENT DATA FOR ANALYSIS:\n{formatted_data}\n"
+ user_content = f"CURRENT DATA FOR SINGLE ANALYSIS:\n{formatted_data}\n"
  ai_response = ""
  try:
- print("🔄 Requesting AI analysis from DeepSeek...")
+ print("🔄 Requesting SINGLE AI analysis from DeepSeek...")
  response = self.client.chat.completions.create(model="deepseek-chat",
  messages=[{"role": "system", "content": SYSTEM_PROMPT},
  {"role": "user", "content": user_content}],
@@ -1494,10 +1451,71 @@ Does the [ANALYSIS_NARRATIVE] contain ONLY values present in the [LOCKED_VALUES_
  raw_ai = response.choices[0].message.content or ""
  ai_response = self._clean_ai_response(raw_ai)
  except Exception as e:
- print(f"⚠️ AI call failed: {e}")
- ai_response = f"AI analysis failed: {e}"
- self.save_analysis_to_history(formatted_data, ai_response)
- return f"🤖 DEEPSEEK AI INTRADAY ANALYSIS (NIFTY MULTI-EXPIRY + BANKNIFTY + STOCKS):\n\n{ai_response}"
+ print(f"⚠️ Single AI call failed: {e}")
+ ai_response = f"Single AI analysis failed: {e}"
+ self.save_analysis_to_history(formatted_data, ai_response, "single")
+ return f"🤖 DEEPSEEK AI SINGLE ANALYSIS:\n\n{ai_response}"
+ def get_multi_ai_analysis(self) -> str:
+ """Perform multi AI analysis with file attachments"""
+ if not self.client:
+ print("⚠️ Client not initialized, attempting to reinitialize...")
+ if not self.initialize_client():
+ return "🤖 Multi AI Analysis: Service temporarily unavailable - Check API connection"
+ query_content, status_message = self.format_multi_ai_query()
+ if not query_content:
+ return f"❌ Multi AI analysis failed: {status_message}"
+ SYSTEM_PROMPT = """
+[Your existing multi-analysis system prompt with file input instructions here]
+"""
+ user_content = f"MULTI-EXPIRY FILE-BASED ANALYSIS REQUEST:\n{query_content}\n"
+ ai_response = ""
+ try:
+ print("🔄 Requesting MULTI AI analysis from DeepSeek...")
+ response = self.client.chat.completions.create(model="deepseek-chat",
+ messages=[{"role": "system", "content": SYSTEM_PROMPT},
+ {"role": "user", "content": user_content}],
+ temperature=0,
+ top_p=1.0,
+ presence_penalty=0,
+ frequency_penalty=0,
+ max_tokens=1500,
+ stream=False,
+ timeout=300.0,
+ stop=["```"])
+ raw_ai = response.choices[0].message.content or ""
+ ai_response = self._clean_ai_response(raw_ai)
+ except Exception as e:
+ print(f"⚠️ Multi AI call failed: {e}")
+ ai_response = f"Multi AI analysis failed: {e}"
+ self.save_analysis_to_history(query_content, ai_response, "multi")
+ return f"🤖 DEEPSEEK AI MULTI-EXPIRY ANALYSIS:\n\n{ai_response}"
+ def get_ai_analysis(self,
+ oi_data: List[Dict[str, Any]] = None,
+ oi_pcr: float = None,
+ volume_pcr: float = None,
+ current_nifty: float = None,
+ expiry_date: str = None,
+ stock_data: Optional[Dict[str, Any]] = None,
+ banknifty_data: Optional[Dict[str, Any]] = None) -> str:
+ """Main AI analysis method that handles both single and multi queries based on configuration"""
+ query_mode = self.detect_ai_query_mode()
+ if query_mode == "none":
+ return "🤖 AI Analysis: Both single and multi queries are disabled in configuration"
+ results = []
+ if query_mode in ["single", "both"]:
+ if all(param is not None for param in [oi_data, oi_pcr, volume_pcr, current_nifty, expiry_date]):
+ single_result = self.get_single_ai_analysis(oi_data, oi_pcr, volume_pcr, current_nifty, expiry_date, stock_data, banknifty_data)
+ results.append(single_result)
+ else:
+ results.append("❌ Single AI analysis skipped: Missing required parameters")
+ if query_mode in ["multi", "both"]:
+ multi_result = self.get_multi_ai_analysis()
+ results.append(multi_result)
+ if len(results) == 1:
+ return results[0]
+ else:
+ separator = "\n" + "="*100 + "\n"
+ return separator.join(results)
 def format_data_for_ai(oi_data, current_cycle, total_fetches, pcr_analysis):
  return "Data formatting updated - use get_ai_analysis method directly"
 
@@ -1507,9 +1525,9 @@ FILE: nifty_core_config.py
 EXTENSION: .py
 FULL PATH: C:\dev\python-projects\OI-AI-Strategy\nifty_core_config.py
 ENCODING: utf-8
-ORIGINAL SIZE: 6967 bytes
-MINIFIED SIZE: 5666 bytes
-SIZE REDUCTION: 18.7%
+ORIGINAL SIZE: 9151 bytes
+MINIFIED SIZE: 7889 bytes
+SIZE REDUCTION: 13.8%
 ================================================================================
 
 import requests
@@ -1528,6 +1546,9 @@ MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 5
 FETCH_INTERVAL = 600
 ENABLE_AI_ANALYSIS = False
+ENABLE_SINGLE_AI_QUERY = False
+ENABLE_MULTI_AI_QUERY = True
+AI_QUERY_MODE = "multi"
 ENABLE_LOOP_FETCHING = False
 ENABLE_STOCK_DISPLAY = False
 ENABLE_MULTI_EXPIRY = True
@@ -1539,8 +1560,10 @@ NEXT_WEEK_DAY_RANGE = (5, 9)
 MONTHLY_THRESHOLD_DAYS = 20
 if platform.system() == "Windows":
  EOD_BASE_DIR = r"C:\dev\python-projects\OI-AI-Strategy\multi-expiry-logs"
+ MULTI_EXPIRY_LOGS_DIR = r"C:\dev\python-projects\OI-AI-Strategy\multi-expiry-logs"
 else:
  EOD_BASE_DIR = "/root/OI-AI-Strategy/multi-expiry-logs"
+ MULTI_EXPIRY_LOGS_DIR = "/root/OI-AI-Strategy/multi-expiry-logs"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
  "Accept": "*/*",
  "Accept-Language": "en-US,en;q=0.9",
@@ -1562,19 +1585,23 @@ TOP_NIFTY_STOCKS = {'RELIANCE': {'name': 'RELIANCE INDUSTRIES LTD', 'weight': 0.
  'LT': {'name': 'LARSEN & TOUBRO LTD', 'weight': 0.0263}}
 running = True
 def signal_handler(sig, frame):
+ """Handle shutdown signals gracefully"""
  global running
  print("\nReceived shutdown signal...")
  running = False
  sys.exit(0)
 def create_session_with_retry():
+ """Create HTTP session with retry strategy"""
  session = requests.Session()
- retry_strategy = Retry(total=3, status_forcelist=[429, 500, 502, 503, 504])
+ retry_strategy = Retry(total=3,
+ status_forcelist=[429, 500, 502, 503, 504])
  adapter = HTTPAdapter(max_retries=retry_strategy)
  session.mount("http://", adapter)
  session.mount("https://", adapter)
  session.verify = False
  return session
 def initialize_session():
+ """Initialize session for NSE API calls"""
  session = create_session_with_retry()
  try:
  session.get("https://www.nseindia.com", headers=HEADERS, timeout=10)
@@ -1586,7 +1613,8 @@ def initialize_session():
 def create_stock_session_with_retry():
  """Create session with retry strategy for stocks"""
  session = requests.Session()
- retry_strategy = Retry(total=3, status_forcelist=[429, 500, 502, 503, 504])
+ retry_strategy = Retry(total=3,
+ status_forcelist=[429, 500, 502, 503, 504])
  adapter = HTTPAdapter(max_retries=retry_strategy)
  session.mount("http://", adapter)
  session.mount("https://", adapter)
@@ -1652,6 +1680,15 @@ def should_display_stocks():
 def should_enable_multi_expiry():
  """Check if multi-expiry analysis should be performed"""
  return ENABLE_MULTI_EXPIRY
+def should_enable_single_ai_query():
+ """Check if single AI query should be performed"""
+ return ENABLE_SINGLE_AI_QUERY
+def should_enable_multi_ai_query():
+ """Check if multi AI query should be performed"""
+ return ENABLE_MULTI_AI_QUERY
+def get_ai_query_mode():
+ """Get the current AI query mode"""
+ return AI_QUERY_MODE
 def get_fetch_interval():
  """Get the fetch interval based on configuration"""
  return FETCH_INTERVAL
@@ -1668,6 +1705,42 @@ def get_expiry_classification_params():
 def get_eod_base_directory():
  """Return the platform-specific EOD base directory"""
  return EOD_BASE_DIR
+def get_multi_expiry_logs_directory():
+ """Return the platform-specific multi-expiry logs directory"""
+ return MULTI_EXPIRY_LOGS_DIR
+def validate_configuration():
+ """Validate configuration settings for consistency"""
+ issues = []
+ if ENABLE_AI_ANALYSIS and not (ENABLE_SINGLE_AI_QUERY or ENABLE_MULTI_AI_QUERY):
+ issues.append("AI analysis enabled but both query types are disabled")
+ if AI_QUERY_MODE not in ["single", "multi", "both"]:
+ issues.append(f"Invalid AI_QUERY_MODE: {AI_QUERY_MODE}. Must be 'single', 'multi', or 'both'")
+ try:
+ if not os.path.exists(EOD_BASE_DIR):
+ os.makedirs(EOD_BASE_DIR, exist_ok=True)
+ if not os.path.exists(MULTI_EXPIRY_LOGS_DIR):
+ os.makedirs(MULTI_EXPIRY_LOGS_DIR, exist_ok=True)
+ except Exception as e:
+ issues.append(f"Directory creation failed: {e}")
+ return issues
+config_issues = validate_configuration()
+if config_issues:
+ print("⚠️ Configuration issues detected:")
+ for issue in config_issues:
+ print(f" - {issue}")
+else:
+ print("✅ Configuration validated successfully")
+if __name__ == "__main__":
+ print("\n=== Current Configuration ===")
+ print(f"Platform: {platform.system()}")
+ print(f"EOD Base Directory: {EOD_BASE_DIR}")
+ print(f"Multi-Expiry Logs Directory: {MULTI_EXPIRY_LOGS_DIR}")
+ print(f"AI Analysis Enabled: {ENABLE_AI_ANALYSIS}")
+ print(f"Single AI Query: {ENABLE_SINGLE_AI_QUERY}")
+ print(f"Multi AI Query: {ENABLE_MULTI_AI_QUERY}")
+ print(f"AI Query Mode: {AI_QUERY_MODE}")
+ print(f"Multi-Expiry Enabled: {ENABLE_MULTI_EXPIRY}")
+ print("=============================\n")
 
 
 ================================================================================
@@ -2594,9 +2667,9 @@ FILE: nifty_main.py
 EXTENSION: .py
 FULL PATH: C:\dev\python-projects\OI-AI-Strategy\nifty_main.py
 ENCODING: utf-8
-ORIGINAL SIZE: 22351 bytes
-MINIFIED SIZE: 16223 bytes
-SIZE REDUCTION: 27.4%
+ORIGINAL SIZE: 22470 bytes
+MINIFIED SIZE: 17838 bytes
+SIZE REDUCTION: 20.6%
 ================================================================================
 
 import datetime
@@ -2611,7 +2684,8 @@ from nifty_core_config import (SYMBOL, FETCH_INTERVAL, running,
  signal_handler, initialize_session,
  format_greek_value, should_run_ai_analysis,
  should_run_loop, should_display_stocks, get_fetch_interval,
- TOP_NIFTY_STOCKS, should_enable_multi_expiry, get_expiry_type_constants)
+ TOP_NIFTY_STOCKS, should_enable_multi_expiry, get_expiry_type_constants,
+ should_enable_single_ai_query, should_enable_multi_ai_query, get_ai_query_mode)
 from nifty_data_fetcher import (fetch_option_chain, parse_option_chain, calculate_pcr_values,
  calculate_pcr_for_expiry_data, fetch_banknifty_data, fetch_all_stock_data)
 from nifty_ai_analyzer import NiftyAIAnalyzer
@@ -2801,6 +2875,19 @@ def display_stocks_summary(stock_data):
  weight = info.get('weight', 0)
  print(f"{symbol:<15} {weight:<10.4f} {price:<10} {oi_pcr:<10.2f} {vol_pcr:<10.2f}")
  print("=" * 80)
+def print_ai_query_configuration():
+ """Print current AI query configuration"""
+ single_enabled = should_enable_single_ai_query()
+ multi_enabled = should_enable_multi_ai_query()
+ query_mode = get_ai_query_mode()
+ print(f"\n🤖 AI QUERY CONFIGURATION:")
+ print(f" Single AI Query: {'ENABLED' if single_enabled else 'DISABLED'}")
+ print(f" Multi AI Query: {'ENABLED' if multi_enabled else 'DISABLED'}")
+ print(f" Query Mode: {query_mode.upper()}")
+ if not single_enabled and not multi_enabled:
+ print(" ⚠️ Both query types are disabled - no AI analysis will be performed")
+ elif query_mode == "both" and (not single_enabled or not multi_enabled):
+ print(" ⚠️ Query mode is 'both' but one query type is disabled")
 def data_collection_cycle():
  """Perform one complete data collection and analysis cycle"""
  session = None
@@ -2873,17 +2960,27 @@ def data_collection_cycle():
  for symbol, info in stock_data.items():
  display_stock_data(info['data'])
  if should_run_ai_analysis():
+ print_ai_query_configuration()
+ single_enabled = should_enable_single_ai_query()
+ multi_enabled = should_enable_multi_ai_query()
+ query_mode = get_ai_query_mode()
+ if not single_enabled and not multi_enabled:
+ print("❌ AI analysis skipped: Both query types are disabled")
+ else:
  print("\n" + "="*80)
  print("REQUESTING AI ANALYSIS...")
  print("="*80)
  try:
- ai_analysis = ai_analyzer.get_ai_analysis(oi_data=expiry_data,
- oi_pcr=oi_pcr,
- volume_pcr=volume_pcr,
- current_nifty=current_nifty,
- expiry_date=expiry_date,
- stock_data=stock_data,
- banknifty_data=banknifty_data)
+ single_params = {}
+ if single_enabled or query_mode == "both":
+ single_params = {'oi_data': expiry_data,
+ 'oi_pcr': oi_pcr,
+ 'volume_pcr': volume_pcr,
+ 'current_nifty': current_nifty,
+ 'expiry_date': expiry_date,
+ 'stock_data': stock_data,
+ 'banknifty_data': banknifty_data}
+ ai_analysis = ai_analyzer.get_ai_analysis(**single_params)
  print(ai_analysis)
  except Exception as ai_error:
  print(f"⚠️ AI analysis failed: {ai_error}")
@@ -2948,12 +3045,23 @@ def main():
  print(f" Stock Display: {'ENABLED' if should_display_stocks() else 'DISABLED'}")
  print(f" Multi-Expiry: {'ENABLED' if should_enable_multi_expiry() else 'DISABLED'}")
  print(f" Data Processing: Full Options Chains")
+ print_ai_query_configuration()
  if should_run_loop():
  print(f" Fetch interval: {get_fetch_interval()} seconds")
  else:
  print(" Single execution mode")
  if should_run_ai_analysis():
- print(" DeepSeek AI analysis will be performed")
+ single_enabled = should_enable_single_ai_query()
+ multi_enabled = should_enable_multi_ai_query()
+ query_mode = get_ai_query_mode()
+ if single_enabled and multi_enabled:
+ print(" Both single and multi AI analysis will be performed")
+ elif single_enabled:
+ print(" Single AI analysis will be performed")
+ elif multi_enabled:
+ print(" Multi AI analysis will be performed")
+ else:
+ print(" AI analysis enabled but both query types are disabled")
  else:
  print(" AI analysis disabled - displaying raw data only")
  if should_enable_multi_expiry():

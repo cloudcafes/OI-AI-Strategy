@@ -18,7 +18,7 @@ INITIAL_RETRY_DELAY = 5
 FETCH_INTERVAL = 600
 
 # AI Analysis Configuration
-ENABLE_AI_ANALYSIS = True
+ENABLE_AI_ANALYSIS = False
 ENABLE_SINGLE_AI_QUERY = False
 ENABLE_MULTI_AI_QUERY = True
 AI_QUERY_MODE = "multi"  # "single" | "multi" | "both"
