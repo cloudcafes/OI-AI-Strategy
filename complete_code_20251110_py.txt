@@ -1,0 +1,2976 @@
+Generated: 2025-11-10 14:53:59
+Combined All file content of *.py files
+From Directory: C:\\dev\\python-projects\\OI-AI-Strategy
+Recursive Search: False
+Total Files: 9
+================================================================================
+
+
+================================================================================
+FILE: chat_id.py
+EXTENSION: .py
+FULL PATH: C:\dev\python-projects\OI-AI-Strategy\chat_id.py
+ENCODING: utf-8
+ORIGINAL SIZE: 5565 bytes
+MINIFIED SIZE: 3815 bytes
+SIZE REDUCTION: 31.4%
+================================================================================
+
+import requests
+import datetime
+import urllib3
+import json
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+class TelegramNiftyBot:
+ def __init__(self):
+ self.bot_token = "8053348951:AAE_cpgRXjWXO20XM4EasNUdSKvTYF5YzTA"
+ self.chat_id = None
+ def get_bot_info(self):
+ """
+ Get your bot's username - you need this to find it on Telegram
+ """
+ try:
+ response = requests.get(f"https://api.telegram.org/bot{self.bot_token}/getMe",
+ verify=False,
+ timeout=10)
+ data = response.json()
+ if data["ok"]:
+ bot_info = data["result"]
+ print(f"🔍 YOUR BOT USERNAME: @{bot_info['username']}")
+ print(f"📛 Bot Name: {bot_info['first_name']}")
+ print("\n📝 INSTRUCTIONS:")
+ print(f"1. Open Telegram")
+ print(f"2. Search for: @{bot_info['username']}")
+ print(f"3. Click 'START' or send any message")
+ print(f"4. Then run get_chat_id() again")
+ return bot_info
+ else:
+ print("❌ Could not get bot info")
+ return None
+ except Exception as e:
+ print(f"❌ Error: {e}")
+ return None
+ def get_chat_id(self, debug=False):
+ """
+ Get your Chat ID - run this AFTER sending a message to your bot
+ """
+ try:
+ response = requests.get(f"https://api.telegram.org/bot{self.bot_token}/getUpdates",
+ verify=False,
+ timeout=10)
+ data = response.json()
+ if debug:
+ print("🔍 DEBUG RESPONSE:")
+ print(json.dumps(data, indent=2))
+ if data["ok"]:
+ if len(data["result"]) > 0:
+ latest_update = data["result"][-1]
+ if "message" in latest_update:
+ self.chat_id = latest_update["message"]["chat"]["id"]
+ user_name = latest_update["message"]["chat"].get("first_name", "Unknown")
+ print(f"✅ Chat ID found: {self.chat_id}")
+ print(f"👤 User: {user_name}")
+ return self.chat_id
+ else:
+ print("❌ No message found in update")
+ return None
+ else:
+ print("❌ No messages found in getUpdates response")
+ print("💡 SOLUTION: Send a message to your bot first!")
+ print(" Run get_bot_info() to see your bot username")
+ return None
+ else:
+ print(f"❌ API Error: {data.get('description', 'Unknown error')}")
+ return None
+ except Exception as e:
+ print(f"❌ Error getting chat ID: {e}")
+ return None
+ def send_test_message(self):
+ """
+ Send a test message once you have chat_id
+ """
+ if not self.chat_id:
+ print("❌ No chat ID set. Run get_chat_id() first.")
+ return False
+ try:
+ url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+ payload = {'chat_id': self.chat_id,
+ 'text': "🤖 Nifty Bot Test Message!\nYour bot is working correctly!",
+ 'parse_mode': 'HTML'}
+ response = requests.post(url, json=payload, verify=False, timeout=10)
+ if response.status_code == 200:
+ print("✅ Test message sent successfully!")
+ return True
+ else:
+ print(f"❌ Failed to send test message: {response.text}")
+ return False
+ except Exception as e:
+ print(f"❌ Error sending test message: {e}")
+ return False
+def setup_telegram_bot():
+ """
+ Complete setup process for Telegram bot
+ """
+ bot = TelegramNiftyBot()
+ print("=" * 50)
+ print("TELEGRAM BOT SETUP")
+ print("=" * 50)
+ print("\n1. 🔍 Finding your bot username...")
+ bot_info = bot.get_bot_info()
+ if not bot_info:
+ print("❌ Failed to get bot info. Check your bot token.")
+ return None
+ print(f"\n2. 📱 Go to Telegram and search for: @{bot_info['username']}")
+ print(" Send any message like 'Hello' or click START")
+ input(" Press Enter AFTER you've sent a message to your bot...")
+ print("\n3. 🔑 Getting your chat ID...")
+ chat_id = bot.get_chat_id(debug=True)
+ if chat_id:
+ print(f"\n🎉 SUCCESS! Chat ID: {chat_id}")
+ print("\n4. 📤 Sending test message...")
+ bot.send_test_message()
+ return bot
+ else:
+ print("\n❌ Failed to get chat ID.")
+ print(" Make sure you sent a message to the bot.")
+ return None
+if __name__ == "__main__":
+ bot = setup_telegram_bot()
+ if bot:
+ print(f"\n✅ Setup complete! Your chat_id is: {bot.chat_id}")
+ print("💡 Save this chat_id for your Nifty trading bot:")
+ print(f" CHAT_ID = {bot.chat_id}")
+
+
+================================================================================
+FILE: fastapi_app.py
+EXTENSION: .py
+FULL PATH: C:\dev\python-projects\OI-AI-Strategy\fastapi_app.py
+ENCODING: utf-8
+ORIGINAL SIZE: 5124 bytes
+MINIFIED SIZE: 3660 bytes
+SIZE REDUCTION: 28.6%
+================================================================================
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+import subprocess
+import json
+import time
+import os
+import glob
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+app = FastAPI(title="Nifty Option Chain Fetcher", version="1.0")
+app.add_middleware(CORSMiddleware,
+ allow_origins=["*"],
+ allow_credentials=True,
+ allow_methods=["*"],
+ allow_headers=["*"],)
+app.mount("/static", StaticFiles(directory="."), name="static")
+class ScriptRunner:
+ def __init__(self):
+ self.running = False
+ def find_latest_text_file(self):
+ """Find the most recently created text file in ai-query-logs directory"""
+ try:
+ logs_dir = os.path.join(os.getcwd(), "ai-query-logs")
+ if not os.path.exists(logs_dir):
+ return None
+ text_files = glob.glob(os.path.join(logs_dir, "*.txt"))
+ if not text_files:
+ return None
+ latest_file = max(text_files, key=os.path.getctime)
+ return latest_file
+ except Exception as e:
+ logger.error(f"Error finding text files: {e}")
+ return None
+ def read_text_file_content(self, filepath: str) -> str:
+ """Read the content of a text file"""
+ try:
+ with open(filepath, 'r', encoding='utf-8') as f:
+ content = f.read()
+ return content
+ except Exception as e:
+ return f"Error reading file {filepath}: {str(e)}"
+ async def run_script_and_get_file_content(self):
+ """Run nifty_main.py and return the content of the created text file"""
+ if self.running:
+ return None, "Script is already running"
+ try:
+ logger.info("Starting nifty_main.py...")
+ cmd = ["python3", "nifty_main.py"]
+ process = await asyncio.create_subprocess_exec(*cmd,
+ stdout=asyncio.subprocess.PIPE,
+ stderr=asyncio.subprocess.STDOUT,
+ bufsize=0,
+ env={**os.environ, 'PYTHONUNBUFFERED': '1'})
+ self.running = True
+ await process.wait()
+ self.running = False
+ logger.info("nifty_main.py completed")
+ latest_file = self.find_latest_text_file()
+ if latest_file:
+ content = self.read_text_file_content(latest_file)
+ logger.info(f"Found text file: {os.path.basename(latest_file)}")
+ return content, f"Script completed successfully. File: {os.path.basename(latest_file)}"
+ else:
+ logger.warning("No text file found after script completion")
+ return None, "Script completed but no text file was found"
+ except Exception as e:
+ self.running = False
+ logger.error(f"Error running script: {e}")
+ return None, f"Error running script: {str(e)}"
+script_runner = ScriptRunner()
+@app.post("/run")
+async def run_script():
+ """Run the Nifty script and return the text file content"""
+ if script_runner.running:
+ raise HTTPException(status_code=400, detail="Script is already running")
+ try:
+ logger.info("Run endpoint called")
+ content, status_message = await script_runner.run_script_and_get_file_content()
+ if content:
+ return {"status": "success",
+ "message": status_message,
+ "content": content}
+ else:
+ return {"status": "error", "message": status_message}
+ except Exception as e:
+ error_msg = f"Error running script: {str(e)}"
+ logger.error(error_msg)
+ raise HTTPException(status_code=500, detail=error_msg)
+@app.get("/status")
+async def get_status():
+ """Get current script status"""
+ return {"running": script_runner.running,
+ "status": "running" if script_runner.running else "stopped"}
+@app.get("/health")
+async def health_check():
+ """Health check endpoint"""
+ return {"status": "healthy", "timestamp": time.time()}
+@app.get("/")
+async def get_main_page():
+ return FileResponse('index.html')
+if __name__ == "__main__":
+ import uvicorn
+ uvicorn.run(app,
+ host="0.0.0.0",
+ port=5001,
+ access_log=True)
+
+
+================================================================================
+FILE: file_joiner.py
+EXTENSION: .py
+FULL PATH: C:\dev\python-projects\OI-AI-Strategy\file_joiner.py
+ENCODING: utf-8
+ORIGINAL SIZE: 9082 bytes
+MINIFIED SIZE: 7098 bytes
+SIZE REDUCTION: 21.8%
+================================================================================
+
+import os
+import glob
+import argparse
+from pathlib import Path
+from datetime import datetime
+import platform
+import chardet
+import re
+SEARCH_DIRECTORY = "/home/danand/qcs_infra_tf" if platform.system() != "Windows" else "C:\\dev\\python-projects\\OI-AI-Strategy"
+DEFAULT_EXTENSIONS = ["*.py"]
+OUTPUT_FILENAME_PREFIX = "complete_code"
+ENCODING = "utf-8"
+DELIMITER = "=" * 80
+RECURSIVE_SEARCH = False
+def normalize_path(path):
+ if platform.system() == "Windows":
+ path = path.replace('\\', '\\\\')
+ return path
+def detect_encoding(file_path):
+ try:
+ with open(file_path, 'rb') as file:
+ raw_data = file.read()
+ result = chardet.detect(raw_data)
+ encoding = result['encoding']
+ confidence = result['confidence']
+ if encoding is None or confidence < 0.7:
+ return 'utf-8'
+ return encoding
+ except Exception as e:
+ print(f"Warning: Could not detect encoding for {file_path}, using utf-8: {e}")
+ return 'utf-8'
+def read_file_with_fallback(file_path):
+ encodings_to_try = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1', 'utf-16']
+ for encoding in encodings_to_try:
+ try:
+ with open(file_path, 'r', encoding=encoding) as file:
+ return file.read(), encoding
+ except UnicodeDecodeError:
+ continue
+ except Exception as e:
+ print(f"Error reading {file_path} with {encoding}: {e}")
+ continue
+ try:
+ detected_encoding = detect_encoding(file_path)
+ with open(file_path, 'r', encoding=detected_encoding) as file:
+ return file.read(), detected_encoding
+ except Exception as e:
+ print(f"Final fallback failed for {file_path}: {e}")
+ return None, None
+def minify_content(content, file_extension):
+ if not content:
+ return content
+ minified = content
+ if file_extension in ['.py', '.tf', '.js', '.java', '.c', '.cpp', '.cs']:
+ minified = re.sub(r'
+ if file_extension in ['.js', '.java', '.c', '.cpp', '.cs', '.css']:
+ minified = re.sub(r'//.*$', '', minified, flags=re.MULTILINE)
+ minified = re.sub(r'/\*.*?\*/', '', minified, flags=re.DOTALL)
+ if file_extension in ['.html', '.xml']:
+ minified = re.sub(r'<!--.*?-->', '', minified, flags=re.DOTALL)
+ minified = re.sub(r'^\s*$\n', '', minified, flags=re.MULTILINE)
+ minified = re.sub(r'[\t]+', ' ', minified)
+ minified = re.sub(r'\n\s*\n', '\n', minified)
+ minified = re.sub(r'[\t]+\n', '\n', minified)
+ minified = re.sub(r'{\s+', '{', minified)
+ minified = re.sub(r'\s+}', '}', minified)
+ minified = re.sub(r'\(\s+', '(', minified)
+ minified = re.sub(r'\s+\)', ')', minified)
+ minified = re.sub(r'\[\s+', '[', minified)
+ minified = re.sub(r'\s+\]', ']', minified)
+ minified = re.sub(r';\s+;', ';', minified)
+ minified = re.sub(r',\s+,', ',', minified)
+ minified = minified.strip()
+ return minified
+def get_output_filename(prefix, extensions):
+ date_str = datetime.now().strftime("%Y%m%d")
+ ext_str = "_".join([ext.replace('*.', '') for ext in extensions])
+ return f"{prefix}_{date_str}_{ext_str}.txt"
+def combine_tf_files(search_dir, output_file, file_extensions, include_hidden=False):
+ try:
+ search_dir = normalize_path(search_dir)
+ search_path = Path(search_dir)
+ if not search_path.exists():
+ print(f"Error: Directory '{search_dir}' does not exist")
+ return False
+ output_path = search_path / output_file
+ all_files = []
+ for extension in file_extensions:
+ if RECURSIVE_SEARCH:
+ pattern = "**/" + extension
+ else:
+ pattern = extension
+ files_found = list(search_path.glob(pattern))
+ if not include_hidden:
+ files_found = [f for f in files_found if not any(part.startswith('.') for part in f.parts)]
+ all_files.extend(files_found)
+ all_files = list(set(all_files))
+ if not all_files:
+ extensions_str = ", ".join(file_extensions)
+ print(f"No files matching {extensions_str} found in {search_dir}")
+ print(f"Recursive search was: {'enabled' if RECURSIVE_SEARCH else 'disabled'}")
+ return False
+ print(f"Found {len(all_files)} files matching extensions: {', '.join(file_extensions)}")
+ print(f"Recursive search: {RECURSIVE_SEARCH}")
+ with open(output_path, 'w', encoding=ENCODING) as outfile:
+ outfile.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+ outfile.write(f"Combined All file content of {', '.join(file_extensions)} files\n")
+ outfile.write(f"From Directory: {search_dir}\n")
+ outfile.write(f"Recursive Search: {RECURSIVE_SEARCH}\n")
+ outfile.write(f"Total Files: {len(all_files)}\n")
+ outfile.write(DELIMITER + "\n\n")
+ for file_path in sorted(all_files):
+ try:
+ relative_path = file_path.relative_to(search_path)
+ print(f"Processing: {relative_path}")
+ outfile.write(f"\n{DELIMITER}\n")
+ outfile.write(f"FILE: {relative_path}\n")
+ outfile.write(f"EXTENSION: {file_path.suffix}\n")
+ outfile.write(f"FULL PATH: {file_path}\n")
+ content, used_encoding = read_file_with_fallback(file_path)
+ if content is None:
+ outfile.write(f"ENCODING: FAILED TO READ FILE\n")
+ outfile.write(f"{DELIMITER}\n\n")
+ print(f"Error: Could not read {file_path} (all encoding attempts failed)")
+ continue
+ original_size = len(content)
+ minified_content = minify_content(content, file_path.suffix.lower())
+ minified_size = len(minified_content)
+ outfile.write(f"ENCODING: {used_encoding}\n")
+ outfile.write(f"ORIGINAL SIZE: {original_size} bytes\n")
+ outfile.write(f"MINIFIED SIZE: {minified_size} bytes\n")
+ outfile.write(f"SIZE REDUCTION: {((original_size - minified_size) / original_size * 100):.1f}%\n")
+ outfile.write(f"{DELIMITER}\n\n")
+ outfile.write(minified_content)
+ outfile.write("\n\n")
+ except Exception as e:
+ print(f"Error processing {file_path}: {e}")
+ outfile.write(f"\n{DELIMITER}\n")
+ outfile.write(f"FILE: {relative_path}\n")
+ outfile.write(f"ERROR: {e}\n")
+ outfile.write(f"{DELIMITER}\n\n")
+ continue
+ print(f"Successfully combined {len(all_files)} files into {output_path}")
+ return True
+ except Exception as e:
+ print(f"Unexpected error: {e}")
+ return False
+def parse_extensions(extensions_str):
+ if not extensions_str:
+ return DEFAULT_EXTENSIONS
+ extensions = [ext.strip() for ext in extensions_str.split(',')]
+ parsed_extensions = []
+ for ext in extensions:
+ if not ext.startswith('*'):
+ if not ext.startswith('.'):
+ ext = '.' + ext
+ ext = '*' + ext
+ parsed_extensions.append(ext)
+ return parsed_extensions
+def main():
+ search_directory = SEARCH_DIRECTORY
+ file_extensions = DEFAULT_EXTENSIONS
+ include_hidden = False
+ recursive = RECURSIVE_SEARCH
+ output_filename = get_output_filename(OUTPUT_FILENAME_PREFIX, file_extensions)
+ print(f"Platform: {platform.system()}")
+ print(f"Searching directory: {search_directory}")
+ print(f"File extensions: {', '.join(file_extensions)}")
+ print(f"Output file: {output_filename}")
+ print(f"Output location: {search_directory}")
+ print(f"Include hidden files: {include_hidden}")
+ print(f"Recursive search: {recursive}")
+ print("-" * 50)
+ success = combine_tf_files(search_directory,
+ output_filename,
+ file_extensions,
+ include_hidden)
+ if success:
+ output_path = Path(normalize_path(search_directory)) / output_filename
+ print(f"\n✅ Completed! Check {output_path}")
+ if output_path.exists():
+ file_size = output_path.stat().st_size
+ print(f"Output file size: {file_size:,} bytes ({file_size/1024/1024:.2f} MB)")
+ else:
+ print(f"\n❌ Failed to combine files")
+ exit(1)
+if __name__ == "__main__":
+ main()
+
+
+================================================================================
+FILE: multi_expiry_file_logger.py
+EXTENSION: .py
+FULL PATH: C:\dev\python-projects\OI-AI-Strategy\multi_expiry_file_logger.py
+ENCODING: utf-8
+ORIGINAL SIZE: 41814 bytes
+MINIFIED SIZE: 32748 bytes
+SIZE REDUCTION: 21.7%
+================================================================================
+
+import os
+import datetime
+import requests
+import platform
+import json
+import urllib3
+from typing import Dict, Any, List
+from nifty_core_config import format_greek_value, should_enable_multi_expiry, get_expiry_type_constants
+from nifty_core_config import get_expiry_type_constants
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+if platform.system() == "Windows":
+ EOD_BASE_DIR = r"C:\dev\python-projects\OI-AI-Strategy\multi-expiry-logs"
+else:
+ EOD_BASE_DIR = "/root/OI-AI-Strategy/multi-expiry-logs"
+try:
+ import resend
+ RESEND_AVAILABLE = True
+ resend.api_key = "re_LyXNNt6f_4odzHWJPYvr38api9Nrgvptm"
+ print("✅ Resend module loaded successfully")
+except ImportError:
+ RESEND_AVAILABLE = False
+ print("⚠️ Resend module not installed. Email functionality disabled.")
+ print("💡 Run: pip install resend")
+except Exception as e:
+ RESEND_AVAILABLE = False
+ print(f"⚠️ Resend configuration error: {e}")
+def send_multi_expiry_email_with_file_content(filepath: str, subject: str = None) -> bool:
+ """
+ Send the complete multi-expiry text file content as email using Resend API
+ """
+ if not RESEND_AVAILABLE:
+ print("❌ Cannot send email: Resend module not available")
+ return False
+ try:
+ with open(filepath, 'r', encoding='utf-8') as f:
+ file_content = f.read()
+ if not subject:
+ timestamp = datetime.datetime.now().strftime("%d-%b-%Y %H:%M:%S")
+ subject = f"🤖 Nifty Multi-Expiry AI Analysis - {timestamp}"
+ html_content = convert_multi_expiry_text_to_html(file_content)
+ params = {"from": "onboarding@resend.dev",
+ "to": "talkdev@gmail.com",
+ "subject": subject,
+ "html": html_content}
+ result = resend.Emails.send(params)
+ print(f"✅ Multi-expiry email sent successfully! ID: {result['id']}")
+ return True
+ except Exception as e:
+ print(f"❌ Error sending multi-expiry email via Resend: {e}")
+ return False
+def convert_multi_expiry_text_to_html(text_content: str) -> str:
+ """
+ Convert plain multi-expiry text content to HTML with enhanced formatting
+ """
+ html_content = text_content.replace('\n', '<br>')
+ html_content = html_content.replace(' ', '&nbsp;&nbsp;')
+ html_content = html_content.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;')
+ html_content = html_content.replace('NIFTY CURRENT WEEK', '<strong style="color:
+ html_content = html_content.replace('NIFTY NEXT WEEK', '<strong style="color:
+ html_content = html_content.replace('NIFTY MONTHLY', '<strong style="color:
+ html_content = html_content.replace('BANKNIFTY MONTHLY', '<strong style="color:
+ html_template = f"""
+ <!DOCTYPE html>
+ <html>
+ <head>
+ <meta charset="UTF-8">
+ <style>
+ body {{font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+ font-size: 14px;
+ line-height: 1.6;
+ margin: 0;
+ padding: 20px;
+ background:
+ color:}}
+ .container {{max-width: 1200px;
+ margin: 0 auto;
+ background:
+ border-radius: 10px;
+ box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+ overflow: hidden;}}
+ .header {{background: linear-gradient(135deg,
+ padding: 30px;
+ color: white;
+ text-align: center;}}
+ .content {{padding: 30px;
+ background:
+ color:
+ line-height: 1.6;
+ font-family: 'Courier New', monospace;
+ white-space: pre-wrap;}}
+ .expiry-section {{background:
+ padding: 20px;
+ margin: 20px 0;
+ border-radius: 8px;
+ border-left: 5px solid}}
+ .current-week {{border-left-color:
+ background:}}
+ .next-week {{border-left-color:
+ background:}}
+ .monthly {{border-left-color:
+ background:}}
+ .banknifty {{border-left-color:
+ background:}}
+ table {{width: 100%;
+ border-collapse: collapse;
+ margin: 20px 0;
+ background: white;
+ border: 1px solid
+ font-size: 12px;}}
+ th {{background:
+ color: white;
+ padding: 12px;
+ text-align: left;
+ font-weight: bold;}}
+ td {{padding: 8px 10px;
+ border-bottom: 1px solid
+ color:
+ font-family: 'Courier New', monospace;}}
+ tr:nth-child(even) {{background:}}
+ .summary-box {{background:
+ padding: 15px;
+ border-radius: 5px;
+ margin: 15px 0;
+ border-left: 4px solid}}
+ .timestamp {{color:
+ font-weight: bold;
+ font-size: 16px;}}
+ .expiry-badge {{display: inline-block;
+ padding: 4px 8px;
+ border-radius: 4px;
+ color: white;
+ font-size: 12px;
+ font-weight: bold;
+ margin-right: 8px;}}
+ .badge-current {{background:}}
+ .badge-next {{background:}}
+ .badge-monthly {{background:}}
+ .badge-banknifty {{background:}}
+ </style>
+ </head>
+ <body>
+ <div class="container">
+ <div class="header">
+ <h1>🤖 NIFTY MULTI-EXPIRY TRADING ANALYSIS</h1>
+ <p class="timestamp">Generated: {datetime.datetime.now().strftime("%d-%b-%Y %H:%M:%S")}</p>
+ <div style="margin-top: 15px;">
+ <span class="expiry-badge badge-current">CURRENT WEEK</span>
+ <span class="expiry-badge badge-next">NEXT WEEK</span>
+ <span class="expiry-badge badge-monthly">MONTHLY</span>
+ <span class="expiry-badge badge-banknifty">BANKNIFTY</span>
+ </div>
+ </div>
+ <div class="content">
+ {html_content}
+ </div>
+ </div>
+ </body>
+ </html>
+ """
+ return html_template
+def send_multi_expiry_telegram_message(text: str) -> bool:
+ """
+ Send multi-expiry message to Telegram with SSL verification disabled
+ Enhanced for multi-expiry data structure
+ """
+ try:
+ BOT_TOKEN = "8053348951:AAE_cpgRXjWXO20XM4EasNUdSKvTYF5YzTA"
+ CHAT_ID = "324240680"
+ max_length = 4096
+ if len(text) <= max_length:
+ url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+ payload = {"chat_id": CHAT_ID,
+ "text": text,
+ "parse_mode": "HTML"}
+ session = requests.Session()
+ session.verify = False
+ response = session.post(url, data=payload, timeout=30)
+ return response.status_code == 200
+ else:
+ print(f"📤 Multi-expiry message too long ({len(text)} chars), splitting into parts...")
+ sections = text.split('=' * 80)
+ current_message = ""
+ message_count = 0
+ success_count = 0
+ for section in sections:
+ section_with_header = '=' * 80 + section
+ if len(current_message) + len(section_with_header) > max_length:
+ if current_message:
+ message_count += 1
+ url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+ payload = {"chat_id": CHAT_ID,
+ "text": f"📊 Multi-Expiry Part {message_count}:\n{current_message}",
+ "parse_mode": "HTML"}
+ session = requests.Session()
+ session.verify = False
+ response = session.post(url, data=payload, timeout=30)
+ if response.status_code == 200:
+ success_count += 1
+ current_message = section_with_header
+ else:
+ if current_message:
+ current_message += "\n" + section_with_header
+ else:
+ current_message = section_with_header
+ if current_message:
+ message_count += 1
+ url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+ payload = {"chat_id": CHAT_ID,
+ "text": f"📊 Multi-Expiry Part {message_count}:\n{current_message}",
+ "parse_mode": "HTML"}
+ session = requests.Session()
+ session.verify = False
+ response = session.post(url, data=payload, timeout=30)
+ if response.status_code == 200:
+ success_count += 1
+ print(f"📤 Sent {success_count}/{message_count} multi-expiry message parts to Telegram")
+ return success_count == message_count
+ except Exception as e:
+ print(f"❌ Error sending multi-expiry Telegram message: {e}")
+ return False
+def format_multi_expiry_summary(expiry_data: Dict[str, Any], pcr_values: Dict[str, Any]) -> str:
+ """Create a summary section for multi-expiry data"""
+ summary = "\n" + "=" * 80 + "\n"
+ summary += "MULTI-EXPIRY SUMMARY ANALYSIS\n"
+ summary += "=" * 80 + "\n"
+ for expiry_type in ['current_week', 'next_week', 'monthly']:
+ if expiry_type in expiry_data and expiry_data[expiry_type]:
+ oi_data = expiry_data[expiry_type]
+ expiry_date = oi_data[0]['expiry_date'] if oi_data else "N/A"
+ pcr_info = pcr_values.get(expiry_type, {})
+ oi_pcr = pcr_info.get('oi_pcr', 1.0)
+ volume_pcr = pcr_info.get('volume_pcr', 1.0)
+ strike_count = pcr_info.get('strike_count', 0)
+ sentiment = "BULLISH" if oi_pcr > 1.0 else "BEARISH" if oi_pcr < 1.0 else "NEUTRAL"
+ sentiment_icon = "🟢" if oi_pcr > 1.0 else "🔴" if oi_pcr < 1.0 else "🟡"
+ summary += f"{sentiment_icon} {expiry_type.upper().replace('_', ' ')}: {expiry_date}\n"
+ summary += f" PCR: OI={oi_pcr:.2f} | Volume={volume_pcr:.2f} | Strikes: {strike_count}\n"
+ summary += f" SENTIMENT: {sentiment}\n\n"
+ summary += "=" * 80 + "\n"
+ return summary
+def format_complete_multi_expiry_data(expiry_data: Dict[str, Any],
+ pcr_values: Dict[str, Any],
+ current_nifty: float,
+ banknifty_data: Dict[str, Any] = None) -> str:
+ """Format complete multi-expiry data for file output"""
+ data_section = f"\n\nNIFTY MULTI-EXPIRY COMPREHENSIVE ANALYSIS\n"
+ data_section += "=" * 80 + "\n"
+ data_section += f"Analysis Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+ data_section += f"Nifty Spot: {current_nifty}\n"
+ data_section += "=" * 80 + "\n"
+ data_section += format_multi_expiry_summary(expiry_data, pcr_values)
+ for expiry_type in ['current_week', 'next_week', 'monthly']:
+ if expiry_type in expiry_data and expiry_data[expiry_type]:
+ oi_data = expiry_data[expiry_type]
+ current_value = oi_data[0]['nifty_value'] if oi_data else current_nifty
+ expiry_date = oi_data[0]['expiry_date'] if oi_data else "N/A"
+ pcr_info = pcr_values.get(expiry_type, {})
+ oi_pcr = pcr_info.get('oi_pcr', 1.0)
+ volume_pcr = pcr_info.get('volume_pcr', 1.0)
+ strike_count = pcr_info.get('strike_count', 0)
+ data_section += f"\n{'='*80}\n"
+ expiry_label = expiry_type.upper().replace('_', ' ')
+ sentiment_icon = "🟢" if oi_pcr > 1.0 else "🔴" if oi_pcr < 1.0 else "🟡"
+ data_section += f"{sentiment_icon} NIFTY {expiry_label} - Current: {current_value}, Expiry: {expiry_date}\n"
+ data_section += f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}, Strikes: {strike_count}\n"
+ data_section += f"{'='*80}\n"
+ data_section += f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}\n"
+ data_section += f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | " \
+ f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} " \
+ f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}\n"
+ data_section += "-" * 150 + "\n"
+ for data in oi_data:
+ strike_price = data['strike_price']
+ ce_oi_formatted = str(data['ce_change_oi'])
+ ce_volume_formatted = str(data['ce_volume'])
+ ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+ ce_oi_total_formatted = str(data['ce_oi'])
+ ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+ pe_oi_formatted = str(data['pe_change_oi'])
+ pe_volume_formatted = str(data['pe_volume'])
+ pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+ pe_oi_total_formatted = str(data['pe_oi'])
+ pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+ chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+ chg_oi_diff_formatted = str(chg_oi_diff)
+ formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
+ f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
+ f"{str(strike_price).center(9)} | "
+ f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
+ f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
+ f"{chg_oi_diff_formatted.rjust(16)}")
+ data_section += formatted_row + "\n"
+ if len(oi_data) > 20:
+ data_section += f"... and {len(oi_data) - 20} more strikes\n"
+ data_section += "=" * 150 + "\n"
+ if banknifty_data and 'data' in banknifty_data:
+ banknifty_monthly_data = banknifty_data['data'].get('monthly', [])
+ if banknifty_monthly_data:
+ banknifty_current = banknifty_data.get('current_value', 0)
+ banknifty_expiry = banknifty_data.get('expiry_date', 'N/A')
+ banknifty_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('oi_pcr', 0)
+ banknifty_volume_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('volume_pcr', 0)
+ data_section += f"\n\n{'='*80}\n"
+ sentiment_icon = "🟢" if banknifty_pcr > 1.0 else "🔴" if banknifty_pcr < 1.0 else "🟡"
+ data_section += f"{sentiment_icon} BANKNIFTY MONTHLY - Current: {banknifty_current}, Expiry: {banknifty_expiry}\n"
+ data_section += f"PCR: OI={banknifty_pcr:.2f}, Volume={banknifty_volume_pcr:.2f}\n"
+ data_section += f"{'='*80}\n"
+ data_section += f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}\n"
+ data_section += f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | " \
+ f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} " \
+ f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}\n"
+ data_section += "-" * 150 + "\n"
+ for data in banknifty_monthly_data:
+ strike_price = data['strike_price']
+ ce_oi_formatted = str(data['ce_change_oi'])
+ ce_volume_formatted = str(data['ce_volume'])
+ ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+ ce_oi_total_formatted = str(data['ce_oi'])
+ ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+ pe_oi_formatted = str(data['pe_change_oi'])
+ pe_volume_formatted = str(data['pe_volume'])
+ pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+ pe_oi_total_formatted = str(data['pe_oi'])
+ pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+ chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+ chg_oi_diff_formatted = str(chg_oi_diff)
+ formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
+ f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
+ f"{str(strike_price).center(9)} | "
+ f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
+ f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
+ f"{chg_oi_diff_formatted.rjust(16)}")
+ data_section += formatted_row + "\n"
+ if len(banknifty_monthly_data) > 15:
+ data_section += f"... and {len(banknifty_monthly_data) - 15} more strikes\n"
+ data_section += "=" * 150 + "\n"
+ return data_section
+def save_daily_eod_state_block(expiry_data: Dict[str, Any],
+ pcr_values: Dict[str, Any],
+ current_nifty: float,
+ banknifty_data: Dict[str, Any] = None,
+ stock_data: Dict[str, Any] = None) -> str:
+ """
+ Save daily EOD state block in proper JSON format for AI analysis
+ """
+ try:
+ os.makedirs(EOD_BASE_DIR, exist_ok=True)
+ current_date = datetime.datetime.now().strftime("%d%b%Y")
+ filename = f"EOD_STATE_BLOCK_OF_{current_date}.txt"
+ filepath = os.path.join(EOD_BASE_DIR, filename)
+ fetch_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+ state_block = {"generated_on": datetime.datetime.now().strftime("%Y-%m-%d"),
+ "nifty_state": {"last_3_trading_dates": [datetime.datetime.now().strftime("%Y-%m-%d"),
+ datetime.datetime.now().strftime("%Y-%m-%d"),
+ datetime.datetime.now().strftime("%Y-%m-%d")],
+ "last_3_eod_spots": [current_nifty, current_nifty, current_nifty],
+ "last_3_pcr_ratios": [1.0, 1.0, 1.0],
+ "previous_atm_straddle_price": 0.2,
+ "previous_eod_oi": {}},
+ "banknifty_state": {"last_3_pcr_ratios": [1.0, 1.0, 1.0],
+ "previous_eod_oi": {}}}
+ constants = get_expiry_type_constants()
+ current_week_data = expiry_data.get(constants['CURRENT_WEEK'], [])
+ for data in current_week_data:
+ strike = data['strike_price']
+ state_block["nifty_state"]["previous_eod_oi"][f"{strike}_CALL"] = str(data['ce_oi'])
+ state_block["nifty_state"]["previous_eod_oi"][f"{strike}_PUT"] = str(data['pe_oi'])
+ if banknifty_data and 'data' in banknifty_data:
+ banknifty_monthly = banknifty_data['data'].get('monthly', [])
+ for data in banknifty_monthly:
+ strike = data['strike_price']
+ state_block["banknifty_state"]["previous_eod_oi"][f"{strike}_CALL"] = str(data['ce_oi'])
+ state_block["banknifty_state"]["previous_eod_oi"][f"{strike}_PUT"] = str(data['pe_oi'])
+ with open(filepath, 'w', encoding='utf-8') as f:
+ json.dump(state_block, f, indent=2)
+ print(f"✅ Daily EOD state block saved to: {filepath}")
+ return filepath
+ except Exception as e:
+ print(f"❌ Error saving daily EOD state block: {e}")
+ return ""
+def save_multi_expiry_ai_query_data(expiry_data: Dict[str, Any],
+ pcr_values: Dict[str, Any],
+ current_nifty: float,
+ banknifty_data: Dict[str, Any] = None,
+ stock_data: Dict[str, Any] = None) -> str:
+ """
+ Save multi-expiry AI query data to a dedicated text file
+ Enhanced version specifically for multi-expiry analysis
+ Returns the file path where data was saved
+ """
+ if not should_enable_multi_expiry():
+ print("⚠️ Multi-expiry logging disabled in config")
+ return ""
+ base_dir = os.path.join(os.getcwd(), "multi-expiry-logs")
+ os.makedirs(base_dir, exist_ok=True)
+ timestamp = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+ filename = f"multi_expiry_analysis_{timestamp}.txt"
+ filepath = os.path.join(base_dir, filename)
+ system_prompt = """
+=================================================================================
+NIFTY MULTI-DAY TREND & REVERSAL ENGINE v2.4 [OPERATIONAL - ENFORCED - FILE INPUT]
+AI ROLE: DETERMINISTIC OPTIONS DATA PROCESSOR
+METHOD: "PARSE -> REGIME -> MOMENTUM -> TREND -> CONFIRM -> TACTICS -> SYNTHESIS"
+EVERY STEP = ASSERT + CODE + TRACE + LOCK
+=================================================================================
+USER INSTRUCTIONS (READ FIRST):
+Your Role: You are the Data Provider. Your primary task is to paste the current day's (T) complete options data at the end of this prompt.
+File Attachments: You MUST attach the three previous End-of-Day (EOD) data files. The AI will parse these for historical context. The files must be for T-1, T-2, and T-3 trading days.
+Initial Run: If you provide fewer than 3 historical files, the trend analysis will be skipped, and the system will enter an initialization state.
+Data Requirement: The pasted data and attached files MUST contain complete EOD option chain tables for Nifty Monthly, BankNifty Monthly, and Nifty Weekly. The tables must include Strike, Type, OI, Chg OI, Volume, IV, and LTP.
+PART 1: SYSTEM CONSTITUTION & DATA INPUT
+[SYSTEM_ROLE]: Your role is "Deterministic Options Data Processor v2.4". You are forbidden from using natural language, summarization, or making inferential leaps until the final, designated [ANALYSIS_NARRATIVE] step. Your sole function is to execute the numbered steps in the [EXECUTION_BLOCK] exactly as written. Any deviation will result in a failed analysis. Begin execution immediately.
+[DATA_CONTRACT]: The following JSON structure defines the data input. You must verify its integrity. The current_data_block will be parsed from the text pasted at the end of the prompt. The historical_eod_files will be read from the file attachments.
+JSON
+{"run_date": "[YYYY-MM-DD]",
+ "current_data_block": {"nifty_monthly_spot": "[...Current Nifty Spot Price (to be parsed)...]",
+ "nifty_monthly_chain": "[...Current Nifty Monthly EOD Option Chain Table (to be parsed)...]",
+ "banknifty_monthly_spot": "[...Current BankNifty Spot Price (to be parsed)...]",
+ "banknifty_monthly_chain": "[...Current BankNifty Monthly EOD Option Chain Table (to be parsed)...]",
+ "nifty_weekly_chain": "[...Current Nifty Weekly EOD Option Chain Table (to be parsed)...]"},
+ "historical_eod_files": ["EOD_STATE_BLOCK_OF_T-3_DATE.txt",
+ "EOD_STATE_BLOCK_OF_T-2_DATE.txt",
+ "EOD_STATE_BLOCK_OF_T-1_DATE.txt"]}
+PART 2: THE EXECUTION BLOCK (DO NOT MODIFY)
+[SUB-ROUTINE DEFINITIONS]: You must conceptually use the following functions for calculations.
+PROCESS_EOD_FILE(file_content): A function that takes the text content of a historical EOD file and returns a structured object containing {nifty_spot, banknifty_spot, nifty_monthly_chain, banknifty_monthly_chain, nifty_weekly_chain}.
+CALCULATE_OI_METRICS(current_chain, previous_chain): A function that calculates key metrics based on the change in Open Interest. It returns an object: {pcr, momentum_vector}.
+total_put_chg_oi = SUM(max(0, current_put_oi - previous_put_oi)) for all strikes.
+total_call_chg_oi = SUM(max(0, current_call_oi - previous_call_oi)) for all strikes.
+pcr = total_put_chg_oi / total_call_chg_oi.
+momentum_vector = total_put_chg_oi - total_call_chg_oi.
+STEP 0: DATA INTEGRITY & HISTORICAL PARSING
+0.1: ASSERT: current_data_block (from pasted text) and all its sub-fields are parsed and not empty.
+0.2: CHECK FOR HISTORY: CODE: IS_INSUFFICIENT_HISTORY = TRUE if count(historical_eod_files) < 3 else FALSE.
+0.3: TRACE: TRACE: IS_INSUFFICIENT_HISTORY = {IS_INSUFFICIENT_HISTORY}.
+0.4: HALT FOR INITIALIZATION: IF IS_INSUFFICIENT_HISTORY == TRUE, SET ANALYSIS_STATUS = 'AWAITING_HISTORY'. Skip all steps from 1 to 7 and proceed directly to PART 3.
+0.5: PARSE HISTORICAL FILES:
+CODE: file_T1 = historical_eod_files[2]; file_T2 = historical_eod_files[1]; file_T3 = historical_eod_files[0].
+CODE: eod_data_T1 = PROCESS_EOD_FILE(content of file_T1); eod_data_T2 = PROCESS_EOD_FILE(content of file_T2); eod_data_T3 = PROCESS_EOD_FILE(content of file_T3).
+ASSERT: All eod_data objects and their internal data points were successfully parsed.
+0.6: DATA GAP CHECK: date_T1 = parse_date_from_filename(file_T1). days_since_last_run = run_date - date_T1. If days_since_last_run represents more than one trading day, DATA_GAP_WARNING = TRUE else DATA_GAP_WARNING = FALSE.
+0.7: TRACE & LOCK: TRACE: Historical Parsing Complete. Data Gap Warning: {DATA_GAP_WARNING}. [LOCKED: DATA_GAP_WARNING]
+STEP 1: GENERATE CORE PROXIES (NIFTY MONTHLY)
+1.1: Calculate Price Vector. CODE: PRICE_VECTOR = current_data_block.nifty_monthly_spot - eod_data_T1.nifty_spot.
+1.2: Calculate Premium-Volume Anchor (PVA). CODE: For each strike in current_data_block.nifty_monthly_chain, pva_score = (Call_Volume * Call_LTP) + (Put_Volume * Put_LTP). PVA_ANCHOR = strike with MAX(pva_score).
+1.3: Calculate Volatility Vector. CODE: Find ATM_STRIKE closest to nifty_monthly_spot. current_atm_straddle_price = Premium(ATM_STRIKE, 'CALL') + Premium(ATM_STRIKE, 'PUT'). previous_atm_straddle_price = same calculation on eod_data_T1. VOLATILITY_VECTOR = current_atm_straddle_price - previous_atm_straddle_price.
+1.4: TRACE & LOCK: TRACE: PRICE_VECTOR={PRICE_VECTOR:+.2f}, PVA_ANCHOR={PVA_ANCHOR}, VOLATILITY_VECTOR={VOLATILITY_VECTOR:+.2f}. [LOCKED: PRICE_VECTOR, PVA_ANCHOR, VOLATILITY_VECTOR]
+1.5: Determine Volatility Pressure.
+CODE: IF (PRICE_VECTOR > 0 and VOLATILITY_VECTOR < 0) THEN VOL_PRESSURE = 'CONFIRMED_BULLISH'.
+CODE: IF (PRICE_VECTOR < 0 and VOLATILITY_VECTOR > 0) THEN VOL_PRESSURE = 'CONFIRMED_BEARISH'.
+CODE: ELSE VOL_PRESSURE = 'CONTRADICTORY'.
+1.6: TRACE & LOCK: TRACE: VOL_PRESSURE = '{VOL_PRESSURE}'. [LOCKED: VOL_PRESSURE]
+STEP 2: DETERMINE MARKET REGIME (NIFTY MONTHLY)
+2.1: Find ATM IV. CODE: ATM_IV = IV of ATM_STRIKE Call from current_data_block.nifty_monthly_chain.
+2.2: Classify Regime. CODE: IF ATM_IV < 13, REGIME = 'LOW_VOL'. IF 13 <= ATM_IV <= 18, REGIME = 'NORMAL_VOL'. IF ATM_IV > 18, REGIME = 'HIGH_VOL'.
+2.3: TRACE & LOCK: TRACE: ATM_IV={ATM_IV:.2f} -> REGIME='{REGIME}'. [LOCKED: REGIME, ATM_IV]
+STEP 3: PRIMARY TREND & MOMENTUM ANALYSIS (NIFTY MONTHLY)
+3.1: Calculate Historical & Daily OI Metrics.
+CODE: metrics_T = CALCULATE_OI_METRICS(current_data_block.nifty_monthly_chain, eod_data_T1.nifty_monthly_chain).
+CODE: metrics_T1 = CALCULATE_OI_METRICS(eod_data_T1.nifty_monthly_chain, eod_data_T2.nifty_monthly_chain).
+CODE: metrics_T2 = CALCULATE_OI_METRICS(eod_data_T2.nifty_monthly_chain, eod_data_T3.nifty_monthly_chain).
+CODE: pcr_T = metrics_T.pcr; OI_MOMENTUM_VECTOR = metrics_T.momentum_vector.
+3.2: Apply Regime-Aware Thresholds.
+CODE: pcr_threshold_bullish = 1.15 if REGIME=='LOW_VOL' else 1.20 if REGIME=='NORMAL_VOL' else 1.50.
+CODE: pcr_threshold_bearish = 0.85 if REGIME=='LOW_VOL' else 0.80 if REGIME=='NORMAL_VOL' else 0.70.
+CODE: daily_bias = 'BULLISH' if pcr_T > pcr_threshold_bullish else 'BEARISH' if pcr_T < pcr_threshold_bearish else 'NEUTRAL'.
+3.3: Confirm Trend (3-Day Rule).
+CODE: all_pcrs = [metrics_T2.pcr, metrics_T1.pcr, pcr_T].
+CODE: bullish_days = COUNT(p > pcr_threshold_bullish for p in all_pcrs).
+CODE: bearish_days = COUNT(p < pcr_threshold_bearish for p in all_pcrs).
+CODE: PRIMARY_TREND = 'BULLISH' if bullish_days >= 2 else 'BEARISH' if bearish_days >= 2 else 'NEUTRAL_CONSOLIDATION'.
+3.4: TRACE & LOCK: TRACE: Daily_PCR(T)={pcr_T:.2f} -> Daily_Bias='{daily_bias}'. OI Momentum={OI_MOMENTUM_VECTOR:+.0f}. 3-Day Rule: {bullish_days}B/{bearish_days}B -> PRIMARY_TREND='{PRIMARY_TREND}'. [LOCKED: PRIMARY_TREND, pcr_T, OI_MOMENTUM_VECTOR]
+STEP 4: CONFIRMATION ANALYSIS (BANKNIFTY MONTHLY)
+4.1: Calculate Historical & Daily BankNifty PCRs.
+CODE: bn_metrics_T = CALCULATE_OI_METRICS(current_data_block.banknifty_monthly_chain, eod_data_T1.banknifty_monthly_chain).
+CODE: bn_metrics_T1 = CALCULATE_OI_METRICS(eod_data_T1.banknifty_monthly_chain, eod_data_T2.banknifty_monthly_chain).
+CODE: bn_metrics_T2 = CALCULATE_OI_METRICS(eod_data_T2.banknifty_monthly_chain, eod_data_T3.banknifty_monthly_chain).
+4.2: Confirm Trend (3-Day Rule for BankNifty).
+CODE: banknifty_all_pcrs = [bn_metrics_T2.pcr, bn_metrics_T1.pcr, bn_metrics_T.pcr]. Use same thresholds from 3.2. Repeat 3.3 logic to determine BANKNIFTY_TREND.
+4.3: Determine Alignment. CODE: ALIGNMENT = 'ALIGNED' if PRIMARY_TREND == BANKNIFTY_TREND else 'DIVERGENT' if PRIMARY_TREND != 'NEUTRAL_CONSOLIDATION' and BANKNIFTY_TREND != 'NEUTRAL_CONSOLIDATION' else 'NON_ALIGNED'.
+4.4: TRACE & LOCK: TRACE: BankNifty Trend is '{BANKNIFTY_TREND}'. ALIGNMENT = '{ALIGNMENT}'. [LOCKED: BANKNIFTY_TREND, ALIGNMENT]
+STEP 5: TACTICAL ANALYSIS (NIFTY WEEKLY)
+5.0: EXPIRY DAY CHECK: CODE: parse expiry_date from current_data_block.nifty_weekly_chain. IF run_date == expiry_date, SET IS_EXPIRY_DAY = TRUE, ELSE IS_EXPIRY_DAY = FALSE.
+5.1: Identify Hurdles. Use static OI from current_data_block.nifty_weekly_chain. CODE: WEEKLY_WALL = strike with MAX(Call_OI). WEEKLY_FLOOR = strike with MAX(Put_OI).
+5.2: TRACE & LOCK: TRACE: WEEKLY_WALL={WEEKLY_WALL}, WEEKLY_FLOOR={WEEKLY_FLOOR}. Is Expiry Day: {IS_EXPIRY_DAY}. [LOCKED: WEEKLY_WALL, WEEKLY_FLOOR, IS_EXPIRY_DAY]
+STEP 6: SCORING & SYNTHESIS
+6.1: Initialize Score. Confidence_Score = 50.
+6.2: Apply PVA Confirmation. CODE: IF (PRIMARY_TREND=='BULLISH' and current_data_block.nifty_monthly_spot > PVA_ANCHOR) or (PRIMARY_TREND=='BEARISH' and current_data_block.nifty_monthly_spot < PVA_ANCHOR) THEN Confidence_Score += 15.
+6.3: Apply Volatility Pressure. CODE: IF VOL_PRESSURE == 'CONFIRMED_BULLISH' or VOL_PRESSURE == 'CONFIRMED_BEARISH' THEN Confidence_Score += 10.
+6.4: Apply OI Momentum Confirmation. CODE: IF (PRIMARY_TREND=='BULLISH' and OI_MOMENTUM_VECTOR > 0) or (PRIMARY_TREND=='BEARISH' and OI_MOMENTUM_VECTOR < 0) THEN Confidence_Score += 5.
+6.5: Apply Alignment Modifier. CODE: IF ALIGNMENT == 'ALIGNED' THEN Confidence_Score += 20. IF ALIGNMENT == 'DIVERGENT' THEN Confidence_Score -= 30.
+6.6: Finalize Score. CODE: Confidence_Score = max(0, min(100, Confidence_Score)).
+6.7: TRACE & LOCK: TRACE: Final Confidence Score = {Confidence_Score}. [LOCKED: CONFIDENCE_SCORE]
+PART 3: OUTPUT BLOCK
+IF ANALYSIS_STATUS == 'AWAITING_HISTORY', display ONLY the [TRADING_IMPLICATION] section. Otherwise, display all sections.
+[LOCKED_VALUES_SUMMARY]
+DATA_GAP_WARNING: [Value]
+PRICE_VECTOR: [Value]
+PVA_ANCHOR: [Value]
+VOLATILITY_VECTOR: [Value]
+VOL_PRESSURE: [Value]
+REGIME: [Value]
+ATM_IV: [Value]
+OI_MOMENTUM_VECTOR: [Value]
+PRIMARY_TREND: [Value]
+BANKNIFTY_TREND: [Value]
+ALIGNMENT: [Value]
+WEEKLY_WALL: [Value]
+WEEKLY_FLOOR: [Value]
+CONFIDENCE_SCORE: [Value]
+[ANALYSIS_NARRATIVE]
+Primary Trend: The confirmed multi-day trend for Nifty is [LOCKED: PRIMARY_TREND], based on a 3-day analysis of Monthly OI changes.
+Market Regime: The market is currently in a [LOCKED: REGIME] state, with an ATM IV of [LOCKED: ATM_IV].
+Trend Conviction: The underlying force, measured by the OI Momentum Vector, was significant at [LOCKED: OI_MOMENTUM_VECTOR:+.0f], {if > 0, display 'adding weight to the bullish case.' else if < 0, display 'adding weight to the bearish case.' else display 'showing no strong directional conviction.'}
+Cross-Index Confirmation: The broader market is [LOCKED: ALIGNMENT] with the primary trend, as BankNifty's trend is [LOCKED: BANKNIFTY_TREND].
+Daily Price & Volatility Action: Today's price move of [LOCKED: PRICE_VECTOR:+.2f] points was [LOCKED: VOL_PRESSURE] by volatility action. The market's financial center (PVA) was at [LOCKED: PVA_ANCHOR], with spot closing {above/below} it.
+Tactical Hurdles: For the short-term, expect immediate resistance at [LOCKED: WEEKLY_WALL] and support at [LOCKED: WEEKLY_FLOOR].
+Key Observation: {IF ALIGNMENT=='DIVERGENT', display "The divergence with BankNifty is the most critical factor today, significantly reducing trend confidence."} {ELSE IF VOL_PRESSURE contains 'CONFIRMED', display "The alignment of price and volatility provides strong confirmation for the daily move."} {ELSE display "The strong OI buildup at key Monthly strikes was the day's defining activity."}
+[TRADING_IMPLICATION]
+BIAS: IF IS_INSUFFICIENT_HISTORY, display 'AWAITING_HISTORY'. Else, display [LOCKED: PRIMARY_TREND].
+CONFIDENCE: IF IS_INSUFFICIENT_HISTORY, display 'N/A'. Else, display [LOCKED: CONFIDENCE_SCORE]/100.
+STRATEGY:
+IF PRIMARY_TREND=='BULLISH' and CONFIDENCE_SCORE > 70: Aggressive bullish positions are warranted. Use [LOCKED: WEEKLY_FLOOR] as a reference for entries or tight stops.
+IF PRIMARY_TREND=='BULLISH' and CONFIDENCE_SCORE <= 70: Cautious bullish exposure. Consider waiting for price to validate support at [LOCKED: WEEKLY_FLOOR] before entry.
+IF PRIMARY_TREND=='BEARISH' and CONFIDENCE_SCORE > 70: Aggressive bearish positions are warranted. Use [LOCKED: WEEKLY_WALL] as a reference for entries or tight stops.
+IF PRIMARY_TREND=='BEARISH' and CONFIDENCE_SCORE <= 70: Cautious bearish exposure. Consider waiting for price to be rejected at [LOCKED: WEEKLY_WALL] before entry.
+IF PRIMARY_TREND=='NEUTRAL_CONSOLIDATION': Market lacks direction. Prefer range-bound strategies or stay sidelined. Key range is [LOCKED: WEEKLY_FLOOR] - [LOCKED: WEEKLY_WALL].
+IF ANALYSIS_STATUS=='AWAITING_HISTORY': Provide at least 3 historical EOD files for a full analysis.
+WARNINGS: {IF IS_INSUFFICIENT_HISTORY, display "INSUFFICIENT HISTORY. Full analysis requires 3 previous EOD files."} {IF ALIGNMENT=='DIVERGENT', display "CRITICAL DIVERGENCE WITH BANKNIFTY. HIGH CAUTION ADVISED."} {IF DATA_GAP_WARNING==TRUE, display "DATA GAP DETECTED. TREND ANALYSIS MAY BE UNRELIABLE."} {IF IS_EXPIRY_DAY==TRUE, display "WEEKLY EXPIRY DAY. Tactical levels (Wall/Floor) are less reliable; refer to next week's chain for forward-looking levels."}
+PART 4: MANDATORY COMPLIANCE AUDIT
+[Instructions: Answer YES/NO to every check. A single NO invalidates the entire output.]
+Was the IS_INSUFFICIENT_HISTORY check performed and the main analysis correctly skipped if true? [YES/NO]
+Were historical EOD files parsed to calculate day-over-day metrics from 4 distinct data sets (T, T-1, T-2, T-3)? [YES/NO]
+Was VOLATILITY_PRESSURE determined by comparing the Price Vector and Volatility Vector? [YES/NO]
+Was OI_MOMENTUM_VECTOR calculated and used in scoring? [YES/NO]
+Was PRIMARY_TREND based on a 3-day PCR rule and REGIME-aware thresholds? [YES/NO]
+Was a check for the weekly expiry day (IS_EXPIRY_DAY) performed and a warning generated if true? [YES/NO]
+Does the [ANALYSIS_NARRATIVE] contain ONLY values present in the [LOCKED_VALUES_SUMMARY] or input data, with conditional text strictly following the rules? [YES/NO]
+[AUDIT COMPLETE. END OF PROCESS.]
+"""
+ fetch_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+ data_section = f"\n\nMULTI-EXPIRY COMPREHENSIVE ANALYSIS - FETCHED AT: {fetch_time}\n"
+ data_section += format_complete_multi_expiry_data(expiry_data, pcr_values, current_nifty, banknifty_data)
+ if stock_data:
+ data_section += "\n\n" + "=" * 80 + "\n"
+ data_section += "TOP 10 NIFTY STOCKS SUMMARY (Monthly Expiry)\n"
+ data_section += "=" * 80 + "\n"
+ data_section += f"{'SYMBOL':<15} {'WEIGHT':<10} {'PRICE':<10} {'OI PCR':<10} {'VOL PCR':<10}\n"
+ data_section += "-" * 80 + "\n"
+ for symbol, info in stock_data.items():
+ price = info.get('current_price', 0)
+ oi_pcr_val = info.get('oi_pcr', 0)
+ vol_pcr_val = info.get('volume_pcr', 0)
+ weight = info.get('weight', 0)
+ data_section += f"{symbol:<15} {weight:<10.4f} {price:<10} {oi_pcr_val:<10.2f} {vol_pcr_val:<10.2f}\n"
+ data_section += "=" * 80 + "\n"
+ data_section += "\n" + "=" * 80 + "\n"
+ data_section += "END OF MULTI-EXPIRY ANALYSIS DATA"
+ data_section += "\n" + "=" * 80 + "\n"
+ full_content = system_prompt + data_section
+ try:
+ with open(filepath, 'w', encoding='utf-8') as f:
+ f.write(full_content)
+ print(f"✅ Multi-expiry analysis data saved to: {filepath}")
+ print("💾 Saving daily EOD state block...")
+ eod_filepath = save_daily_eod_state_block(expiry_data, pcr_values, current_nifty, banknifty_data, stock_data)
+ if eod_filepath:
+ print(f"✅ Daily EOD state block saved to: {eod_filepath}")
+ print("📧 Sending multi-expiry analysis to Email...")
+ email_success = send_multi_expiry_email_with_file_content(filepath)
+ if email_success:
+ print("✅ Multi-expiry email sent successfully!")
+ else:
+ print("❌ Failed to send multi-expiry email")
+ return filepath
+ except Exception as e:
+ print(f"❌ Error saving multi-expiry analysis data: {e}")
+ return ""
+
+
+================================================================================
+FILE: nifty_ai_analyzer.py
+EXTENSION: .py
+FULL PATH: C:\dev\python-projects\OI-AI-Strategy\nifty_ai_analyzer.py
+ENCODING: utf-8
+ORIGINAL SIZE: 33428 bytes
+MINIFIED SIZE: 27456 bytes
+SIZE REDUCTION: 17.9%
+================================================================================
+
+import os
+import time
+import json
+import datetime
+import requests
+import httpx
+from typing import Dict, Any, List, Optional
+from openai import OpenAI
+class NiftyAIAnalyzer:
+ def __init__(self, api_key: Optional[str] = None):
+ self.api_key = api_key or "sk-df60b28326444de6859976f6e603fd9c"
+ self.client = None
+ self.history_file = "analysis_history.txt"
+ self.initialize_client()
+ def initialize_client(self) -> bool:
+ """Initialize the DeepSeek API client; SSL verify controlled by env DEEPSEEK_VERIFY_SSL."""
+ try:
+ if not self.api_key:
+ raise RuntimeError("DeepSeek API key not found. Set DEEPSEEK_API_KEY env var or pass api_key to NiftyAIAnalyzer.")
+ verify_ssl_env = os.getenv("DEEPSEEK_VERIFY_SSL", "false").lower() in ("1", "true", "yes")
+ http_client = httpx.Client(verify=verify_ssl_env, timeout=30.0)
+ self.client = OpenAI(api_key=self.api_key,
+ base_url="https://api.deepseek.com",
+ http_client=http_client,
+ max_retries=2)
+ _ = self.client.chat.completions.create(model="deepseek-chat",
+ messages=[{"role": "user", "content": "ping"}],
+ max_tokens=5,
+ temperature=0)
+ print("✅ DeepSeek AI client initialized successfully")
+ return True
+ except Exception as e:
+ print(f"❌ Failed to initialize DeepSeek client: {e}")
+ self.client = None
+ return False
+ def save_analysis_to_history(self, raw_data: str, ai_response: str) -> bool:
+ """Save both raw data and AI response to history file with latest on top."""
+ try:
+ timestamp = datetime.datetime.now().strftime("%H:%M on %d %B %Y")
+ header = f"deepseek analysis done at {timestamp}"
+ separator = "=" * 80
+ new_entry = f"{header}\n{separator}\n"
+ new_entry += "RAW DATA SENT TO AI:\n{separator}\n{raw_data}\n\n"
+ new_entry += f"AI ANALYSIS RESPONSE:\n{separator}\n{ai_response}\n{separator}\n\n"
+ existing_content = ""
+ if os.path.exists(self.history_file):
+ with open(self.history_file, 'r', encoding='utf-8') as f:
+ existing_content = f.read()
+ with open(self.history_file, 'w', encoding='utf-8') as f:
+ f.write(new_entry + existing_content)
+ print(f"✅ Analysis saved to {self.history_file}")
+ return True
+ except Exception as e:
+ print(f"❌ Error saving analysis to history: {e}")
+ return False
+ def _clean_ai_response(self, text: str) -> str:
+ """Clean and format AI response for better console display."""
+ if not text:
+ return "No response from AI"
+ cleaned = text.replace("```json", "").replace("```", "")
+ cleaned = cleaned.replace("**", "").replace("*", "")
+ lines = cleaned.split('\n')
+ cleaned_lines = []
+ prev_empty = False
+ for line in lines:
+ stripped = line.strip()
+ if not stripped:
+ if not prev_empty:
+ cleaned_lines.append('')
+ prev_empty = True
+ else:
+ cleaned_lines.append(stripped)
+ prev_empty = False
+ result = '\n'.join(cleaned_lines)
+ result = result.replace(' : ', ': ')
+ result = result.replace(' , ', ', ')
+ result = result.replace(' . ', '. ')
+ return result
+ def find_atm_strikes(self, oi_data: List[Dict[str, Any]], current_price: float, range_strikes: int = 10):
+ """Find ATM strikes within specified range for detailed analysis"""
+ if not oi_data:
+ return []
+ strike_prices = sorted(list(set(data['strike_price'] for data in oi_data)))
+ closest_strike = min(strike_prices, key=lambda x: abs(x - current_price))
+ closest_index = strike_prices.index(closest_strike)
+ start_index = max(0, closest_index - range_strikes)
+ end_index = min(len(strike_prices), closest_index + range_strikes + 1)
+ selected_strikes = strike_prices[start_index:end_index]
+ atm_data = [data for data in oi_data if data['strike_price'] in selected_strikes]
+ return atm_data
+ def find_key_levels(self, oi_data: List[Dict[str, Any]]):
+ """Find key resistance and support levels based on max OI"""
+ if not oi_data:
+ return {}, {}
+ max_ce_oi = 0
+ resistance_strike = None
+ max_ce_oi_value = 0
+ max_pe_oi = 0
+ support_strike = None
+ max_pe_oi_value = 0
+ for data in oi_data:
+ if data['ce_oi'] > max_ce_oi:
+ max_ce_oi = data['ce_oi']
+ resistance_strike = data['strike_price']
+ max_ce_oi_value = data['ce_oi']
+ if data['pe_oi'] > max_pe_oi:
+ max_pe_oi = data['pe_oi']
+ support_strike = data['strike_price']
+ max_pe_oi_value = data['pe_oi']
+ resistance_info = {'strike': resistance_strike,
+ 'ce_oi': max_ce_oi_value} if resistance_strike else {}
+ support_info = {'strike': support_strike,
+ 'pe_oi': max_pe_oi_value} if support_strike else {}
+ return resistance_info, support_info
+ def is_multi_expiry_data(self, oi_data) -> bool:
+ """Check if data is multi-expiry format"""
+ return isinstance(oi_data, dict) and any(key in oi_data for key in ['current_week', 'next_week', 'monthly'])
+ def format_multi_expiry_data_for_ai(self,
+ expiry_data: Dict[str, Any],
+ oi_pcr: float,
+ volume_pcr: float,
+ current_nifty: float,
+ expiry_date: str,
+ stock_data: Optional[Dict[str, Any]] = None,
+ banknifty_data: Optional[Dict[str, Any]] = None) -> str:
+ """Format multi-expiry data for AI analysis"""
+ formatted_text = f"NIFTY MULTI-EXPIRY ANALYSIS DATA:\n"
+ formatted_text += f"- Spot: {current_nifty}\n"
+ formatted_text += f"- Current Week PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}\n"
+ for expiry_type in ['current_week', 'next_week', 'monthly']:
+ if expiry_type in expiry_data and expiry_data[expiry_type]:
+ oi_data = expiry_data[expiry_type]
+ expiry_date = oi_data[0]['expiry_date'] if oi_data else expiry_date
+ expiry_oi_pcr, expiry_volume_pcr = self.calculate_pcr_for_range(oi_data)
+ resistance, support = self.find_key_levels(oi_data)
+ formatted_text += f"\n{expiry_type.upper().replace('_', ' ')} ANALYSIS:\n"
+ formatted_text += f"- Expiry: {expiry_date}\n"
+ formatted_text += f"- PCR: OI={expiry_oi_pcr:.2f}, Volume={expiry_volume_pcr:.2f}\n"
+ if resistance:
+ formatted_text += f"- Resistance: {resistance['strike']} (Max CE OI: {resistance['ce_oi']:,})\n"
+ if support:
+ formatted_text += f"- Support: {support['strike']} (Max PE OI: {support['pe_oi']:,})\n"
+ if expiry_type == 'current_week':
+ atm_data = self.find_atm_strikes(oi_data, current_nifty, 5)
+ if atm_data:
+ atm_oi_pcr, atm_volume_pcr = self.calculate_pcr_for_range(atm_data)
+ formatted_text += f"- ATM Zone (±5): OI={atm_oi_pcr:.2f}, Volume={atm_volume_pcr:.2f}\n"
+ if banknifty_data:
+ banknifty_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('oi_pcr', 0)
+ alignment = "Bullish" if banknifty_pcr > 1.0 else "Bearish" if banknifty_pcr < 1.0 else "Neutral"
+ formatted_text += f"\n- BankNifty Alignment: {alignment} (PCR: {banknifty_pcr:.2f})\n"
+ if stock_data:
+ formatted_text += "\n" + "=" * 80 + "\n"
+ formatted_text += "TOP 10 NIFTY STOCKS SUMMARY\n"
+ formatted_text += "=" * 80 + "\n"
+ formatted_text += f"{'SYMBOL':<15} {'WEIGHT':<10} {'PRICE':<10} {'OI PCR':<10} {'VOL PCR':<10}\n"
+ formatted_text += "-" * 80 + "\n"
+ for symbol, info in stock_data.items():
+ price = info.get('current_price', 0)
+ oi_pcr_val = info.get('oi_pcr', 0)
+ vol_pcr_val = info.get('volume_pcr', 0)
+ weight = info.get('weight', 0)
+ formatted_text += f"{symbol:<15} {weight:<10.4f} {price:<10} {oi_pcr_val:<10.2f} {vol_pcr_val:<10.2f}\n"
+ formatted_text += "=" * 80 + "\n"
+ return formatted_text
+ def format_data_for_ai(self,
+ oi_data: List[Dict[str, Any]],
+ oi_pcr: float,
+ volume_pcr: float,
+ current_nifty: float,
+ expiry_date: str,
+ stock_data: Optional[Dict[str, Any]] = None,
+ banknifty_data: Optional[Dict[str, Any]] = None) -> str:
+ """Format optimized data for AI analysis - handles both single and multi-expiry"""
+ if self.is_multi_expiry_data(oi_data):
+ return self.format_multi_expiry_data_for_ai(oi_data, oi_pcr, volume_pcr, current_nifty, expiry_date, stock_data, banknifty_data)
+ formatted_text = f"NIFTY ANALYSIS DATA:\n"
+ formatted_text += f"- Spot: {current_nifty} | Expiry: {expiry_date}\n"
+ formatted_text += f"- Full Chain PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}\n"
+ atm_data = self.find_atm_strikes(oi_data, current_nifty, 10)
+ if atm_data:
+ atm_oi_pcr, atm_volume_pcr = self.calculate_pcr_for_range(atm_data)
+ formatted_text += f"- ATM Zone (±10): OI={atm_oi_pcr:.2f}, Volume={atm_volume_pcr:.2f}\n"
+ resistance, support = self.find_key_levels(oi_data)
+ formatted_text += "- Key Levels:\n"
+ if resistance:
+ formatted_text += f" * Resistance: {resistance['strike']} (Max CE OI: {resistance['ce_oi']:,})\n"
+ if support:
+ formatted_text += f" * Support: {support['strike']} (Max PE OI: {support['pe_oi']:,})\n"
+ high_volume_strikes = self.find_high_activity_strikes(oi_data)
+ if high_volume_strikes:
+ formatted_text += " * High Activity Strikes:\n"
+ for strike in high_volume_strikes[:3]:
+ formatted_text += f" {strike['strike']} (Volume: {strike['total_volume']:,})\n"
+ if banknifty_data:
+ banknifty_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('oi_pcr', 0)
+ alignment = "Bullish" if banknifty_pcr > 1.0 else "Bearish" if banknifty_pcr < 1.0 else "Neutral"
+ formatted_text += f"- BankNifty Alignment: {alignment} (PCR: {banknifty_pcr:.2f})\n"
+ formatted_text += "\n" + "=" * 80 + "\n"
+ formatted_text += "ATM ±10 STRIKES DETAILED DATA:\n"
+ formatted_text += "=" * 80 + "\n"
+ for data in atm_data:
+ strike = data['strike_price']
+ formatted_text += (f"Strike {strike}: "
+ f"CE[ChgOI:{data.get('ce_change_oi', 0):,}, Vol:{data.get('ce_volume', 0):,}, "
+ f"LTP:{data.get('ce_ltp', 0.0):.1f}, OI:{data.get('ce_oi', 0):,}, IV:{data.get('ce_iv', 0.0):.1f}%] | "
+ f"PE[ChgOI:{data.get('pe_change_oi', 0):,}, Vol:{data.get('pe_volume', 0):,}, "
+ f"LTP:{data.get('pe_ltp', 0.0):.1f}, OI:{data.get('pe_oi', 0):,}, IV:{data.get('pe_iv', 0.0):.1f}%]\n")
+ if stock_data:
+ formatted_text += "\n" + "=" * 80 + "\n"
+ formatted_text += "TOP 10 NIFTY STOCKS SUMMARY\n"
+ formatted_text += "=" * 80 + "\n"
+ formatted_text += f"{'SYMBOL':<15} {'WEIGHT':<10} {'PRICE':<10} {'OI PCR':<10} {'VOL PCR':<10}\n"
+ formatted_text += "-" * 80 + "\n"
+ for symbol, info in stock_data.items():
+ price = info.get('current_price', 0)
+ oi_pcr_val = info.get('oi_pcr', 0)
+ vol_pcr_val = info.get('volume_pcr', 0)
+ weight = info.get('weight', 0)
+ formatted_text += f"{symbol:<15} {weight:<10.4f} {price:<10} {oi_pcr_val:<10.2f} {vol_pcr_val:<10.2f}\n"
+ formatted_text += "=" * 80 + "\n"
+ return formatted_text
+ def calculate_pcr_for_range(self, oi_data: List[Dict[str, Any]]):
+ """Calculate PCR for a specific range of strikes"""
+ total_ce_oi = 0
+ total_pe_oi = 0
+ total_ce_volume = 0
+ total_pe_volume = 0
+ for data in oi_data:
+ total_ce_oi += data['ce_oi']
+ total_pe_oi += data['pe_oi']
+ total_ce_volume += data['ce_volume']
+ total_pe_volume += data['pe_volume']
+ try:
+ oi_pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 1.0
+ except ZeroDivisionError:
+ oi_pcr = 1.0
+ try:
+ volume_pcr = total_pe_volume / total_ce_volume if total_ce_volume > 0 else 1.0
+ except ZeroDivisionError:
+ volume_pcr = 1.0
+ return oi_pcr, volume_pcr
+ def find_high_activity_strikes(self, oi_data: List[Dict[str, Any]], top_n: int = 5):
+ """Find strikes with highest trading activity"""
+ if not oi_data:
+ return []
+ activity_data = []
+ for data in oi_data:
+ total_volume = data['ce_volume'] + data['pe_volume']
+ if total_volume > 0:
+ activity_data.append({'strike': data['strike_price'],
+ 'total_volume': total_volume,
+ 'ce_volume': data['ce_volume'],
+ 'pe_volume': data['pe_volume']})
+ activity_data.sort(key=lambda x: x['total_volume'], reverse=True)
+ return activity_data[:top_n]
+ def get_ai_analysis(self,
+ oi_data: List[Dict[str, Any]],
+ oi_pcr: float,
+ volume_pcr: float,
+ current_nifty: float,
+ expiry_date: str,
+ stock_data: Optional[Dict[str, Any]] = None,
+ banknifty_data: Optional[Dict[str, Any]] = None) -> str:
+ """Request AI analysis with optimized data format - handles both single and multi-expiry"""
+ if not self.client:
+ print("⚠️ Client not initialized, attempting to reinitialize...")
+ if not self.initialize_client():
+ return "🤖 AI Analysis: Service temporarily unavailable - Check API connection"
+ formatted_data = self.format_data_for_ai(oi_data, oi_pcr, volume_pcr, current_nifty, expiry_date, stock_data, banknifty_data)
+ SYSTEM_PROMPT = """
+=================================================================================
+NIFTY MULTI-DAY TREND & REVERSAL ENGINE v2.4 [OPERATIONAL - ENFORCED - FILE INPUT]
+AI ROLE: DETERMINISTIC OPTIONS DATA PROCESSOR
+METHOD: "PARSE -> REGIME -> MOMENTUM -> TREND -> CONFIRM -> TACTICS -> SYNTHESIS"
+EVERY STEP = ASSERT + CODE + TRACE + LOCK
+=================================================================================
+USER INSTRUCTIONS (READ FIRST):
+Your Role: You are the Data Provider. Your primary task is to paste the current day's (T) complete options data at the end of this prompt.
+File Attachments: You MUST attach the three previous End-of-Day (EOD) data files. The AI will parse these for historical context. The files must be for T-1, T-2, and T-3 trading days.
+Initial Run: If you provide fewer than 3 historical files, the trend analysis will be skipped, and the system will enter an initialization state.
+Data Requirement: The pasted data and attached files MUST contain complete EOD option chain tables for Nifty Monthly, BankNifty Monthly, and Nifty Weekly. The tables must include Strike, Type, OI, Chg OI, Volume, IV, and LTP.
+PART 1: SYSTEM CONSTITUTION & DATA INPUT
+[SYSTEM_ROLE]: Your role is "Deterministic Options Data Processor v2.4". You are forbidden from using natural language, summarization, or making inferential leaps until the final, designated [ANALYSIS_NARRATIVE] step. Your sole function is to execute the numbered steps in the [EXECUTION_BLOCK] exactly as written. Any deviation will result in a failed analysis. Begin execution immediately.
+[DATA_CONTRACT]: The following JSON structure defines the data input. You must verify its integrity. The current_data_block will be parsed from the text pasted at the end of the prompt. The historical_eod_files will be read from the file attachments.
+JSON
+{"run_date": "[YYYY-MM-DD]",
+ "current_data_block": {"nifty_monthly_spot": "[...Current Nifty Spot Price (to be parsed)...]",
+ "nifty_monthly_chain": "[...Current Nifty Monthly EOD Option Chain Table (to be parsed)...]",
+ "banknifty_monthly_spot": "[...Current BankNifty Spot Price (to be parsed)...]",
+ "banknifty_monthly_chain": "[...Current BankNifty Monthly EOD Option Chain Table (to be parsed)...]",
+ "nifty_weekly_chain": "[...Current Nifty Weekly EOD Option Chain Table (to be parsed)...]"},
+ "historical_eod_files": ["EOD_STATE_BLOCK_OF_T-3_DATE.txt",
+ "EOD_STATE_BLOCK_OF_T-2_DATE.txt",
+ "EOD_STATE_BLOCK_OF_T-1_DATE.txt"]}
+PART 2: THE EXECUTION BLOCK (DO NOT MODIFY)
+[SUB-ROUTINE DEFINITIONS]: You must conceptually use the following functions for calculations.
+PROCESS_EOD_FILE(file_content): A function that takes the text content of a historical EOD file and returns a structured object containing {nifty_spot, banknifty_spot, nifty_monthly_chain, banknifty_monthly_chain, nifty_weekly_chain}.
+CALCULATE_OI_METRICS(current_chain, previous_chain): A function that calculates key metrics based on the change in Open Interest. It returns an object: {pcr, momentum_vector}.
+total_put_chg_oi = SUM(max(0, current_put_oi - previous_put_oi)) for all strikes.
+total_call_chg_oi = SUM(max(0, current_call_oi - previous_call_oi)) for all strikes.
+pcr = total_put_chg_oi / total_call_chg_oi.
+momentum_vector = total_put_chg_oi - total_call_chg_oi.
+STEP 0: DATA INTEGRITY & HISTORICAL PARSING
+0.1: ASSERT: current_data_block (from pasted text) and all its sub-fields are parsed and not empty.
+0.2: CHECK FOR HISTORY: CODE: IS_INSUFFICIENT_HISTORY = TRUE if count(historical_eod_files) < 3 else FALSE.
+0.3: TRACE: TRACE: IS_INSUFFICIENT_HISTORY = {IS_INSUFFICIENT_HISTORY}.
+0.4: HALT FOR INITIALIZATION: IF IS_INSUFFICIENT_HISTORY == TRUE, SET ANALYSIS_STATUS = 'AWAITING_HISTORY'. Skip all steps from 1 to 7 and proceed directly to PART 3.
+0.5: PARSE HISTORICAL FILES:
+CODE: file_T1 = historical_eod_files[2]; file_T2 = historical_eod_files[1]; file_T3 = historical_eod_files[0].
+CODE: eod_data_T1 = PROCESS_EOD_FILE(content of file_T1); eod_data_T2 = PROCESS_EOD_FILE(content of file_T2); eod_data_T3 = PROCESS_EOD_FILE(content of file_T3).
+ASSERT: All eod_data objects and their internal data points were successfully parsed.
+0.6: DATA GAP CHECK: date_T1 = parse_date_from_filename(file_T1). days_since_last_run = run_date - date_T1. If days_since_last_run represents more than one trading day, DATA_GAP_WARNING = TRUE else DATA_GAP_WARNING = FALSE.
+0.7: TRACE & LOCK: TRACE: Historical Parsing Complete. Data Gap Warning: {DATA_GAP_WARNING}. [LOCKED: DATA_GAP_WARNING]
+STEP 1: GENERATE CORE PROXIES (NIFTY MONTHLY)
+1.1: Calculate Price Vector. CODE: PRICE_VECTOR = current_data_block.nifty_monthly_spot - eod_data_T1.nifty_spot.
+1.2: Calculate Premium-Volume Anchor (PVA). CODE: For each strike in current_data_block.nifty_monthly_chain, pva_score = (Call_Volume * Call_LTP) + (Put_Volume * Put_LTP). PVA_ANCHOR = strike with MAX(pva_score).
+1.3: Calculate Volatility Vector. CODE: Find ATM_STRIKE closest to nifty_monthly_spot. current_atm_straddle_price = Premium(ATM_STRIKE, 'CALL') + Premium(ATM_STRIKE, 'PUT'). previous_atm_straddle_price = same calculation on eod_data_T1. VOLATILITY_VECTOR = current_atm_straddle_price - previous_atm_straddle_price.
+1.4: TRACE & LOCK: TRACE: PRICE_VECTOR={PRICE_VECTOR:+.2f}, PVA_ANCHOR={PVA_ANCHOR}, VOLATILITY_VECTOR={VOLATILITY_VECTOR:+.2f}. [LOCKED: PRICE_VECTOR, PVA_ANCHOR, VOLATILITY_VECTOR]
+1.5: Determine Volatility Pressure.
+CODE: IF (PRICE_VECTOR > 0 and VOLATILITY_VECTOR < 0) THEN VOL_PRESSURE = 'CONFIRMED_BULLISH'.
+CODE: IF (PRICE_VECTOR < 0 and VOLATILITY_VECTOR > 0) THEN VOL_PRESSURE = 'CONFIRMED_BEARISH'.
+CODE: ELSE VOL_PRESSURE = 'CONTRADICTORY'.
+1.6: TRACE & LOCK: TRACE: VOL_PRESSURE = '{VOL_PRESSURE}'. [LOCKED: VOL_PRESSURE]
+STEP 2: DETERMINE MARKET REGIME (NIFTY MONTHLY)
+2.1: Find ATM IV. CODE: ATM_IV = IV of ATM_STRIKE Call from current_data_block.nifty_monthly_chain.
+2.2: Classify Regime. CODE: IF ATM_IV < 13, REGIME = 'LOW_VOL'. IF 13 <= ATM_IV <= 18, REGIME = 'NORMAL_VOL'. IF ATM_IV > 18, REGIME = 'HIGH_VOL'.
+2.3: TRACE & LOCK: TRACE: ATM_IV={ATM_IV:.2f} -> REGIME='{REGIME}'. [LOCKED: REGIME, ATM_IV]
+STEP 3: PRIMARY TREND & MOMENTUM ANALYSIS (NIFTY MONTHLY)
+3.1: Calculate Historical & Daily OI Metrics.
+CODE: metrics_T = CALCULATE_OI_METRICS(current_data_block.nifty_monthly_chain, eod_data_T1.nifty_monthly_chain).
+CODE: metrics_T1 = CALCULATE_OI_METRICS(eod_data_T1.nifty_monthly_chain, eod_data_T2.nifty_monthly_chain).
+CODE: metrics_T2 = CALCULATE_OI_METRICS(eod_data_T2.nifty_monthly_chain, eod_data_T3.nifty_monthly_chain).
+CODE: pcr_T = metrics_T.pcr; OI_MOMENTUM_VECTOR = metrics_T.momentum_vector.
+3.2: Apply Regime-Aware Thresholds.
+CODE: pcr_threshold_bullish = 1.15 if REGIME=='LOW_VOL' else 1.20 if REGIME=='NORMAL_VOL' else 1.50.
+CODE: pcr_threshold_bearish = 0.85 if REGIME=='LOW_VOL' else 0.80 if REGIME=='NORMAL_VOL' else 0.70.
+CODE: daily_bias = 'BULLISH' if pcr_T > pcr_threshold_bullish else 'BEARISH' if pcr_T < pcr_threshold_bearish else 'NEUTRAL'.
+3.3: Confirm Trend (3-Day Rule).
+CODE: all_pcrs = [metrics_T2.pcr, metrics_T1.pcr, pcr_T].
+CODE: bullish_days = COUNT(p > pcr_threshold_bullish for p in all_pcrs).
+CODE: bearish_days = COUNT(p < pcr_threshold_bearish for p in all_pcrs).
+CODE: PRIMARY_TREND = 'BULLISH' if bullish_days >= 2 else 'BEARISH' if bearish_days >= 2 else 'NEUTRAL_CONSOLIDATION'.
+3.4: TRACE & LOCK: TRACE: Daily_PCR(T)={pcr_T:.2f} -> Daily_Bias='{daily_bias}'. OI Momentum={OI_MOMENTUM_VECTOR:+.0f}. 3-Day Rule: {bullish_days}B/{bearish_days}B -> PRIMARY_TREND='{PRIMARY_TREND}'. [LOCKED: PRIMARY_TREND, pcr_T, OI_MOMENTUM_VECTOR]
+STEP 4: CONFIRMATION ANALYSIS (BANKNIFTY MONTHLY)
+4.1: Calculate Historical & Daily BankNifty PCRs.
+CODE: bn_metrics_T = CALCULATE_OI_METRICS(current_data_block.banknifty_monthly_chain, eod_data_T1.banknifty_monthly_chain).
+CODE: bn_metrics_T1 = CALCULATE_OI_METRICS(eod_data_T1.banknifty_monthly_chain, eod_data_T2.banknifty_monthly_chain).
+CODE: bn_metrics_T2 = CALCULATE_OI_METRICS(eod_data_T2.banknifty_monthly_chain, eod_data_T3.banknifty_monthly_chain).
+4.2: Confirm Trend (3-Day Rule for BankNifty).
+CODE: banknifty_all_pcrs = [bn_metrics_T2.pcr, bn_metrics_T1.pcr, bn_metrics_T.pcr]. Use same thresholds from 3.2. Repeat 3.3 logic to determine BANKNIFTY_TREND.
+4.3: Determine Alignment. CODE: ALIGNMENT = 'ALIGNED' if PRIMARY_TREND == BANKNIFTY_TREND else 'DIVERGENT' if PRIMARY_TREND != 'NEUTRAL_CONSOLIDATION' and BANKNIFTY_TREND != 'NEUTRAL_CONSOLIDATION' else 'NON_ALIGNED'.
+4.4: TRACE & LOCK: TRACE: BankNifty Trend is '{BANKNIFTY_TREND}'. ALIGNMENT = '{ALIGNMENT}'. [LOCKED: BANKNIFTY_TREND, ALIGNMENT]
+STEP 5: TACTICAL ANALYSIS (NIFTY WEEKLY)
+5.0: EXPIRY DAY CHECK: CODE: parse expiry_date from current_data_block.nifty_weekly_chain. IF run_date == expiry_date, SET IS_EXPIRY_DAY = TRUE, ELSE IS_EXPIRY_DAY = FALSE.
+5.1: Identify Hurdles. Use static OI from current_data_block.nifty_weekly_chain. CODE: WEEKLY_WALL = strike with MAX(Call_OI). WEEKLY_FLOOR = strike with MAX(Put_OI).
+5.2: TRACE & LOCK: TRACE: WEEKLY_WALL={WEEKLY_WALL}, WEEKLY_FLOOR={WEEKLY_FLOOR}. Is Expiry Day: {IS_EXPIRY_DAY}. [LOCKED: WEEKLY_WALL, WEEKLY_FLOOR, IS_EXPIRY_DAY]
+STEP 6: SCORING & SYNTHESIS
+6.1: Initialize Score. Confidence_Score = 50.
+6.2: Apply PVA Confirmation. CODE: IF (PRIMARY_TREND=='BULLISH' and current_data_block.nifty_monthly_spot > PVA_ANCHOR) or (PRIMARY_TREND=='BEARISH' and current_data_block.nifty_monthly_spot < PVA_ANCHOR) THEN Confidence_Score += 15.
+6.3: Apply Volatility Pressure. CODE: IF VOL_PRESSURE == 'CONFIRMED_BULLISH' or VOL_PRESSURE == 'CONFIRMED_BEARISH' THEN Confidence_Score += 10.
+6.4: Apply OI Momentum Confirmation. CODE: IF (PRIMARY_TREND=='BULLISH' and OI_MOMENTUM_VECTOR > 0) or (PRIMARY_TREND=='BEARISH' and OI_MOMENTUM_VECTOR < 0) THEN Confidence_Score += 5.
+6.5: Apply Alignment Modifier. CODE: IF ALIGNMENT == 'ALIGNED' THEN Confidence_Score += 20. IF ALIGNMENT == 'DIVERGENT' THEN Confidence_Score -= 30.
+6.6: Finalize Score. CODE: Confidence_Score = max(0, min(100, Confidence_Score)).
+6.7: TRACE & LOCK: TRACE: Final Confidence Score = {Confidence_Score}. [LOCKED: CONFIDENCE_SCORE]
+PART 3: OUTPUT BLOCK
+IF ANALYSIS_STATUS == 'AWAITING_HISTORY', display ONLY the [TRADING_IMPLICATION] section. Otherwise, display all sections.
+[LOCKED_VALUES_SUMMARY]
+DATA_GAP_WARNING: [Value]
+PRICE_VECTOR: [Value]
+PVA_ANCHOR: [Value]
+VOLATILITY_VECTOR: [Value]
+VOL_PRESSURE: [Value]
+REGIME: [Value]
+ATM_IV: [Value]
+OI_MOMENTUM_VECTOR: [Value]
+PRIMARY_TREND: [Value]
+BANKNIFTY_TREND: [Value]
+ALIGNMENT: [Value]
+WEEKLY_WALL: [Value]
+WEEKLY_FLOOR: [Value]
+CONFIDENCE_SCORE: [Value]
+[ANALYSIS_NARRATIVE]
+Primary Trend: The confirmed multi-day trend for Nifty is [LOCKED: PRIMARY_TREND], based on a 3-day analysis of Monthly OI changes.
+Market Regime: The market is currently in a [LOCKED: REGIME] state, with an ATM IV of [LOCKED: ATM_IV].
+Trend Conviction: The underlying force, measured by the OI Momentum Vector, was significant at [LOCKED: OI_MOMENTUM_VECTOR:+.0f], {if > 0, display 'adding weight to the bullish case.' else if < 0, display 'adding weight to the bearish case.' else display 'showing no strong directional conviction.'}
+Cross-Index Confirmation: The broader market is [LOCKED: ALIGNMENT] with the primary trend, as BankNifty's trend is [LOCKED: BANKNIFTY_TREND].
+Daily Price & Volatility Action: Today's price move of [LOCKED: PRICE_VECTOR:+.2f] points was [LOCKED: VOL_PRESSURE] by volatility action. The market's financial center (PVA) was at [LOCKED: PVA_ANCHOR], with spot closing {above/below} it.
+Tactical Hurdles: For the short-term, expect immediate resistance at [LOCKED: WEEKLY_WALL] and support at [LOCKED: WEEKLY_FLOOR].
+Key Observation: {IF ALIGNMENT=='DIVERGENT', display "The divergence with BankNifty is the most critical factor today, significantly reducing trend confidence."} {ELSE IF VOL_PRESSURE contains 'CONFIRMED', display "The alignment of price and volatility provides strong confirmation for the daily move."} {ELSE display "The strong OI buildup at key Monthly strikes was the day's defining activity."}
+[TRADING_IMPLICATION]
+BIAS: IF IS_INSUFFICIENT_HISTORY, display 'AWAITING_HISTORY'. Else, display [LOCKED: PRIMARY_TREND].
+CONFIDENCE: IF IS_INSUFFICIENT_HISTORY, display 'N/A'. Else, display [LOCKED: CONFIDENCE_SCORE]/100.
+STRATEGY:
+IF PRIMARY_TREND=='BULLISH' and CONFIDENCE_SCORE > 70: Aggressive bullish positions are warranted. Use [LOCKED: WEEKLY_FLOOR] as a reference for entries or tight stops.
+IF PRIMARY_TREND=='BULLISH' and CONFIDENCE_SCORE <= 70: Cautious bullish exposure. Consider waiting for price to validate support at [LOCKED: WEEKLY_FLOOR] before entry.
+IF PRIMARY_TREND=='BEARISH' and CONFIDENCE_SCORE > 70: Aggressive bearish positions are warranted. Use [LOCKED: WEEKLY_WALL] as a reference for entries or tight stops.
+IF PRIMARY_TREND=='BEARISH' and CONFIDENCE_SCORE <= 70: Cautious bearish exposure. Consider waiting for price to be rejected at [LOCKED: WEEKLY_WALL] before entry.
+IF PRIMARY_TREND=='NEUTRAL_CONSOLIDATION': Market lacks direction. Prefer range-bound strategies or stay sidelined. Key range is [LOCKED: WEEKLY_FLOOR] - [LOCKED: WEEKLY_WALL].
+IF ANALYSIS_STATUS=='AWAITING_HISTORY': Provide at least 3 historical EOD files for a full analysis.
+WARNINGS: {IF IS_INSUFFICIENT_HISTORY, display "INSUFFICIENT HISTORY. Full analysis requires 3 previous EOD files."} {IF ALIGNMENT=='DIVERGENT', display "CRITICAL DIVERGENCE WITH BANKNIFTY. HIGH CAUTION ADVISED."} {IF DATA_GAP_WARNING==TRUE, display "DATA GAP DETECTED. TREND ANALYSIS MAY BE UNRELIABLE."} {IF IS_EXPIRY_DAY==TRUE, display "WEEKLY EXPIRY DAY. Tactical levels (Wall/Floor) are less reliable; refer to next week's chain for forward-looking levels."}
+PART 4: MANDATORY COMPLIANCE AUDIT
+[Instructions: Answer YES/NO to every check. A single NO invalidates the entire output.]
+Was the IS_INSUFFICIENT_HISTORY check performed and the main analysis correctly skipped if true? [YES/NO]
+Were historical EOD files parsed to calculate day-over-day metrics from 4 distinct data sets (T, T-1, T-2, T-3)? [YES/NO]
+Was VOLATILITY_PRESSURE determined by comparing the Price Vector and Volatility Vector? [YES/NO]
+Was OI_MOMENTUM_VECTOR calculated and used in scoring? [YES/NO]
+Was PRIMARY_TREND based on a 3-day PCR rule and REGIME-aware thresholds? [YES/NO]
+Was a check for the weekly expiry day (IS_EXPIRY_DAY) performed and a warning generated if true? [YES/NO]
+Does the [ANALYSIS_NARRATIVE] contain ONLY values present in the [LOCKED_VALUES_SUMMARY] or input data, with conditional text strictly following the rules? [YES/NO]
+[AUDIT COMPLETE. END OF PROCESS.]
+"""
+ user_content = f"CURRENT DATA FOR ANALYSIS:\n{formatted_data}\n"
+ ai_response = ""
+ try:
+ print("🔄 Requesting AI analysis from DeepSeek...")
+ response = self.client.chat.completions.create(model="deepseek-chat",
+ messages=[{"role": "system", "content": SYSTEM_PROMPT},
+ {"role": "user", "content": user_content}],
+ temperature=0,
+ top_p=1.0,
+ presence_penalty=0,
+ frequency_penalty=0,
+ max_tokens=1200,
+ stream=False,
+ timeout=300.0,
+ stop=["```"])
+ raw_ai = response.choices[0].message.content or ""
+ ai_response = self._clean_ai_response(raw_ai)
+ except Exception as e:
+ print(f"⚠️ AI call failed: {e}")
+ ai_response = f"AI analysis failed: {e}"
+ self.save_analysis_to_history(formatted_data, ai_response)
+ return f"🤖 DEEPSEEK AI INTRADAY ANALYSIS (NIFTY MULTI-EXPIRY + BANKNIFTY + STOCKS):\n\n{ai_response}"
+def format_data_for_ai(oi_data, current_cycle, total_fetches, pcr_analysis):
+ return "Data formatting updated - use get_ai_analysis method directly"
+
+
+================================================================================
+FILE: nifty_core_config.py
+EXTENSION: .py
+FULL PATH: C:\dev\python-projects\OI-AI-Strategy\nifty_core_config.py
+ENCODING: utf-8
+ORIGINAL SIZE: 6967 bytes
+MINIFIED SIZE: 5666 bytes
+SIZE REDUCTION: 18.7%
+================================================================================
+
+import requests
+import datetime
+import time
+import signal
+import sys
+import urllib3
+import os
+import platform
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+SYMBOL = "NIFTY"
+MAX_RETRIES = 3
+INITIAL_RETRY_DELAY = 5
+FETCH_INTERVAL = 600
+ENABLE_AI_ANALYSIS = False
+ENABLE_LOOP_FETCHING = False
+ENABLE_STOCK_DISPLAY = False
+ENABLE_MULTI_EXPIRY = True
+CURRENT_WEEK = "current_week"
+NEXT_WEEK = "next_week"
+MONTHLY = "monthly"
+EXPIRY_TYPES = [CURRENT_WEEK, NEXT_WEEK, MONTHLY]
+NEXT_WEEK_DAY_RANGE = (5, 9)
+MONTHLY_THRESHOLD_DAYS = 20
+if platform.system() == "Windows":
+ EOD_BASE_DIR = r"C:\dev\python-projects\OI-AI-Strategy\multi-expiry-logs"
+else:
+ EOD_BASE_DIR = "/root/OI-AI-Strategy/multi-expiry-logs"
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+ "Accept": "*/*",
+ "Accept-Language": "en-US,en;q=0.9",
+ "Referer": "https://www.nseindia.com/get-quotes/derivatives?symbol=NIFTY",
+ "X-Requested-With": "XMLHttpRequest"}
+STOCK_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+ "Accept": "*/*",
+ "Accept-Language": "en-US,en;q=0.9",
+ "X-Requested-With": "XMLHttpRequest"}
+TOP_NIFTY_STOCKS = {'RELIANCE': {'name': 'RELIANCE INDUSTRIES LTD', 'weight': 0.0924},
+ 'HDFCBANK': {'name': 'HDFC BANK LTD', 'weight': 0.0876},
+ 'BHARTIARTL': {'name': 'BHARTI AIRTEL LTD', 'weight': 0.0421},
+ 'TCS': {'name': 'TATA CONSULTANCY SERVICES LTD', 'weight': 0.0512},
+ 'ICICIBANK': {'name': 'ICICI BANK LTD', 'weight': 0.0763},
+ 'SBIN': {'name': 'STATE BANK OF INDIA', 'weight': 0.0398},
+ 'BAJFINANCE': {'name': 'BAJAJ FINANCE LTD', 'weight': 0.0287},
+ 'INFY': {'name': 'INFOSYS LTD', 'weight': 0.0589},
+ 'ITC': {'name': 'ITC LTD', 'weight': 0.0271},
+ 'LT': {'name': 'LARSEN & TOUBRO LTD', 'weight': 0.0263}}
+running = True
+def signal_handler(sig, frame):
+ global running
+ print("\nReceived shutdown signal...")
+ running = False
+ sys.exit(0)
+def create_session_with_retry():
+ session = requests.Session()
+ retry_strategy = Retry(total=3, status_forcelist=[429, 500, 502, 503, 504])
+ adapter = HTTPAdapter(max_retries=retry_strategy)
+ session.mount("http://", adapter)
+ session.mount("https://", adapter)
+ session.verify = False
+ return session
+def initialize_session():
+ session = create_session_with_retry()
+ try:
+ session.get("https://www.nseindia.com", headers=HEADERS, timeout=10)
+ session.get("https://www.nseindia.com/get-quotes/derivatives?symbol=NIFTY", headers=HEADERS, timeout=10)
+ return session
+ except Exception as e:
+ print(f"Session initialization failed: {e}")
+ raise
+def create_stock_session_with_retry():
+ """Create session with retry strategy for stocks"""
+ session = requests.Session()
+ retry_strategy = Retry(total=3, status_forcelist=[429, 500, 502, 503, 504])
+ adapter = HTTPAdapter(max_retries=retry_strategy)
+ session.mount("http://", adapter)
+ session.mount("https://", adapter)
+ session.verify = False
+ return session
+def initialize_stock_session(symbol):
+ """Initialize session for stock data fetching"""
+ session = create_stock_session_with_retry()
+ try:
+ session.get("https://www.nseindia.com", headers=STOCK_HEADERS, timeout=10)
+ session.get(f"https://www.nseindia.com/get-quotes/equity?symbol={symbol}", headers=STOCK_HEADERS, timeout=10)
+ return session
+ except Exception as e:
+ print(f"Stock session initialization for {symbol} failed: {e}")
+ raise
+def parse_numeric_value(value):
+ """Parse numeric values that may contain commas and convert to integer"""
+ if value is None:
+ return 0
+ if isinstance(value, (int, float)):
+ return int(value)
+ if isinstance(value, str):
+ cleaned_value = value.replace(',', '').strip()
+ if cleaned_value == '' or cleaned_value == '-':
+ return 0
+ try:
+ return int(float(cleaned_value))
+ except (ValueError, TypeError):
+ return 0
+ return 0
+def parse_float_value(value):
+ """Parse numeric values that may contain commas and convert to float"""
+ if value is None:
+ return 0.0
+ if isinstance(value, (int, float)):
+ return float(value)
+ if isinstance(value, str):
+ cleaned_value = value.replace(',', '').strip()
+ if cleaned_value == '' or cleaned_value == '-':
+ return 0.0
+ try:
+ return float(cleaned_value)
+ except (ValueError, TypeError):
+ return 0.0
+ return 0.0
+def format_greek_value(value, decimal_places=3):
+ """Format Greek values with specified decimal places"""
+ if value is None or value == 0:
+ return "0"
+ try:
+ return f"{float(value):.{decimal_places}f}"
+ except (ValueError, TypeError):
+ return "0"
+def should_run_ai_analysis():
+ """Check if AI analysis should be performed"""
+ return ENABLE_AI_ANALYSIS
+def should_run_loop():
+ """Check if continuous loop fetching should be performed"""
+ return ENABLE_LOOP_FETCHING
+def should_display_stocks():
+ """Check if stock data should be displayed"""
+ return ENABLE_STOCK_DISPLAY
+def should_enable_multi_expiry():
+ """Check if multi-expiry analysis should be performed"""
+ return ENABLE_MULTI_EXPIRY
+def get_fetch_interval():
+ """Get the fetch interval based on configuration"""
+ return FETCH_INTERVAL
+def get_expiry_type_constants():
+ """Return expiry type constants"""
+ return {'CURRENT_WEEK': CURRENT_WEEK,
+ 'NEXT_WEEK': NEXT_WEEK,
+ 'MONTHLY': MONTHLY,
+ 'ALL_TYPES': EXPIRY_TYPES}
+def get_expiry_classification_params():
+ """Return parameters used for expiry classification"""
+ return {'next_week_day_range': NEXT_WEEK_DAY_RANGE,
+ 'monthly_threshold_days': MONTHLY_THRESHOLD_DAYS}
+def get_eod_base_directory():
+ """Return the platform-specific EOD base directory"""
+ return EOD_BASE_DIR
+
+
+================================================================================
+FILE: nifty_data_fetcher.py
+EXTENSION: .py
+FULL PATH: C:\dev\python-projects\OI-AI-Strategy\nifty_data_fetcher.py
+ENCODING: utf-8
+ORIGINAL SIZE: 16559 bytes
+MINIFIED SIZE: 11050 bytes
+SIZE REDUCTION: 33.3%
+================================================================================
+
+import requests
+import datetime
+import time
+from nifty_core_config import (SYMBOL, MAX_RETRIES, INITIAL_RETRY_DELAY, HEADERS, STOCK_HEADERS,
+ parse_numeric_value, parse_float_value, format_greek_value,
+ TOP_NIFTY_STOCKS, initialize_session, initialize_stock_session,
+ should_enable_multi_expiry, get_expiry_type_constants, get_expiry_classification_params)
+def fetch_option_chain(session):
+ url = f"https://www.nseindia.com/api/option-chain-indices?symbol={SYMBOL}"
+ for attempt in range(MAX_RETRIES):
+ try:
+ response = session.get(url, headers=HEADERS, timeout=15)
+ response.raise_for_status()
+ return response.json()
+ except Exception as e:
+ if attempt < MAX_RETRIES - 1:
+ time.sleep(INITIAL_RETRY_DELAY * (2 ** attempt))
+ else:
+ raise Exception(f"Failed after {MAX_RETRIES} attempts: {str(e)}")
+def classify_expiry_dates(expiry_dates):
+ """
+ Classify expiry dates into current_week, next_week, monthly
+ Returns dict with classified expiry dates
+ """
+ if not expiry_dates or len(expiry_dates) == 0:
+ return {}
+ constants = get_expiry_type_constants()
+ params = get_expiry_classification_params()
+ classified = {}
+ try:
+ current_week = expiry_dates[0]
+ classified[constants['CURRENT_WEEK']] = current_week
+ current_date = datetime.datetime.strptime(current_week, "%d-%b-%Y")
+ next_week_candidate = None
+ monthly_candidate = None
+ for expiry_date in expiry_dates[1:]:
+ expiry_datetime = datetime.datetime.strptime(expiry_date, "%d-%b-%Y")
+ days_diff = (expiry_datetime - current_date).days
+ if params['next_week_day_range'][0] <= days_diff <= params['next_week_day_range'][1]:
+ if not next_week_candidate:
+ next_week_candidate = expiry_date
+ if days_diff >= params['monthly_threshold_days']:
+ if not monthly_candidate:
+ monthly_candidate = expiry_date
+ if next_week_candidate:
+ classified[constants['NEXT_WEEK']] = next_week_candidate
+ if monthly_candidate:
+ classified[constants['MONTHLY']] = monthly_candidate
+ if (next_week_candidate and monthly_candidate and
+ next_week_candidate == monthly_candidate):
+ print(f"📅 Dual classification: {monthly_candidate} is both next_week and monthly")
+ except Exception as e:
+ print(f"⚠️ Expiry classification failed: {e}")
+ if expiry_dates:
+ classified[constants['CURRENT_WEEK']] = expiry_dates[0]
+ return classified
+def parse_option_chain(data):
+ """
+ Parse option chain data with multi-expiry support
+ Returns structured data with current_week, next_week, monthly datasets
+ """
+ try:
+ current_nifty = data['records']['underlyingValue']
+ records = data['records']['data']
+ expiry_dates = data['records']['expiryDates']
+ classified_expiries = {}
+ if should_enable_multi_expiry():
+ classified_expiries = classify_expiry_dates(expiry_dates)
+ else:
+ constants = get_expiry_type_constants()
+ classified_expiries[constants['CURRENT_WEEK']] = expiry_dates[0]
+ expiry_data = {}
+ constants = get_expiry_type_constants()
+ for expiry_type, expiry_date in classified_expiries.items():
+ expiry_records = [record for record in records if record['expiryDate'] == expiry_date]
+ filtered_records = []
+ for record in expiry_records:
+ ce_data = record.get('CE', {})
+ pe_data = record.get('PE', {})
+ oi_data = {'nifty_value': round(current_nifty),
+ 'expiry_date': expiry_date,
+ 'expiry_type': expiry_type,
+ 'strike_price': record['strikePrice'],
+ 'ce_change_oi': parse_numeric_value(ce_data.get('changeinOpenInterest', 0)),
+ 'ce_volume': parse_numeric_value(ce_data.get('totalTradedVolume', 0)),
+ 'ce_ltp': parse_float_value(ce_data.get('lastPrice', 0)),
+ 'ce_oi': parse_numeric_value(ce_data.get('openInterest', 0)),
+ 'ce_iv': parse_float_value(ce_data.get('impliedVolatility', 0)),
+ 'pe_change_oi': parse_numeric_value(pe_data.get('changeinOpenInterest', 0)),
+ 'pe_volume': parse_numeric_value(pe_data.get('totalTradedVolume', 0)),
+ 'pe_ltp': parse_float_value(pe_data.get('lastPrice', 0)),
+ 'pe_oi': parse_numeric_value(pe_data.get('openInterest', 0)),
+ 'pe_iv': parse_float_value(pe_data.get('impliedVolatility', 0)),}
+ filtered_records.append(oi_data)
+ expiry_data[expiry_type] = filtered_records
+ print(f"📅 Expiry Classification: {len(classified_expiries)} types identified")
+ for expiry_type, expiry_date in classified_expiries.items():
+ record_count = len(expiry_data.get(expiry_type, []))
+ print(f" {expiry_type}: {expiry_date} ({record_count} strikes)")
+ return expiry_data
+ except Exception as e:
+ raise Exception(f"Error parsing option chain: {str(e)}")
+def calculate_pcr_values(oi_data):
+ """Calculate OI PCR and Volume PCR for ALL strikes with zero value safeguards"""
+ total_ce_oi = 0
+ total_pe_oi = 0
+ total_ce_volume = 0
+ total_pe_volume = 0
+ for data in oi_data:
+ total_ce_oi += data['ce_oi']
+ total_pe_oi += data['pe_oi']
+ total_ce_volume += data['ce_volume']
+ total_pe_volume += data['pe_volume']
+ try:
+ oi_pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 1.0
+ except ZeroDivisionError:
+ oi_pcr = 1.0
+ try:
+ volume_pcr = total_pe_volume / total_ce_volume if total_ce_volume > 0 else 1.0
+ except ZeroDivisionError:
+ volume_pcr = 1.0
+ return oi_pcr, volume_pcr
+def calculate_pcr_for_expiry_data(expiry_data):
+ """
+ Calculate PCR values for multi-expiry data structure
+ Returns dict with PCR values for each expiry type
+ """
+ pcr_values = {}
+ for expiry_type, oi_data in expiry_data.items():
+ if oi_data:
+ oi_pcr, volume_pcr = calculate_pcr_values(oi_data)
+ pcr_values[expiry_type] = {'oi_pcr': oi_pcr,
+ 'volume_pcr': volume_pcr,
+ 'strike_count': len(oi_data)}
+ else:
+ pcr_values[expiry_type] = {'oi_pcr': 1.0,
+ 'volume_pcr': 1.0,
+ 'strike_count': 0}
+ return pcr_values
+def fetch_stock_option_chain(session, symbol):
+ """Fetch option chain data for individual stock"""
+ url = f"https://www.nseindia.com/api/option-chain-equities?symbol={symbol}"
+ for attempt in range(3):
+ try:
+ response = session.get(url, headers=STOCK_HEADERS, timeout=15)
+ response.raise_for_status()
+ return response.json()
+ except Exception as e:
+ if attempt < 2:
+ time.sleep(5 * (2 ** attempt))
+ else:
+ raise Exception(f"Failed after 3 attempts for {symbol}: {str(e)}")
+def parse_stock_option_chain(data, symbol):
+ """Parse stock option chain data without Greeks - ALL strikes"""
+ try:
+ current_stock_value = data['records']['underlyingValue']
+ records = data['records']['data']
+ nearest_expiry = data['records']['expiryDates'][0]
+ nearest_expiry_records = [record for record in records if record['expiryDate'] == nearest_expiry]
+ filtered_records = []
+ for record in nearest_expiry_records:
+ ce_data = record.get('CE', {})
+ pe_data = record.get('PE', {})
+ oi_data = {'symbol': symbol,
+ 'stock_value': round(current_stock_value, 2),
+ 'expiry_date': nearest_expiry,
+ 'strike_price': record['strikePrice'],
+ 'ce_change_oi': parse_numeric_value(ce_data.get('changeinOpenInterest', 0)),
+ 'ce_volume': parse_numeric_value(ce_data.get('totalTradedVolume', 0)),
+ 'ce_ltp': parse_float_value(ce_data.get('lastPrice', 0)),
+ 'ce_oi': parse_numeric_value(ce_data.get('openInterest', 0)),
+ 'ce_iv': parse_float_value(ce_data.get('impliedVolatility', 0)),
+ 'pe_change_oi': parse_numeric_value(pe_data.get('changeinOpenInterest', 0)),
+ 'pe_volume': parse_numeric_value(pe_data.get('totalTradedVolume', 0)),
+ 'pe_ltp': parse_float_value(pe_data.get('lastPrice', 0)),
+ 'pe_oi': parse_numeric_value(pe_data.get('openInterest', 0)),
+ 'pe_iv': parse_float_value(pe_data.get('impliedVolatility', 0)),}
+ filtered_records.append(oi_data)
+ return filtered_records
+ except Exception as e:
+ raise Exception(f"Error parsing option chain for {symbol}: {str(e)}")
+def calculate_stock_pcr_values(oi_data):
+ """Calculate OI PCR and Volume PCR for stock with zero value safeguards"""
+ total_ce_oi = 0
+ total_pe_oi = 0
+ total_ce_volume = 0
+ total_pe_volume = 0
+ for data in oi_data:
+ total_ce_oi += data['ce_oi']
+ total_pe_oi += data['pe_oi']
+ total_ce_volume += data['ce_volume']
+ total_pe_volume += data['pe_volume']
+ try:
+ oi_pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 1.0
+ except ZeroDivisionError:
+ oi_pcr = 1.0
+ try:
+ volume_pcr = total_pe_volume / total_ce_volume if total_ce_volume > 0 else 1.0
+ except ZeroDivisionError:
+ volume_pcr = 1.0
+ return oi_pcr, volume_pcr
+def fetch_banknifty_data():
+ """Fetch BANKNIFTY option chain data without Greeks - ALL strikes (monthly only)"""
+ try:
+ print(f"Fetching BANKNIFTY option chain...")
+ session = initialize_session()
+ url = "https://www.nseindia.com/api/option-chain-indices?symbol=BANKNIFTY"
+ response = session.get(url, headers=STOCK_HEADERS, timeout=15)
+ response.raise_for_status()
+ data = response.json()
+ current_banknifty = data['records']['underlyingValue']
+ records = data['records']['data']
+ nearest_expiry = data['records']['expiryDates'][0]
+ nearest_expiry_records = [record for record in records if record['expiryDate'] == nearest_expiry]
+ banknifty_data = []
+ for record in nearest_expiry_records:
+ ce_data = record.get('CE', {})
+ pe_data = record.get('PE', {})
+ oi_data = {'symbol': 'BANKNIFTY',
+ 'underlying_value': round(current_banknifty, 2),
+ 'expiry_date': nearest_expiry,
+ 'expiry_type': 'monthly',
+ 'strike_price': record['strikePrice'],
+ 'ce_change_oi': parse_numeric_value(ce_data.get('changeinOpenInterest', 0)),
+ 'ce_volume': parse_numeric_value(ce_data.get('totalTradedVolume', 0)),
+ 'ce_ltp': parse_float_value(ce_data.get('lastPrice', 0)),
+ 'ce_oi': parse_numeric_value(ce_data.get('openInterest', 0)),
+ 'ce_iv': parse_float_value(ce_data.get('impliedVolatility', 0)),
+ 'pe_change_oi': parse_numeric_value(pe_data.get('changeinOpenInterest', 0)),
+ 'pe_volume': parse_numeric_value(pe_data.get('totalTradedVolume', 0)),
+ 'pe_ltp': parse_float_value(pe_data.get('lastPrice', 0)),
+ 'pe_oi': parse_numeric_value(pe_data.get('openInterest', 0)),
+ 'pe_iv': parse_float_value(pe_data.get('impliedVolatility', 0)),}
+ banknifty_data.append(oi_data)
+ oi_pcr, volume_pcr = calculate_pcr_values(banknifty_data)
+ expiry_data = {'monthly': banknifty_data}
+ pcr_values = {'monthly': {'oi_pcr': oi_pcr,
+ 'volume_pcr': volume_pcr,
+ 'strike_count': len(banknifty_data)}}
+ return {'data': expiry_data,
+ 'pcr_values': pcr_values,
+ 'current_value': current_banknifty,
+ 'expiry_date': nearest_expiry}
+ except Exception as e:
+ print(f"Error fetching BANKNIFTY data: {e}")
+ return None
+def fetch_all_stock_data():
+ """Fetch data for all top 10 Nifty stocks - ALL strikes (monthly only)"""
+ stock_data = {}
+ from nifty_core_config import should_display_stocks
+ if should_display_stocks():
+ print(f"\n{'='*80}")
+ print("FETCHING TOP 10 NIFTY STOCKS DATA...")
+ print(f"{'='*80}")
+ for symbol in TOP_NIFTY_STOCKS.keys():
+ try:
+ if should_display_stocks():
+ print(f"Fetching {symbol}...")
+ session = initialize_stock_session(symbol)
+ data = fetch_stock_option_chain(session, symbol)
+ oi_data = parse_stock_option_chain(data, symbol)
+ oi_pcr, volume_pcr = calculate_stock_pcr_values(oi_data)
+ stock_data[symbol] = {'data': oi_data,
+ 'oi_pcr': oi_pcr,
+ 'volume_pcr': volume_pcr,
+ 'weight': TOP_NIFTY_STOCKS[symbol]['weight'],
+ 'current_price': oi_data[0]['stock_value'] if oi_data else 0}
+ time.sleep(1)
+ except Exception as e:
+ print(f"Error processing {symbol}: {e}")
+ continue
+ return stock_data
+
+
+================================================================================
+FILE: nifty_file_logger.py
+EXTENSION: .py
+FULL PATH: C:\dev\python-projects\OI-AI-Strategy\nifty_file_logger.py
+ENCODING: utf-8
+ORIGINAL SIZE: 38622 bytes
+MINIFIED SIZE: 27487 bytes
+SIZE REDUCTION: 28.8%
+================================================================================
+
+import os
+import datetime
+import requests
+from typing import Dict, Any, List
+from nifty_core_config import format_greek_value
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+try:
+ import resend
+ RESEND_AVAILABLE = True
+ resend.api_key = "re_LyXNNt6f_4odzHWJPYvr38api9Nrgvptm"
+ print("✅ Resend module loaded successfully")
+except ImportError:
+ RESEND_AVAILABLE = False
+ print("⚠️ Resend module not installed. Email functionality disabled.")
+ print("💡 Run: pip install resend")
+except Exception as e:
+ RESEND_AVAILABLE = False
+ print(f"⚠️ Resend configuration error: {e}")
+def send_email_with_file_content(filepath: str, subject: str = None) -> bool:
+ """
+ Send the complete text file content as email using Resend API
+ """
+ if not RESEND_AVAILABLE:
+ print("❌ Cannot send email: Resend module not available")
+ return False
+ try:
+ with open(filepath, 'r', encoding='utf-8') as f:
+ file_content = f.read()
+ if not subject:
+ timestamp = datetime.datetime.now().strftime("%d-%b-%Y %H:%M:%S")
+ subject = f"🤖 Nifty AI Analysis - {timestamp}"
+ html_content = convert_text_to_html(file_content)
+ params = {"from": "onboarding@resend.dev",
+ "to": "talkdev@gmail.com",
+ "subject": subject,
+ "html": html_content}
+ result = resend.Emails.send(params)
+ print(f"✅ Email sent successfully! ID: {result['id']}")
+ return True
+ except Exception as e:
+ print(f"❌ Error sending email via Resend: {e}")
+ return False
+def convert_text_to_html(text_content: str) -> str:
+ """
+ Convert plain text content to HTML with proper formatting
+ """
+ html_content = text_content.replace('\n', '<br>')
+ html_content = html_content.replace(' ', '&nbsp;&nbsp;')
+ html_content = html_content.replace('\t', '&nbsp;&nbsp;&nbsp;&nbsp;')
+ html_template = f"""
+ <!DOCTYPE html>
+ <html>
+ <head>
+ <meta charset="UTF-8">
+ <style>
+ body {{font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+ font-size: 14px;
+ line-height: 1.6;
+ margin: 0;
+ padding: 20px;
+ background:
+ color:}}
+ .container {{max-width: 1100px;
+ margin: 0 auto;
+ background:
+ border-radius: 10px;
+ box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+ overflow: hidden;}}
+ .header {{background: linear-gradient(135deg,
+ padding: 30px;
+ color: white;
+ text-align: center;}}
+ .content {{padding: 30px;
+ background:
+ color:
+ line-height: 1.6;
+ font-family: 'Courier New', monospace;
+ white-space: pre-wrap;}}
+ .analysis-section {{background:
+ padding: 20px;
+ margin: 20px 0;
+ border-radius: 8px;
+ border-left: 5px solid}}
+ table {{width: 100%;
+ border-collapse: collapse;
+ margin: 20px 0;
+ background: white;
+ border: 1px solid}}
+ th {{background:
+ color: white;
+ padding: 12px;
+ text-align: left;
+ font-weight: bold;}}
+ td {{padding: 10px 12px;
+ border-bottom: 1px solid
+ color:}}
+ tr:nth-child(even) {{background:}}
+ pre {{background:
+ padding: 15px;
+ border-radius: 5px;
+ overflow-x: auto;
+ border: 1px solid
+ color:}}
+ .critical {{background:
+ padding: 15px;
+ border-radius: 5px;
+ border-left: 4px solid
+ margin: 15px 0;}}
+ .positive {{color:
+ font-weight: bold;}}
+ .negative {{color:
+ font-weight: bold;}}
+ .timestamp {{color:
+ font-weight: bold;
+ font-size: 16px;}}
+ </style>
+ </head>
+ <body>
+ <div class="container">
+ <div class="header">
+ <h1>🤖 NIFTY AI TRADING ANALYSIS</h1>
+ <p class="timestamp">Generated: {datetime.datetime.now().strftime("%d-%b-%Y %H:%M:%S")}</p>
+ </div>
+ <div class="content">
+ {html_content}
+ </div>
+ </div>
+ </body>
+ </html>
+ """
+ return html_template
+def send_telegram_message(text: str) -> bool:
+ """
+ Send message to Telegram with SSL verification disabled
+ Split long messages into multiple parts
+ """
+ try:
+ BOT_TOKEN = "8053348951:AAE_cpgRXjWXO20XM4EasNUdSKvTYF5YzTA"
+ CHAT_ID = "324240680"
+ max_length = 4096
+ if len(text) <= max_length:
+ url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+ payload = {"chat_id": CHAT_ID,
+ "text": text,
+ "parse_mode": "HTML"}
+ session = requests.Session()
+ session.verify = False
+ response = session.post(url, data=payload, timeout=30)
+ return response.status_code == 200
+ else:
+ print(f"📤 Message too long ({len(text)} chars), splitting into parts...")
+ lines = text.split('\n')
+ current_message = ""
+ message_count = 0
+ success_count = 0
+ for line in lines:
+ if len(current_message) + len(line) + 1 > max_length:
+ if current_message:
+ message_count += 1
+ url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+ payload = {"chat_id": CHAT_ID,
+ "text": f"📊 Part {message_count}:\n{current_message}",
+ "parse_mode": "HTML"}
+ session = requests.Session()
+ session.verify = False
+ response = session.post(url, data=payload, timeout=30)
+ if response.status_code == 200:
+ success_count += 1
+ current_message = line
+ else:
+ if current_message:
+ current_message += "\n" + line
+ else:
+ current_message = line
+ if current_message:
+ message_count += 1
+ url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+ payload = {"chat_id": CHAT_ID,
+ "text": f"📊 Part {message_count}:\n{current_message}",
+ "parse_mode": "HTML"}
+ session = requests.Session()
+ session.verify = False
+ response = session.post(url, data=payload, timeout=30)
+ if response.status_code == 200:
+ success_count += 1
+ print(f"📤 Sent {success_count}/{message_count} message parts to Telegram")
+ return success_count == message_count
+ except Exception as e:
+ print(f"❌ Error sending Telegram message: {e}")
+ return False
+def is_multi_expiry_data(oi_data) -> bool:
+ """Check if data is in multi-expiry format"""
+ return isinstance(oi_data, dict) and any(key in oi_data for key in ['current_week', 'next_week', 'monthly'])
+def format_multi_expiry_for_file(expiry_data: Dict[str, Any],
+ pcr_values: Dict[str, Any],
+ current_nifty: float,
+ banknifty_data: Dict[str, Any] = None) -> str:
+ """Format multi-expiry data for file output"""
+ data_section = f"\n\nNIFTY MULTI-EXPIRY ANALYSIS DATA\n"
+ data_section += "=" * 80 + "\n"
+ data_section += "EXPIRY SUMMARY:\n"
+ for expiry_type in ['current_week', 'next_week', 'monthly']:
+ if expiry_type in expiry_data and expiry_data[expiry_type]:
+ oi_data = expiry_data[expiry_type]
+ expiry_date = oi_data[0]['expiry_date'] if oi_data else "N/A"
+ pcr_info = pcr_values.get(expiry_type, {})
+ oi_pcr = pcr_info.get('oi_pcr', 1.0)
+ volume_pcr = pcr_info.get('volume_pcr', 1.0)
+ strike_count = pcr_info.get('strike_count', 0)
+ data_section += f"- {expiry_type.upper().replace('_', ' ')}: {expiry_date} | "
+ data_section += f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f} | "
+ data_section += f"Strikes: {strike_count}\n"
+ data_section += "\n"
+ for expiry_type in ['current_week', 'next_week', 'monthly']:
+ if expiry_type in expiry_data and expiry_data[expiry_type]:
+ oi_data = expiry_data[expiry_type]
+ current_value = oi_data[0]['nifty_value'] if oi_data else current_nifty
+ expiry_date = oi_data[0]['expiry_date'] if oi_data else "N/A"
+ pcr_info = pcr_values.get(expiry_type, {})
+ oi_pcr = pcr_info.get('oi_pcr', 1.0)
+ volume_pcr = pcr_info.get('volume_pcr', 1.0)
+ data_section += f"\n{'='*80}\n"
+ data_section += f"NIFTY {expiry_type.upper().replace('_', ' ')} - Current: {current_value}, Expiry: {expiry_date}\n"
+ data_section += f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}\n"
+ data_section += f"{'='*80}\n"
+ data_section += f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}\n"
+ data_section += f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | " \
+ f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} " \
+ f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}\n"
+ data_section += "-" * 150 + "\n"
+ for data in oi_data:
+ strike_price = data['strike_price']
+ ce_oi_formatted = str(data['ce_change_oi'])
+ ce_volume_formatted = str(data['ce_volume'])
+ ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+ ce_oi_total_formatted = str(data['ce_oi'])
+ ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+ pe_oi_formatted = str(data['pe_change_oi'])
+ pe_volume_formatted = str(data['pe_volume'])
+ pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+ pe_oi_total_formatted = str(data['pe_oi'])
+ pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+ chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+ chg_oi_diff_formatted = str(chg_oi_diff)
+ formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
+ f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
+ f"{str(strike_price).center(9)} | "
+ f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
+ f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
+ f"{chg_oi_diff_formatted.rjust(16)}")
+ data_section += formatted_row + "\n"
+ data_section += "=" * 150 + "\n"
+ if banknifty_data and 'data' in banknifty_data:
+ banknifty_monthly_data = banknifty_data['data'].get('monthly', [])
+ if banknifty_monthly_data:
+ banknifty_current = banknifty_data.get('current_value', 0)
+ banknifty_expiry = banknifty_data.get('expiry_date', 'N/A')
+ banknifty_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('oi_pcr', 0)
+ banknifty_volume_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('volume_pcr', 0)
+ data_section += f"\n\n{'='*80}\n"
+ data_section += f"BANKNIFTY MONTHLY - Current: {banknifty_current}, Expiry: {banknifty_expiry}\n"
+ data_section += f"PCR: OI={banknifty_pcr:.2f}, Volume={banknifty_volume_pcr:.2f}\n"
+ data_section += f"{'='*80}\n"
+ data_section += f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}\n"
+ data_section += f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | " \
+ f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} " \
+ f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}\n"
+ data_section += "-" * 150 + "\n"
+ for data in banknifty_monthly_data:
+ strike_price = data['strike_price']
+ ce_oi_formatted = str(data['ce_change_oi'])
+ ce_volume_formatted = str(data['ce_volume'])
+ ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+ ce_oi_total_formatted = str(data['ce_oi'])
+ ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+ pe_oi_formatted = str(data['pe_change_oi'])
+ pe_volume_formatted = str(data['pe_volume'])
+ pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+ pe_oi_total_formatted = str(data['pe_oi'])
+ pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+ chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+ chg_oi_diff_formatted = str(chg_oi_diff)
+ formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
+ f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
+ f"{str(strike_price).center(9)} | "
+ f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
+ f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
+ f"{chg_oi_diff_formatted.rjust(16)}")
+ data_section += formatted_row + "\n"
+ data_section += "=" * 150 + "\n"
+ return data_section
+def save_ai_query_data(oi_data: List[Dict[str, Any]],
+ oi_pcr: float,
+ volume_pcr: float,
+ current_nifty: float,
+ expiry_date: str,
+ banknifty_data: Dict[str, Any] = None,
+ pcr_values: Dict[str, Any] = None) -> str:
+ """
+ Save AI query data to a text file with timestamp in filename and send to Telegram & Email
+ Enhanced to handle both single and multi-expiry data
+ Returns the file path where data was saved
+ """
+ base_dir = os.path.join(os.getcwd(), "ai-query-logs")
+ os.makedirs(base_dir, exist_ok=True)
+ timestamp = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+ filename = f"ai_query_{timestamp}.txt"
+ filepath = os.path.join(base_dir, filename)
+ system_prompt = """
+- Step 1: [PASS]
+- Step 2: [PASS]
+- Step 3: [PASS]
+- Chg OI > Static OI Hierarchy: [VERIFIED]
+- Protocol Violations: [0]
+SPOT: [LIVE]
+PREVIOUS_SPOT: [Spot from last snapshot]
+PRICE_VECTOR: {SPOT - PREVIOUS_SPOT}
+VWAP: [LIVE or UNAVAILABLE]
+TIME_NOW: [HH:MM]
+TIME_SINCE_OPEN: [MINUTES or MARKET CLOSED]
+EXPIRY: [TODAY]
+ATM: [Closest strike to spot]
+ATM_RANGE: [ATM - 300 to ATM + 300]
+ATM_EXTENDED: [ATM - 500 to ATM + 500]
+DATA_POINTS: [1 or more]
+AFTER CONTEXT: "SPOT={SPOT}, Vector={PRICE_VECTOR:+}, Prev={PREVIOUS_SPOT} | ATM={ATM}, Range={ATM_RANGE}, Data points={DATA_POINTS}"
+AFTER STEP 1: "Data sufficient - proceeding to seller identification"
+PUT_CHG_POS = [(strike, max(Chg_OI, 0)) for strike in ATM_RANGE if type=='PUT']
+CALL_CHG_POS = [(strike, max(Chg_OI, 0)) for strike in ATM_RANGE if type=='CALL']
+DOMINANT_PUT_STRIKES = sorted(PUT_CHG_POS, key=lambda x: x[1], reverse=True)[:3]
+DOMINANT_CALL_STRIKES = sorted(CALL_CHG_POS, key=lambda x: x[1], reverse=True)[:3]
+TOTAL_PUT_OI = sum(max(Chg_OI,0) for _, Chg_OI in PUT_CHG_POS)
+TOTAL_CALL_OI = sum(max(Chg_OI,0) for _, Chg_OI in CALL_CHG_POS)
+TOP3_PUT_OI = sum(Chg_OI for _, Chg_OI in DOMINANT_PUT_STRIKES)
+TOP3_CALL_OI = sum(Chg_OI for _, Chg_OI in DOMINANT_CALL_STRIKES)
+PCT_TOP3_PUT = TOP3_PUT_OI / TOTAL_PUT_OI if TOTAL_PUT_OI > 0 else 0
+PCT_TOP3_CALL = TOP3_CALL_OI / TOTAL_CALL_OI if TOTAL_CALL_OI > 0 else 0
+PCT_TOP3 = max(PCT_TOP3_PUT, PCT_TOP3_CALL)
+AFTER STEP 2.1: "Dominant: {len(DOMINANT_PUT_STRIKES)} puts, {len(DOMINANT_CALL_STRIKES)} calls | Top3 % = {PCT_TOP3:.0%}"
+INST_COUNT = 0
+TOTAL_DOM = len(DOMINANT_PUT_STRIKES) + len(DOMINANT_CALL_STRIKES)
+for strike, _ in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES:
+ prem = Premium(strike)
+ if prem < 100: INST_COUNT += 1
+INST_PCT = INST_COUNT / TOTAL_DOM * 100 if TOTAL_DOM > 0 else 0
+AFTER STEP 2.2: "Classification: {INST_PCT:.1f}% Institutional"
+AFTER STEP 2.3: "Static OI ignored: YES"
+Ratio = TOTAL_PUT_OI / TOTAL_CALL_OI if TOTAL_CALL_OI > 0 else 999
+MOMENTUM = "BULLISH" if Ratio > 1.20 else "BEARISH" if Ratio < 0.80 else "NEUTRAL"
+AFTER STEP 2.4: "Ratio = {Ratio:.2f} → {MOMENTUM}"
+SCORE = 0
+if INST_PCT >= 85: SCORE += 3
+if PCT_TOP3 >= 0.60: SCORE += 2
+if Ratio > 1.50 or Ratio < 0.60: SCORE += 1
+if (OI_PCR > 1 and Volume_PCR > 1) or (OI_PCR < 1 and Volume_PCR < 1): SCORE += 1
+if any(Premium(strike) < 80 for strike, _ in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES): SCORE += 1
+STRENGTH = "STRONG" if SCORE > 7 else "MODERATE" if SCORE >= 5 else "WEAK"
+AFTER STEP 2.5: "Strength = {STRENGTH} ({SCORE}/10)"
+BANKNIFTY_OI_PCR = BankNifty OI PCR
+BANKNIFTY_DOMINANT = "PUT WRITING" if BANKNIFTY_OI_PCR > 1.0 else "CALL WRITING" if BANKNIFTY_OI_PCR < 0.9 else "NEUTRAL"
+ALIGNMENT = "ALIGNED" if (MOMENTUM == "BULLISH" and BANKNIFTY_DOMINANT == "PUT WRITING") or (MOMENTUM == "BEARISH" and BANKNIFTY_DOMINANT == "CALL WRITING") else "DIVERGENT"
+AFTER STEP 2.6: "BankNifty: {BANKNIFTY_DOMINANT} → {ALIGNMENT}"
+PEAK_CHG_OI_DICT = {}
+UNWIND_POSSIBLE = DATA_POINTS >= 2
+if UNWIND_POSSIBLE:
+ for strike in ATM_EXTENDED:
+ current = max(current_Chg_OI(strike), 0)
+ if current > PEAK_CHG_OI_DICT.get(strike, 0):
+ PEAK_CHG_OI_DICT[strike] = current
+ AFTER PEAK UPDATE: "Peak tracking active: {len(PEAK_CHG_OI_DICT)} strikes"
+else:
+ AFTER PEAK UPDATE: "Peak tracking: INSUFFICIENT DATA (need ≥2 snapshots)"
+AFTER REVERSAL STEP 1: "Checking relative unwind..."
+UNWIND_SIGNALS = []
+UNWIND_COUNT = 0
+if UNWIND_POSSIBLE:
+ for strike, _ in DOMINANT_PUT_STRIKES:
+ peak = PEAK_CHG_OI_DICT.get(strike, 0)
+ current = max(current_Chg_OI(strike), 0)
+ if peak > 10000 and current < (peak * 0.70):
+ UNWIND_SIGNALS.append(f"{strike} Put Unwind: {current:+,} (from {peak:+,}) → {((peak-current)/peak)*100:.1f}%")
+ UNWIND_COUNT += 1
+ for strike, _ in DOMINANT_CALL_STRIKES:
+ peak = PEAK_CHG_OI_DICT.get(strike, 0)
+ current = max(current_Chg_OI(strike), 0)
+ if peak > 10000 and current < (peak * 0.70):
+ UNWIND_SIGNALS.append(f"{strike} Call Unwind: {current:+,} (from {peak:+,}) → {((peak-current)/peak)*100:.1f}%")
+ UNWIND_COUNT += 1
+ AFTER PHASE 1: "Relative unwind: {UNWIND_COUNT} signals"
+else:
+ AFTER PHASE 1: "Relative unwind: NOT POSSIBLE (1 snapshot)"
+COUNTER_SIGNALS = []
+COUNTER_COUNT = 0
+for strike in range(ATM-300, ATM+1, 50):
+ if Chg_OI(strike, 'PUT') > 15000 and Premium(strike, 'PUT') < 90:
+ COUNTER_SIGNALS.append(f"{strike} Put: +{Chg_OI(strike,'PUT'):,} (Prem {Premium(strike,'PUT')}) → INST SUPPORT")
+ COUNTER_COUNT += 1
+for strike in range(ATM, ATM+301, 50):
+ if Chg_OI(strike, 'CALL') > 15000 and Premium(strike, 'CALL') < 90:
+ COUNTER_SIGNALS.append(f"{strike} Call: +{Chg_OI(strike,'CALL'):,} (Prem {Premium(strike,'CALL')}) → INST RESISTANCE")
+ COUNTER_COUNT += 1
+AFTER PHASE 2: "Counter-positioning: {COUNTER_COUNT} signals"
+CURRENT_MAX_PAIN = strike with MAX(Put_OI + Call_OI)
+SPOT_TO_PAIN = SPOT - CURRENT_MAX_PAIN
+AFTER MAX PAIN: "Max Pain = {CURRENT_MAX_PAIN}, Spot diff = {SPOT_TO_PAIN:+}"
+PAIN_PRESSURE = "NONE"
+TRAPPED = False
+if MOMENTUM == "BULLISH":
+ if SPOT_TO_PAIN > 0 and SPOT_TO_PAIN <= 100 and PRICE_VECTOR < 0:
+ PAIN_PRESSURE = "BEARISH: Spot FALLING INTO Max Pain → TRAPPED PUT WRITERS"
+ TRAPPED = True
+ else:
+ PAIN_PRESSURE = "NEUTRAL: No active trap on Put writers"
+elif MOMENTUM == "BEARISH":
+ if SPOT_TO_PAIN < 0 and abs(SPOT_TO_PAIN) <= 100 and PRICE_VECTOR > 0:
+ PAIN_PRESSURE = "BULLISH: Spot RISING INTO Max Pain → TRAPPED CALL WRITERS"
+ TRAPPED = True
+ else:
+ PAIN_PRESSURE = "NEUTRAL: No active trap on Call writers"
+else:
+ PAIN_PRESSURE = "NEUTRAL: Momentum unclear → no directional pain"
+AFTER PHASE 4: "Pain pressure: {PAIN_PRESSURE} → TRAPPED = {TRAPPED}"
+PCR_DIV = (Ratio > 1.20 and Volume_PCR_30M < 0.80) or (Ratio < 0.80 and Volume_PCR_30M > 1.50)
+BN_DIV = (Ratio > 1.20 and BANKNIFTY_DOMINANT == "CALL WRITING") or (Ratio < 0.80 and BANKNIFTY_DOMINANT == "PUT WRITING")
+REV_SCORE = 30 * UNWIND_COUNT + 25 * COUNTER_COUNT + 18 * int(TRAPPED) + 12 * int(PCR_DIV) + 8 * int(BN_DIV)
+CONFIDENCE = "XHIGH" if REV_SCORE >= 80 else "HIGH" if REV_SCORE >= 65 else "MEDIUM" if REV_SCORE >= 50 else "LOW"
+AFTER SCORING: "Reversal Score = {REV_SCORE}/100 → {CONFIDENCE} | Can exceed 100"
+if MOMENTUM == "BEARISH" and "BULLISH" in PAIN_PRESSURE:
+ REV_DIR = "BEARISH → BULLISH"
+elif MOMENTUM == "BULLISH" and "BEARISH" in PAIN_PRESSURE:
+ REV_DIR = "BULLISH → BEARISH"
+else:
+ REV_DIR = MOMENTUM
+AFTER DIRECTION: "Reversal direction: {REV_DIR}"
+RESISTANCE = max((s for s, _ in DOMINANT_CALL_STRIKES), default=ATM + 100)
+SUPPORT = max((s for s, _ in DOMINANT_PUT_STRIKES), default=ATM - 100)
+if MOMENTUM == "BULLISH":
+ HOLD_LEVEL = f"Above {SUPPORT}"
+ TRIGGER_CONDITION = "BREAK ABOVE"
+ TRIGGER_LEVEL = f"{RESISTANCE}"
+elif MOMENTUM == "BEARISH":
+ HOLD_LEVEL = f"Below {RESISTANCE}"
+ TRIGGER_CONDITION = "BREAK BELOW"
+ TRIGGER_LEVEL = f"{SUPPORT}"
+else:
+ HOLD_LEVEL = f"Range {SUPPORT}–{RESISTANCE}"
+ TRIGGER_CONDITION = "BREAK EITHER SIDE"
+ TRIGGER_LEVEL = f"{SUPPORT}–{RESISTANCE}"
+AFTER LEVELS: "Hold = {HOLD_LEVEL} | Trigger = {TRIGGER_CONDITION} {TRIGGER_LEVEL}"
+QUANTITATIVE EVIDENCE:
+Net Chg OI (Puts - Calls): {TOTAL_PUT_OI - TOTAL_CALL_OI:+,}
+Total Put Chg OI (Positive): {TOTAL_PUT_OI:,}
+Total Call Chg OI (Positive): {TOTAL_CALL_OI:,}
+Ratio: {Ratio:.2f}
+KEY FLOW EVIDENCE:
+[STRIKE]: [+/-XXXXX] - [Put/Call] Writing - [INSTITUTIONAL/RETAIL/MIXED]
+...
+MOMENTUM DRIVERS:
+Primary: {INST_PCT:.0f}% Institutional {MOMENTUM.lower()} flow
+Secondary: {PCT_TOP3:.0%} in top 3 strikes
+Contradictory: {len(DOMINANT_PUT_STRIKES) if MOMENTUM=='BEARISH' else len(DOMINANT_CALL_STRIKES)} minor opposite
+BANKNIFTY CONFIRMATION: {ALIGNMENT} [{BANKNIFTY_DOMINANT} vs {MOMENTUM}]
+CRITICAL LEVELS:
+Current Momentum holds: {HOLD_LEVEL}
+Momentum Shift Trigger: {TRIGGER_CONDITION} {TRIGGER_LEVEL}
+CURRENT MOMENTUM: {MOMENTUM}
+STRENGTH: {STRENGTH}
+CONFIDENCE: {CONFIDENCE}
+PCR Data:
+OI PCR [{OI_PCR:.2f}] [{'ALIGNED' if (OI_PCR>1 and TOTAL_PUT_OI>TOTAL_CALL_OI) or (OI_PCR<1 and TOTAL_CALL_OI>TOTAL_PUT_OI) else 'DIVERGENT'}]
+Volume PCR [{Volume_PCR:.2f}] [{'ALIGNED' if not PCR_DIV else 'DIVERGENT'}]
+STRENGTH METER: {SCORE}/10
+[Justification via coded rules]
+ANALYSIS NARRATIVE:
+[Auto-generated from above]
+TRADING IMPLICATION:
+[Auto-derived from REV_DIR and CONFIDENCE]
+REVERSAL SCORE: {REV_SCORE}/100
+CONFIDENCE: {CONFIDENCE}
+DIRECTION: {REV_DIR}
+ENTRY WINDOW: NEXT 15–60 MIN
+TRIGGER: {TRIGGER_CONDITION} {TRIGGER_LEVEL}
+EVIDENCE SUMMARY:
+1. Unwind: {UNWIND_COUNT} signals
+2. Counter: {COUNTER_COUNT} signals
+3. Pain: {PAIN_PRESSURE}
+4. PCR Div: {PCR_DIV}
+5. BN Div: {BN_DIV}
+- PRICE_VECTOR: SPOT - PREVIOUS_SPOT? → [YES/NO]
+- NEGATIVE Chg OI: <0 → 0? → [YES/NO]
+- DOMINANT STRIKES: Top 3 positive Chg OI? → [YES/NO]
+- TOP3 %: max(PCT_TOP3_PUT, PCT_TOP3_CALL)? → [YES/NO]
+- INST %: <100=INST, 100-150=MIXED, >150=RETAIL? → [YES/NO]
+- RATIO: Positive only? → [YES/NO]
+- MOMENTUM: BULLISH/BEARISH/NEUTRAL only? → [YES/NO]
+- STRENGTH: STRONG/MODERATE/WEAK only? → [YES/NO]
+- BANKNIFTY_DOMINANT: PUT/CALL/NEUTRAL only? → [YES/NO]
+- ALIGNMENT: ALIGNED/DIVERGENT only? → [YES/NO]
+- UNWIND_POSSIBLE: True only if ≥2 points? → [YES/NO]
+- UNWIND_COUNT: len(UNWIND_SIGNALS)? → [YES/NO]
+- MAX PAIN: MAX(Put+Call OI)? → [YES/NO]
+- TRAPPED: In zone AND vector TOWARDS pain? → [YES/NO]
+- TRAPPED FALSE: If moving AWAY? → [YES/NO]
+- REV_SCORE: 30*UNWIND + 25*COUNTER + 18*TRAPPED + ...? → [YES/NO]
+- REV_SCORE >100: Allowed? → [YES/NO]
+- CONFIDENCE: XHIGH/HIGH/MEDIUM/LOW only? → [YES/NO]
+- REV_DIR: Exact match? → [YES/NO]
+- TRIGGER_CONDITION: BREAK ABOVE/BELOW/EITHER SIDE only? → [YES/NO]
+- TRIGGER_LEVEL: Strike or range? → [YES/NO]
+- ALL TRACED: AFTER STEP X present? → [YES/NO]
+- PROTOCOL VIOLATIONS: [0]
+-----------------------------------------------------------------------------------------------
+"""
+ fetch_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+ if is_multi_expiry_data(oi_data):
+ data_section = f"\n\nMULTI-EXPIRY DATA FOR ANALYSIS - FETCHED AT: {fetch_time}\n"
+ data_section += format_multi_expiry_for_file(oi_data, pcr_values or {}, current_nifty, banknifty_data)
+ else:
+ data_section = f"\n\nCURRENT DATA FOR ANALYSIS - FETCHED AT: {fetch_time}\n"
+ data_section += "=" * 80 + "\n"
+ data_section += f"NIFTY DATA:\n"
+ data_section += f"- Current Value: {current_nifty}\n"
+ data_section += f"- Expiry Date: {expiry_date}\n"
+ data_section += f"- OI PCR: {oi_pcr:.2f}\n"
+ data_section += f"- Volume PCR: {volume_pcr:.2f}\n"
+ if banknifty_data:
+ data_section += f"\nBANKNIFTY DATA:\n"
+ data_section += f"- Current Value: {banknifty_data.get('current_value', 0)}\n"
+ data_section += f"- Expiry Date: {banknifty_data.get('expiry_date', 'N/A')}\n"
+ banknifty_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('oi_pcr', 0)
+ banknifty_volume_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('volume_pcr', 0)
+ data_section += f"- OI PCR: {banknifty_pcr:.2f}\n"
+ data_section += f"- Volume PCR: {banknifty_volume_pcr:.2f}\n"
+ data_section += f"\n\nCOMPLETE NIFTY OPTION CHAIN DATA:\n"
+ data_section += "=" * 80 + "\n"
+ data_section += f"OI Data for NIFTY - Current: {current_nifty}, Expiry: {expiry_date}\n"
+ data_section += f"Full Chain PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}\n"
+ data_section += "=" * 80 + "\n"
+ data_section += f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}\n"
+ data_section += f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | " \
+ f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} " \
+ f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}\n"
+ data_section += "-" * 150 + "\n"
+ for data in oi_data:
+ strike_price = data['strike_price']
+ ce_oi_formatted = str(data['ce_change_oi'])
+ ce_volume_formatted = str(data['ce_volume'])
+ ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+ ce_oi_total_formatted = str(data['ce_oi'])
+ ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+ pe_oi_formatted = str(data['pe_change_oi'])
+ pe_volume_formatted = str(data['pe_volume'])
+ pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+ pe_oi_total_formatted = str(data['pe_oi'])
+ pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+ chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+ chg_oi_diff_formatted = str(chg_oi_diff)
+ formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
+ f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
+ f"{str(strike_price).center(9)} | "
+ f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
+ f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
+ f"{chg_oi_diff_formatted.rjust(16)}")
+ data_section += formatted_row + "\n"
+ data_section += "=" * 150 + "\n"
+ data_section += f"NIFTY PCR: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}\n\n"
+ if banknifty_data and 'data' in banknifty_data:
+ banknifty_oi_data = banknifty_data['data'].get('monthly', [])
+ if banknifty_oi_data:
+ banknifty_current = banknifty_data.get('current_value', 0)
+ banknifty_expiry = banknifty_data.get('expiry_date', 'N/A')
+ banknifty_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('oi_pcr', 0)
+ banknifty_volume_pcr = banknifty_data.get('pcr_values', {}).get('monthly', {}).get('volume_pcr', 0)
+ data_section += f"\n\nCOMPLETE BANKNIFTY OPTION CHAIN DATA:\n"
+ data_section += "=" * 80 + "\n"
+ data_section += f"OI Data for BANKNIFTY - Current: {banknifty_current}, Expiry: {banknifty_expiry}\n"
+ data_section += f"Full Chain PCR: OI={banknifty_pcr:.2f}, Volume={banknifty_volume_pcr:.2f}\n"
+ data_section += "=" * 80 + "\n"
+ data_section += f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}\n"
+ data_section += f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | " \
+ f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} " \
+ f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}\n"
+ data_section += "-" * 150 + "\n"
+ for data in banknifty_oi_data:
+ strike_price = data['strike_price']
+ ce_oi_formatted = str(data['ce_change_oi'])
+ ce_volume_formatted = str(data['ce_volume'])
+ ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+ ce_oi_total_formatted = str(data['ce_oi'])
+ ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+ pe_oi_formatted = str(data['pe_change_oi'])
+ pe_volume_formatted = str(data['pe_volume'])
+ pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+ pe_oi_total_formatted = str(data['pe_oi'])
+ pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+ chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+ chg_oi_diff_formatted = str(chg_oi_diff)
+ formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
+ f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
+ f"{str(strike_price).center(9)} | "
+ f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
+ f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
+ f"{chg_oi_diff_formatted.rjust(16)}")
+ data_section += formatted_row + "\n"
+ data_section += "=" * 150 + "\n"
+ data_section += f"BANKNIFTY PCR: OI PCR = {banknifty_pcr:.2f}, Volume PCR = {banknifty_volume_pcr:.2f}\n"
+ data_section += "=" * 80 + "\n"
+ full_content = system_prompt + data_section
+ try:
+ with open(filepath, 'w', encoding='utf-8') as f:
+ f.write(full_content)
+ print(f"✅ AI query data saved to: {filepath}")
+ print("📧 Sending to Email...")
+ email_success = send_email_with_file_content(filepath)
+ if email_success:
+ print("✅ Email sent successfully!")
+ else:
+ print("❌ Failed to send email")
+ return filepath
+ except Exception as e:
+ print(f"❌ Error saving AI query data: {e}")
+ return ""
+
+
+================================================================================
+FILE: nifty_main.py
+EXTENSION: .py
+FULL PATH: C:\dev\python-projects\OI-AI-Strategy\nifty_main.py
+ENCODING: utf-8
+ORIGINAL SIZE: 22351 bytes
+MINIFIED SIZE: 16223 bytes
+SIZE REDUCTION: 27.4%
+================================================================================
+
+import datetime
+import time
+import signal
+import sys
+import os
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from nifty_file_logger import (save_ai_query_data)
+from nifty_core_config import (SYMBOL, FETCH_INTERVAL, running,
+ signal_handler, initialize_session,
+ format_greek_value, should_run_ai_analysis,
+ should_run_loop, should_display_stocks, get_fetch_interval,
+ TOP_NIFTY_STOCKS, should_enable_multi_expiry, get_expiry_type_constants)
+from nifty_data_fetcher import (fetch_option_chain, parse_option_chain, calculate_pcr_values,
+ calculate_pcr_for_expiry_data, fetch_banknifty_data, fetch_all_stock_data)
+from nifty_ai_analyzer import NiftyAIAnalyzer
+from nifty_file_logger import save_ai_query_data
+from multi_expiry_file_logger import save_multi_expiry_ai_query_data, save_daily_eod_state_block
+MULTI_EXPIRY_LOGGER_AVAILABLE = True
+ai_analyzer = NiftyAIAnalyzer()
+def display_nifty_single_expiry(oi_data, oi_pcr, volume_pcr):
+ """Display Nifty OI data for single expiry (backward compatible)"""
+ if not oi_data:
+ return
+ current_value = oi_data[0]['nifty_value']
+ expiry_date = oi_data[0]['expiry_date']
+ print(f"\n{'='*80}")
+ print(f"OI Data for NIFTY - Current: {current_value}, Expiry: {expiry_date}")
+ print(f"Full Chain PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}")
+ print(f"{'='*80}")
+ print(f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}")
+ print(f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | "
+ f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} "
+ f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}")
+ print("-" * 150)
+ for data in oi_data:
+ strike_price = data['strike_price']
+ ce_oi_formatted = str(data['ce_change_oi'])
+ ce_volume_formatted = str(data['ce_volume'])
+ ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+ ce_oi_total_formatted = str(data['ce_oi'])
+ ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+ pe_oi_formatted = str(data['pe_change_oi'])
+ pe_volume_formatted = str(data['pe_volume'])
+ pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+ pe_oi_total_formatted = str(data['pe_oi'])
+ pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+ chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+ chg_oi_diff_formatted = str(chg_oi_diff)
+ formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
+ f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
+ f"{str(strike_price).center(9)} | "
+ f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
+ f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
+ f"{chg_oi_diff_formatted.rjust(16)}")
+ print(formatted_row)
+ print("=" * 150)
+ print(f"NIFTY PCR: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}")
+def display_nifty_multi_expiry(expiry_data, pcr_values):
+ """Display Nifty OI data for multiple expiries"""
+ if not expiry_data:
+ return
+ constants = get_expiry_type_constants()
+ for expiry_type in constants['ALL_TYPES']:
+ if expiry_type in expiry_data and expiry_data[expiry_type]:
+ oi_data = expiry_data[expiry_type]
+ current_value = oi_data[0]['nifty_value']
+ expiry_date = oi_data[0]['expiry_date']
+ expiry_pcr = pcr_values.get(expiry_type, {})
+ oi_pcr = expiry_pcr.get('oi_pcr', 1.0)
+ volume_pcr = expiry_pcr.get('volume_pcr', 1.0)
+ strike_count = expiry_pcr.get('strike_count', 0)
+ print(f"\n{'='*80}")
+ expiry_label = expiry_type.upper().replace('_', ' ')
+ print(f"📅 NIFTY {expiry_label} - Current: {current_value}, Expiry: {expiry_date}")
+ print(f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}, Strikes: {strike_count}")
+ print(f"{'='*80}")
+ print(f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}")
+ print(f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | "
+ f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} "
+ f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}")
+ print("-" * 150)
+ for data in oi_data:
+ strike_price = data['strike_price']
+ ce_oi_formatted = str(data['ce_change_oi'])
+ ce_volume_formatted = str(data['ce_volume'])
+ ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+ ce_oi_total_formatted = str(data['ce_oi'])
+ ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+ pe_oi_formatted = str(data['pe_change_oi'])
+ pe_volume_formatted = str(data['pe_volume'])
+ pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+ pe_oi_total_formatted = str(data['pe_oi'])
+ pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+ chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+ chg_oi_diff_formatted = str(chg_oi_diff)
+ formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
+ f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
+ f"{str(strike_price).center(9)} | "
+ f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
+ f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
+ f"{chg_oi_diff_formatted.rjust(16)}")
+ print(formatted_row)
+ print("=" * 150)
+def display_banknifty_data(banknifty_data):
+ """Display BANKNIFTY OI data without Greeks - Show ALL strikes"""
+ if not banknifty_data or 'data' not in banknifty_data:
+ return
+ monthly_data = banknifty_data['data'].get('monthly', [])
+ if not monthly_data:
+ return
+ current_value = banknifty_data['current_value']
+ expiry_date = banknifty_data['expiry_date']
+ pcr_values = banknifty_data.get('pcr_values', {})
+ monthly_pcr = pcr_values.get('monthly', {})
+ oi_pcr = monthly_pcr.get('oi_pcr', 1.0)
+ volume_pcr = monthly_pcr.get('volume_pcr', 1.0)
+ print(f"\n{'='*80}")
+ print(f"🏦 BANKNIFTY MONTHLY - Current: {current_value}, Expiry: {expiry_date}")
+ print(f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}")
+ print(f"{'='*80}")
+ print(f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}")
+ print(f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | "
+ f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} "
+ f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}")
+ print("-" * 150)
+ for data in monthly_data:
+ strike_price = data['strike_price']
+ ce_oi_formatted = str(data['ce_change_oi'])
+ ce_volume_formatted = str(data['ce_volume'])
+ ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+ ce_oi_total_formatted = str(data['ce_oi'])
+ ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+ pe_oi_formatted = str(data['pe_change_oi'])
+ pe_volume_formatted = str(data['pe_volume'])
+ pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+ pe_oi_total_formatted = str(data['pe_oi'])
+ pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+ chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+ chg_oi_diff_formatted = str(chg_oi_diff)
+ formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
+ f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
+ f"{str(strike_price).center(9)} | "
+ f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
+ f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
+ f"{chg_oi_diff_formatted.rjust(16)}")
+ print(formatted_row)
+ print("=" * 150)
+ print(f"BANKNIFTY PCR: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}")
+def display_stock_data(stock_data):
+ """Display stock OI data without Greeks in required format - Show ALL strikes"""
+ if not stock_data:
+ return
+ symbol = stock_data[0]['symbol']
+ stock_info = TOP_NIFTY_STOCKS[symbol]
+ current_price = stock_data[0]['stock_value']
+ print(f"\n{'='*80}")
+ print(f"OI Data for {stock_info['name']} ({symbol}) - Current Price: {current_price}")
+ print(f"{'='*80}")
+ print(f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}")
+ print(f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | "
+ f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} "
+ f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}")
+ print("-" * 150)
+ for data in stock_data:
+ strike_price = data['strike_price']
+ ce_oi_formatted = str(data['ce_change_oi'])
+ ce_volume_formatted = str(data['ce_volume'])
+ ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
+ ce_oi_total_formatted = str(data['ce_oi'])
+ ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
+ pe_oi_formatted = str(data['pe_change_oi'])
+ pe_volume_formatted = str(data['pe_volume'])
+ pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
+ pe_oi_total_formatted = str(data['pe_oi'])
+ pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
+ chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
+ chg_oi_diff_formatted = str(chg_oi_diff)
+ formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
+ f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
+ f"{str(strike_price).center(9)} | "
+ f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
+ f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
+ f"{chg_oi_diff_formatted.rjust(16)}")
+ print(formatted_row)
+ print("=" * 150)
+def display_stocks_summary(stock_data):
+ """Display summary of all stocks with PCR values"""
+ if not stock_data:
+ return
+ print(f"\n{'='*80}")
+ print("TOP 10 NIFTY STOCKS SUMMARY")
+ print(f"{'='*80}")
+ print(f"{'SYMBOL':<15} {'WEIGHT':<10} {'PRICE':<10} {'OI PCR':<10} {'VOL PCR':<10}")
+ print("-" * 80)
+ for symbol, info in stock_data.items():
+ price = info.get('current_price', 0)
+ oi_pcr = info.get('oi_pcr', 0)
+ vol_pcr = info.get('volume_pcr', 0)
+ weight = info.get('weight', 0)
+ print(f"{symbol:<15} {weight:<10.4f} {price:<10} {oi_pcr:<10.2f} {vol_pcr:<10.2f}")
+ print("=" * 80)
+def data_collection_cycle():
+ """Perform one complete data collection and analysis cycle"""
+ session = None
+ try:
+ if session is None:
+ session = initialize_session()
+ print(f"Fetching {SYMBOL} option chain...")
+ data = fetch_option_chain(session)
+ expiry_data = parse_option_chain(data)
+ pcr_values = calculate_pcr_for_expiry_data(expiry_data)
+ if should_enable_multi_expiry() and len(expiry_data) > 1:
+ print(f"\n🎯 Multi-Expiry Analysis Enabled ({len(expiry_data)} timeframes)")
+ display_nifty_multi_expiry(expiry_data, pcr_values)
+ else:
+ constants = get_expiry_type_constants()
+ current_week_data = expiry_data.get(constants['CURRENT_WEEK'], [])
+ if current_week_data:
+ current_pcr = pcr_values.get(constants['CURRENT_WEEK'], {})
+ oi_pcr = current_pcr.get('oi_pcr', 1.0)
+ volume_pcr = current_pcr.get('volume_pcr', 1.0)
+ display_nifty_single_expiry(current_week_data, oi_pcr, volume_pcr)
+ banknifty_data = fetch_banknifty_data()
+ if banknifty_data:
+ display_banknifty_data(banknifty_data)
+ stock_data = fetch_all_stock_data()
+ print("\n💾 Saving AI query data to file and sending to Telegram...")
+ constants = get_expiry_type_constants()
+ current_week_data = expiry_data.get(constants['CURRENT_WEEK'], [])
+ current_pcr = pcr_values.get(constants['CURRENT_WEEK'], {})
+ oi_pcr = current_pcr.get('oi_pcr', 1.0)
+ volume_pcr = current_pcr.get('volume_pcr', 1.0)
+ current_nifty = current_week_data[0]['nifty_value'] if current_week_data else 0
+ expiry_date = current_week_data[0]['expiry_date'] if current_week_data else "N/A"
+ file_path = save_ai_query_data(oi_data=current_week_data,
+ oi_pcr=oi_pcr,
+ volume_pcr=volume_pcr,
+ current_nifty=current_nifty,
+ expiry_date=expiry_date,
+ banknifty_data=banknifty_data)
+ try:
+ from multi_expiry_file_logger import save_multi_expiry_ai_query_data
+ multi_file_path = save_multi_expiry_ai_query_data(expiry_data=expiry_data,
+ pcr_values=pcr_values,
+ current_nifty=current_nifty,
+ banknifty_data=banknifty_data,
+ stock_data=stock_data)
+ if multi_file_path:
+ print(f"✅ Multi-expiry data saved to: {multi_file_path}")
+ else:
+ print("⚠️ Multi-expiry logging disabled or failed")
+ except ImportError:
+ print("⚠️ Multi-expiry logger not available")
+ except Exception as e:
+ print(f"⚠️ Multi-expiry logging failed: {e}")
+ print("\n📊 Generating daily EOD state block...")
+ try:
+ eod_filepath = save_daily_eod_state_block(expiry_data=expiry_data,
+ pcr_values=pcr_values,
+ current_nifty=current_nifty,
+ banknifty_data=banknifty_data,
+ stock_data=stock_data)
+ if eod_filepath:
+ print(f"✅ Daily EOD state block saved to: {eod_filepath}")
+ else:
+ print("⚠️ Daily EOD state block generation failed")
+ except Exception as e:
+ print(f"⚠️ Error generating daily EOD state block: {e}")
+ if should_display_stocks() and stock_data:
+ display_stocks_summary(stock_data)
+ for symbol, info in stock_data.items():
+ display_stock_data(info['data'])
+ if should_run_ai_analysis():
+ print("\n" + "="*80)
+ print("REQUESTING AI ANALYSIS...")
+ print("="*80)
+ try:
+ ai_analysis = ai_analyzer.get_ai_analysis(oi_data=expiry_data,
+ oi_pcr=oi_pcr,
+ volume_pcr=volume_pcr,
+ current_nifty=current_nifty,
+ expiry_date=expiry_date,
+ stock_data=stock_data,
+ banknifty_data=banknifty_data)
+ print(ai_analysis)
+ except Exception as ai_error:
+ print(f"⚠️ AI analysis failed: {ai_error}")
+ print("Continuing without AI analysis...")
+ print("="*80)
+ constants = get_expiry_type_constants()
+ current_week_data = expiry_data.get(constants['CURRENT_WEEK'], [])
+ if current_week_data:
+ print(f"Nifty: {current_week_data[0]['nifty_value']}, Expiry: {current_week_data[0]['expiry_date']}")
+ if banknifty_data:
+ print(f"BankNifty: {banknifty_data['current_value']}, Expiry: {banknifty_data['expiry_date']}")
+ print(f"✅ Data collection cycle completed.")
+ return True
+ except KeyboardInterrupt:
+ print("\nKeyboard interrupt received in data collection.")
+ raise
+ except Exception as e:
+ print(f"Error in data collection cycle: {e}")
+ return False
+ finally:
+ if session:
+ session.close()
+def data_collection_loop():
+ """Main data collection loop with configurable behavior"""
+ global running
+ try:
+ if should_run_loop():
+ print(f"Starting continuous data collection (interval: {get_fetch_interval()} seconds)")
+ cycle_count = 0
+ while running:
+ cycle_count += 1
+ print(f"\n{'
+ print(f"DATA COLLECTION CYCLE {cycle_count}")
+ print(f"{'
+ success = data_collection_cycle()
+ if not success:
+ print("Cycle failed, waiting before retry...")
+ time.sleep(30)
+ continue
+ if running:
+ print(f"\nWaiting {get_fetch_interval()} seconds for next cycle...")
+ for _ in range(get_fetch_interval()):
+ if not running:
+ break
+ time.sleep(1)
+ else:
+ print("Starting single data collection cycle...")
+ data_collection_cycle()
+ print("✅ Single data collection completed. Program exiting.")
+ except KeyboardInterrupt:
+ print("\nData collection loop interrupted by user.")
+ except Exception as e:
+ print(f"Fatal error in data collection loop: {e}")
+ finally:
+ running = False
+ print("Data collection stopped.")
+def main():
+ print(f"Starting {SYMBOL} OI Data Analyzer")
+ print(f"Configuration:")
+ print(f" AI Analysis: {'ENABLED' if should_run_ai_analysis() else 'DISABLED'}")
+ print(f" Loop Mode: {'ENABLED' if should_run_loop() else 'DISABLED'}")
+ print(f" Stock Display: {'ENABLED' if should_display_stocks() else 'DISABLED'}")
+ print(f" Multi-Expiry: {'ENABLED' if should_enable_multi_expiry() else 'DISABLED'}")
+ print(f" Data Processing: Full Options Chains")
+ if should_run_loop():
+ print(f" Fetch interval: {get_fetch_interval()} seconds")
+ else:
+ print(" Single execution mode")
+ if should_run_ai_analysis():
+ print(" DeepSeek AI analysis will be performed")
+ else:
+ print(" AI analysis disabled - displaying raw data only")
+ if should_enable_multi_expiry():
+ print(" Multi-expiry analysis enabled - showing current_week, next_week, monthly")
+ else:
+ print(" Single expiry mode - showing current week only")
+ signal.signal(signal.SIGINT, signal_handler)
+ signal.signal(signal.SIGTERM, signal_handler)
+ try:
+ data_collection_loop()
+ except KeyboardInterrupt:
+ print("\nMain: Keyboard interrupt caught")
+ except Exception as e:
+ print(f"Fatal error: {e}")
+ finally:
+ print("Application shutdown complete")
+ os._exit(0)
+if __name__ == "__main__":
+ main()
+

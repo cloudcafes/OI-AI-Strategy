@@ -380,10 +380,7 @@ def format_complete_multi_expiry_data(expiry_data: Dict[str, Any],
             data_section += "-" * 150 + "\n"
             
             # Display data rows (limit to first 20 strikes to avoid overwhelming)
-            displayed_strikes = 0
             for data in oi_data:
-                if displayed_strikes >= 20:  # Limit display to prevent file size explosion
-                    break
                     
                 strike_price = data['strike_price']
                 
@@ -414,7 +411,7 @@ def format_complete_multi_expiry_data(expiry_data: Dict[str, Any],
                 )
                 
                 data_section += formatted_row + "\n"
-                displayed_strikes += 1
+                
             
             if len(oi_data) > 20:
                 data_section += f"... and {len(oi_data) - 20} more strikes\n"
@@ -441,10 +438,7 @@ def format_complete_multi_expiry_data(expiry_data: Dict[str, Any],
                            f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}\n"
             data_section += "-" * 150 + "\n"
             
-            displayed_strikes = 0
             for data in banknifty_monthly_data:
-                if displayed_strikes >= 15:  # Limit BankNifty display
-                    break
                     
                 strike_price = data['strike_price']
                 
@@ -474,8 +468,7 @@ def format_complete_multi_expiry_data(expiry_data: Dict[str, Any],
                 )
                 
                 data_section += formatted_row + "\n"
-                displayed_strikes += 1
-            
+                            
             if len(banknifty_monthly_data) > 15:
                 data_section += f"... and {len(banknifty_monthly_data) - 15} more strikes\n"
             
@@ -572,750 +565,175 @@ def save_multi_expiry_ai_query_data(expiry_data: Dict[str, Any],
     
     # Enhanced multi-expiry system prompt
     system_prompt = """
-# =================================================================================
-# NIFTY MULTI-DAY TREND & REVERSAL ENGINE v2.2 [OPERATIONAL - ENFORCED]
-# AI ROLE: DETERMINISTIC OPTIONS DATA PROCESSOR
-# METHOD: "PROXY -> REGIME -> TREND -> CONFIRM -> TACTICS -> SYNTHESIS"
-# EVERY STEP = ASSERT + CODE + TRACE + LOCK
-# =================================================================================
+=================================================================================
+NIFTY MULTI-DAY TREND & REVERSAL ENGINE v2.4 [OPERATIONAL - ENFORCED - FILE INPUT]
+AI ROLE: DETERMINISTIC OPTIONS DATA PROCESSOR
+METHOD: "PARSE -> REGIME -> MOMENTUM -> TREND -> CONFIRM -> TACTICS -> SYNTHESIS"
+EVERY STEP = ASSERT + CODE + TRACE + LOCK
+=================================================================================
+USER INSTRUCTIONS (READ FIRST):
 
- USER INSTRUCTIONS (READ FIRST):
-1.  Your Role: You are the Data Provider. Your only task is to accurately paste data into the designated [...PASTE DATA HERE...] sections.
-2.  Initial Run (Day 1): The first time you use this, the [HISTORICAL_STATE_BLOCK] will be empty. This is expected. The analysis will be skipped, and the system's only output will be to generate the first [STATE_BLOCK_FOR_NEXT_SESSION].
-3.  Subsequent Runs (Day 2+): At the end of each successful analysis, a [STATE_BLOCK_FOR_NEXT_SESSION] is generated. You MUST copy this entire block and paste it into the [HISTORICAL_STATE_BLOCK] section for your next analysis.
-4.  Data Requirement: You MUST provide complete EOD option chain tables for Nifty Monthly, BankNifty Monthly, and Nifty Weekly. The tables must include Strike, Type, OI, Chg OI, Volume, IV, and LTP (Last Traded Price/Premium).
+Your Role: You are the Data Provider. Your primary task is to paste the current day's (T) complete options data at the end of this prompt.
+File Attachments: You MUST attach the three previous End-of-Day (EOD) data files. The AI will parse these for historical context. The files must be for T-1, T-2, and T-3 trading days.
+Initial Run: If you provide fewer than 3 historical files, the trend analysis will be skipped, and the system will enter an initialization state.
+Data Requirement: The pasted data and attached files MUST contain complete EOD option chain tables for Nifty Monthly, BankNifty Monthly, and Nifty Weekly. The tables must include Strike, Type, OI, Chg OI, Volume, IV, and LTP.
+PART 1: SYSTEM CONSTITUTION & DATA INPUT
 
----
+[SYSTEM_ROLE]: Your role is "Deterministic Options Data Processor v2.4". You are forbidden from using natural language, summarization, or making inferential leaps until the final, designated [ANALYSIS_NARRATIVE] step. Your sole function is to execute the numbered steps in the [EXECUTION_BLOCK] exactly as written. Any deviation will result in a failed analysis. Begin execution immediately.
 
- PART 1: SYSTEM CONSTITUTION & DATA INPUT
+[DATA_CONTRACT]: The following JSON structure defines the data input. You must verify its integrity. The current_data_block will be parsed from the text pasted at the end of the prompt. The historical_eod_files will be read from the file attachments.
 
-[SYSTEM_ROLE]: Your role is "Deterministic Options Data Processor v2.2". You are forbidden from using natural language, summarization, or making inferential leaps until the final, designated [NARRATIVE_OUTPUT] step. Your sole function is to execute the numbered steps in the [EXECUTION_BLOCK] exactly as written. Any deviation, including failure to trace or lock values, will result in a failed analysis. Begin execution immediately upon receiving this prompt.
+JSON
 
-[DATA_CONTRACT]: The following JSON structure contains all necessary data. You must verify its integrity in Step 0. Do not begin analysis if data is missing.
-
-json
 {
   "run_date": "[YYYY-MM-DD]",
 
   "current_data_block": {
-    "nifty_monthly_spot": "[...Current Nifty Spot Price...]",
-    "nifty_monthly_chain": "[...PASTE COMPLETE CURRENT NIFTY MONTHLY EOD OPTION CHAIN TABLE HERE...]",
-    "banknifty_monthly_spot": "[...Current BankNifty Spot Price...]",
-    "banknifty_monthly_chain": "[...PASTE COMPLETE CURRENT BANKNIFTY MONTHLY EOD OPTION CHAIN TABLE HERE...]",
-    "nifty_weekly_chain": "[...PASTE COMPLETE CURRENT NIFTY WEEKLY EOD OPTION CHAIN TABLE HERE...]"
+    "nifty_monthly_spot": "[...Current Nifty Spot Price (to be parsed)...]",
+    "nifty_monthly_chain": "[...Current Nifty Monthly EOD Option Chain Table (to be parsed)...]",
+    "banknifty_monthly_spot": "[...Current BankNifty Spot Price (to be parsed)...]",
+    "banknifty_monthly_chain": "[...Current BankNifty Monthly EOD Option Chain Table (to be parsed)...]",
+    "nifty_weekly_chain": "[...Current Nifty Weekly EOD Option Chain Table (to be parsed)...]"
   },
 
-  "historical_state_block": {
-    "generated_on": "[...PASTE from previous run's STATE_BLOCK...]",
-    "nifty_state": {
-      "last_3_trading_dates": "[...PASTE...]",
-      "last_3_eod_spots": "[...PASTE...]",
-      "last_3_pcr_ratios": "[...PASTE...]",
-      "previous_atm_straddle_price": "[...PASTE...]",
-      "previous_eod_oi": {
-        "[STRIKE]_[TYPE]": "[OI_VALUE]",
-        "...": "..."
-      }
-    },
-    "banknifty_state": {
-      "last_3_pcr_ratios": "[...PASTE...]",
-      "previous_eod_oi": {
-        "[STRIKE]_[TYPE]": "[OI_VALUE]",
-        "...": "..."
-      }
-    }
-  }
+  "historical_eod_files": [
+    "EOD_STATE_BLOCK_OF_T-3_DATE.txt",
+    "EOD_STATE_BLOCK_OF_T-2_DATE.txt",
+    "EOD_STATE_BLOCK_OF_T-1_DATE.txt"
+  ]
 }
+PART 2: THE EXECUTION BLOCK (DO NOT MODIFY)
 
+[SUB-ROUTINE DEFINITIONS]: You must conceptually use the following functions for calculations.
 
----
+PROCESS_EOD_FILE(file_content): A function that takes the text content of a historical EOD file and returns a structured object containing {nifty_spot, banknifty_spot, nifty_monthly_chain, banknifty_monthly_chain, nifty_weekly_chain}.
+CALCULATE_OI_METRICS(current_chain, previous_chain): A function that calculates key metrics based on the change in Open Interest. It returns an object: {pcr, momentum_vector}.
+total_put_chg_oi = SUM(max(0, current_put_oi - previous_put_oi)) for all strikes.
+total_call_chg_oi = SUM(max(0, current_call_oi - previous_call_oi)) for all strikes.
+pcr = total_put_chg_oi / total_call_chg_oi.
+momentum_vector = total_put_chg_oi - total_call_chg_oi.
+STEP 0: DATA INTEGRITY & HISTORICAL PARSING
 
- PART 2: THE EXECUTION BLOCK (DO NOT MODIFY)
-
-STEP 0: DATA INTEGRITY & INITIALIZATION
-- 0.1: ASSERT: current_data_block and all its sub-fields are present and not empty.
-- 0.2: CHECK FOR INITIAL RUN: CODE: IF historical_state_block.generated_on is empty THEN IS_INITIAL_RUN = TRUE ELSE IS_INITIAL_RUN = FALSE.
-- 0.3: TRACE: TRACE: IS_INITIAL_RUN = {IS_INITIAL_RUN}.
-- 0.4: HALT FOR INITIALIZATION (IF APPLICABLE): IF IS_INITIAL_RUN == TRUE, SET ANALYSIS_STATUS = 'INITIALIZING'. Skip all steps from 1 to 6 and proceed directly to PART 3.
-- 0.5: DATA GAP CHECK: days_since_last_run = run_date - historical_state_block.generated_on. If days_since_last_run > 4 (to account for weekends), set DATA_GAP_WARNING = TRUE else DATA_GAP_WARNING = FALSE.
-- 0.6: TRACE & LOCK: TRACE: Data Integrity Checks Passed. Data Gap Warning: {DATA_GAP_WARNING}. [LOCKED: DATA_GAP_WARNING]
-
+0.1: ASSERT: current_data_block (from pasted text) and all its sub-fields are parsed and not empty.
+0.2: CHECK FOR HISTORY: CODE: IS_INSUFFICIENT_HISTORY = TRUE if count(historical_eod_files) < 3 else FALSE.
+0.3: TRACE: TRACE: IS_INSUFFICIENT_HISTORY = {IS_INSUFFICIENT_HISTORY}.
+0.4: HALT FOR INITIALIZATION: IF IS_INSUFFICIENT_HISTORY == TRUE, SET ANALYSIS_STATUS = 'AWAITING_HISTORY'. Skip all steps from 1 to 7 and proceed directly to PART 3.
+0.5: PARSE HISTORICAL FILES:
+CODE: file_T1 = historical_eod_files[2]; file_T2 = historical_eod_files[1]; file_T3 = historical_eod_files[0].
+CODE: eod_data_T1 = PROCESS_EOD_FILE(content of file_T1); eod_data_T2 = PROCESS_EOD_FILE(content of file_T2); eod_data_T3 = PROCESS_EOD_FILE(content of file_T3).
+ASSERT: All eod_data objects and their internal data points were successfully parsed.
+0.6: DATA GAP CHECK: date_T1 = parse_date_from_filename(file_T1). days_since_last_run = run_date - date_T1. If days_since_last_run represents more than one trading day, DATA_GAP_WARNING = TRUE else DATA_GAP_WARNING = FALSE.
+0.7: TRACE & LOCK: TRACE: Historical Parsing Complete. Data Gap Warning: {DATA_GAP_WARNING}. [LOCKED: DATA_GAP_WARNING]
 STEP 1: GENERATE CORE PROXIES (NIFTY MONTHLY)
-- 1.1: Calculate Price Vector.
-    - CODE: previous_spot = historical_state_block.nifty_state.last_3_eod_spots[-1].
-    - CODE: PRICE_VECTOR = current_data_block.nifty_monthly_spot - previous_spot.
-- 1.2: Calculate Premium-Volume Anchor (PVA).
-    - CODE: For each strike in nifty_monthly_chain, pva_score = (Call_Volume * Call_LTP) + (Put_Volume * Put_LTP).
-    - CODE: PVA_ANCHOR = strike with MAX(pva_score).
-- 1.3: Calculate Volatility Vector.
-    - CODE: Find ATM_STRIKE closest to nifty_monthly_spot.
-    - CODE: current_atm_straddle_price = Premium(ATM_STRIKE, 'CALL') + Premium(ATM_STRIKE, 'PUT').
-    - CODE: VOLATILITY_VECTOR = current_atm_straddle_price - historical_state_block.nifty_state.previous_atm_straddle_price.
-- 1.4: TRACE & LOCK: TRACE: PRICE_VECTOR={PRICE_VECTOR:+.2f}, PVA_ANCHOR={PVA_ANCHOR}, VOLATILITY_VECTOR={VOLATILITY_VECTOR:+.2f}. [LOCKED: PRICE_VECTOR, PVA_ANCHOR, VOLATILITY_VECTOR, current_atm_straddle_price]
 
+1.1: Calculate Price Vector. CODE: PRICE_VECTOR = current_data_block.nifty_monthly_spot - eod_data_T1.nifty_spot.
+1.2: Calculate Premium-Volume Anchor (PVA). CODE: For each strike in current_data_block.nifty_monthly_chain, pva_score = (Call_Volume * Call_LTP) + (Put_Volume * Put_LTP). PVA_ANCHOR = strike with MAX(pva_score).
+1.3: Calculate Volatility Vector. CODE: Find ATM_STRIKE closest to nifty_monthly_spot. current_atm_straddle_price = Premium(ATM_STRIKE, 'CALL') + Premium(ATM_STRIKE, 'PUT'). previous_atm_straddle_price = same calculation on eod_data_T1. VOLATILITY_VECTOR = current_atm_straddle_price - previous_atm_straddle_price.
+1.4: TRACE & LOCK: TRACE: PRICE_VECTOR={PRICE_VECTOR:+.2f}, PVA_ANCHOR={PVA_ANCHOR}, VOLATILITY_VECTOR={VOLATILITY_VECTOR:+.2f}. [LOCKED: PRICE_VECTOR, PVA_ANCHOR, VOLATILITY_VECTOR]
+1.5: Determine Volatility Pressure.
+CODE: IF (PRICE_VECTOR > 0 and VOLATILITY_VECTOR < 0) THEN VOL_PRESSURE = 'CONFIRMED_BULLISH'.
+CODE: IF (PRICE_VECTOR < 0 and VOLATILITY_VECTOR > 0) THEN VOL_PRESSURE = 'CONFIRMED_BEARISH'.
+CODE: ELSE VOL_PRESSURE = 'CONTRADICTORY'.
+1.6: TRACE & LOCK: TRACE: VOL_PRESSURE = '{VOL_PRESSURE}'. [LOCKED: VOL_PRESSURE]
 STEP 2: DETERMINE MARKET REGIME (NIFTY MONTHLY)
-- 2.1: Find ATM IV. CODE: ATM_IV = IV of ATM_STRIKE Call.
-- 2.2: Classify Regime.
-    - CODE: IF ATM_IV < 13, REGIME = 'LOW_VOL'.
-    - CODE: IF 13 <= ATM_IV <= 18, REGIME = 'NORMAL_VOL'.
-    - CODE: IF ATM_IV > 18, REGIME = 'HIGH_VOL'.
-- 2.3: TRACE & LOCK: TRACE: ATM_IV={ATM_IV:.2f} -> REGIME='{REGIME}'. [LOCKED: REGIME, ATM_IV]
 
-STEP 3: PRIMARY TREND ANALYSIS (NIFTY MONTHLY)
-- 3.1: Calculate Daily Change in OI.
-    - CODE: For each strike, Chg_OI = current_OI - historical_state_block.nifty_state.previous_eod_oi.get(strike, 0).
-    - CODE: total_put_chg_oi = SUM(max(0, Chg_OI) for all Puts).
-    - CODE: total_call_chg_oi = SUM(max(0, Chg_OI) for all Calls).
-- 3.2: Calculate Daily PCR. CODE: daily_pcr = total_put_chg_oi / total_call_chg_oi if total_call_chg_oi > 0 else 999.
-- 3.3: Apply Regime-Aware Thresholds.
-    - CODE: pcr_threshold_bullish = 1.15 if REGIME=='LOW_VOL' else 1.20 if REGIME=='NORMAL_VOL' else 1.50.
-    - CODE: pcr_threshold_bearish = 0.85 if REGIME=='LOW_VOL' else 0.80 if REGIME=='NORMAL_VOL' else 0.70.
-    - CODE: daily_bias = 'BULLISH' if daily_pcr > pcr_threshold_bullish else 'BEARISH' if daily_pcr < pcr_threshold_bearish else 'NEUTRAL'.
-- 3.4: Confirm Trend (3-Day Rule).
-    - CODE: all_pcrs = historical_state_block.nifty_state.last_3_pcr_ratios[1:] + [daily_pcr].
-    - CODE: bullish_days = COUNT(p > pcr_threshold_bullish for p in all_pcrs).
-    - CODE: bearish_days = COUNT(p < pcr_threshold_bearish for p in all_pcrs).
-    - CODE: PRIMARY_TREND = 'BULLISH' if bullish_days >= 2 else 'BEARISH' if bearish_days >= 2 else 'NEUTRAL_CONSOLIDATION'.
-- 3.5: TRACE & LOCK: TRACE: Daily_PCR={daily_pcr:.2f} -> Daily_Bias='{daily_bias}'. 3-Day Rule: {bullish_days} bullish, {bearish_days} bearish -> PRIMARY_TREND='{PRIMARY_TREND}'. [LOCKED: PRIMARY_TREND, daily_pcr, all_pcrs]
+2.1: Find ATM IV. CODE: ATM_IV = IV of ATM_STRIKE Call from current_data_block.nifty_monthly_chain.
+2.2: Classify Regime. CODE: IF ATM_IV < 13, REGIME = 'LOW_VOL'. IF 13 <= ATM_IV <= 18, REGIME = 'NORMAL_VOL'. IF ATM_IV > 18, REGIME = 'HIGH_VOL'.
+2.3: TRACE & LOCK: TRACE: ATM_IV={ATM_IV:.2f} -> REGIME='{REGIME}'. [LOCKED: REGIME, ATM_IV]
+STEP 3: PRIMARY TREND & MOMENTUM ANALYSIS (NIFTY MONTHLY)
 
+3.1: Calculate Historical & Daily OI Metrics.
+CODE: metrics_T = CALCULATE_OI_METRICS(current_data_block.nifty_monthly_chain, eod_data_T1.nifty_monthly_chain).
+CODE: metrics_T1 = CALCULATE_OI_METRICS(eod_data_T1.nifty_monthly_chain, eod_data_T2.nifty_monthly_chain).
+CODE: metrics_T2 = CALCULATE_OI_METRICS(eod_data_T2.nifty_monthly_chain, eod_data_T3.nifty_monthly_chain).
+CODE: pcr_T = metrics_T.pcr; OI_MOMENTUM_VECTOR = metrics_T.momentum_vector.
+3.2: Apply Regime-Aware Thresholds.
+CODE: pcr_threshold_bullish = 1.15 if REGIME=='LOW_VOL' else 1.20 if REGIME=='NORMAL_VOL' else 1.50.
+CODE: pcr_threshold_bearish = 0.85 if REGIME=='LOW_VOL' else 0.80 if REGIME=='NORMAL_VOL' else 0.70.
+CODE: daily_bias = 'BULLISH' if pcr_T > pcr_threshold_bullish else 'BEARISH' if pcr_T < pcr_threshold_bearish else 'NEUTRAL'.
+3.3: Confirm Trend (3-Day Rule).
+CODE: all_pcrs = [metrics_T2.pcr, metrics_T1.pcr, pcr_T].
+CODE: bullish_days = COUNT(p > pcr_threshold_bullish for p in all_pcrs).
+CODE: bearish_days = COUNT(p < pcr_threshold_bearish for p in all_pcrs).
+CODE: PRIMARY_TREND = 'BULLISH' if bullish_days >= 2 else 'BEARISH' if bearish_days >= 2 else 'NEUTRAL_CONSOLIDATION'.
+3.4: TRACE & LOCK: TRACE: Daily_PCR(T)={pcr_T:.2f} -> Daily_Bias='{daily_bias}'. OI Momentum={OI_MOMENTUM_VECTOR:+.0f}. 3-Day Rule: {bullish_days}B/{bearish_days}B -> PRIMARY_TREND='{PRIMARY_TREND}'. [LOCKED: PRIMARY_TREND, pcr_T, OI_MOMENTUM_VECTOR]
 STEP 4: CONFIRMATION ANALYSIS (BANKNIFTY MONTHLY)
-- 4.1: Repeat Step 3.1-3.3 for BankNifty data. CODE: Calculate banknifty_daily_pcr and banknifty_daily_bias.
-- 4.2: Confirm Trend (3-Day Rule). CODE: banknifty_all_pcrs = historical_state_block.banknifty_state.last_3_pcr_ratios[1:] + [banknifty_daily_pcr]. Repeat 3.4 logic to determine BANKNIFTY_TREND.
-- 4.3: Determine Alignment. CODE: ALIGNMENT = 'ALIGNED' if PRIMARY_TREND == BANKNIFTY_TREND else 'DIVERGENT' if PRIMARY_TREND != 'NEUTRAL_CONSOLIDATION' and BANKNIFTY_TREND != 'NEUTRAL_CONSOLIDATION' else 'NON_ALIGNED'.
-- 4.4: TRACE & LOCK: TRACE: BankNifty Trend is '{BANKNIFTY_TREND}'. ALIGNMENT = '{ALIGNMENT}'. [LOCKED: BANKNIFTY_TREND, ALIGNMENT, banknifty_all_pcrs]
 
+4.1: Calculate Historical & Daily BankNifty PCRs.
+CODE: bn_metrics_T = CALCULATE_OI_METRICS(current_data_block.banknifty_monthly_chain, eod_data_T1.banknifty_monthly_chain).
+CODE: bn_metrics_T1 = CALCULATE_OI_METRICS(eod_data_T1.banknifty_monthly_chain, eod_data_T2.banknifty_monthly_chain).
+CODE: bn_metrics_T2 = CALCULATE_OI_METRICS(eod_data_T2.banknifty_monthly_chain, eod_data_T3.banknifty_monthly_chain).
+4.2: Confirm Trend (3-Day Rule for BankNifty).
+CODE: banknifty_all_pcrs = [bn_metrics_T2.pcr, bn_metrics_T1.pcr, bn_metrics_T.pcr]. Use same thresholds from 3.2. Repeat 3.3 logic to determine BANKNIFTY_TREND.
+4.3: Determine Alignment. CODE: ALIGNMENT = 'ALIGNED' if PRIMARY_TREND == BANKNIFTY_TREND else 'DIVERGENT' if PRIMARY_TREND != 'NEUTRAL_CONSOLIDATION' and BANKNIFTY_TREND != 'NEUTRAL_CONSOLIDATION' else 'NON_ALIGNED'.
+4.4: TRACE & LOCK: TRACE: BankNifty Trend is '{BANKNIFTY_TREND}'. ALIGNMENT = '{ALIGNMENT}'. [LOCKED: BANKNIFTY_TREND, ALIGNMENT]
 STEP 5: TACTICAL ANALYSIS (NIFTY WEEKLY)
-- 5.1: Identify Hurdles. Use static OI from the nifty_weekly_chain.
-    - CODE: WEEKLY_WALL = strike with MAX(Call_OI).
-    - CODE: WEEKLY_FLOOR = strike with MAX(Put_OI).
-- 5.2: TRACE & LOCK: TRACE: WEEKLY_WALL={WEEKLY_WALL}, WEEKLY_FLOOR={WEEKLY_FLOOR}. [LOCKED: WEEKLY_WALL, WEEKLY_FLOOR]
 
+5.0: EXPIRY DAY CHECK: CODE: parse expiry_date from current_data_block.nifty_weekly_chain. IF run_date == expiry_date, SET IS_EXPIRY_DAY = TRUE, ELSE IS_EXPIRY_DAY = FALSE.
+5.1: Identify Hurdles. Use static OI from current_data_block.nifty_weekly_chain. CODE: WEEKLY_WALL = strike with MAX(Call_OI). WEEKLY_FLOOR = strike with MAX(Put_OI).
+5.2: TRACE & LOCK: TRACE: WEEKLY_WALL={WEEKLY_WALL}, WEEKLY_FLOOR={WEEKLY_FLOOR}. Is Expiry Day: {IS_EXPIRY_DAY}. [LOCKED: WEEKLY_WALL, WEEKLY_FLOOR, IS_EXPIRY_DAY]
 STEP 6: SCORING & SYNTHESIS
-- 6.1: Initialize Score. Confidence_Score = 50.
-- 6.2: Apply PVA Confirmation.
-    - CODE: IF (PRIMARY_TREND=='BULLISH' and nifty_monthly_spot > PVA_ANCHOR) or (PRIMARY_TREND=='BEARISH' and nifty_monthly_spot < PVA_ANCHOR) THEN Confidence_Score += 15.
-- 6.3: Apply Volatility Vector Context.
-    - CODE: IF (PRICE_VECTOR > 0 and VOLATILITY_VECTOR < 0) or (PRICE_VECTOR < 0 and VOLATILITY_VECTOR > 0) THEN Confidence_Score += 10.
-- 6.4: Apply Alignment Modifier.
-    - CODE: IF ALIGNMENT == 'ALIGNED' THEN Confidence_Score += 20.
-    - CODE: IF ALIGNMENT == 'DIVERGENT' THEN Confidence_Score -= 30.
-- 6.5: Finalize Score. CODE: Confidence_Score = max(0, min(100, Confidence_Score)).
-- 6.6: TRACE & LOCK: TRACE: Final Confidence Score = {Confidence_Score}. [LOCKED: CONFIDENCE_SCORE]
 
----
+6.1: Initialize Score. Confidence_Score = 50.
+6.2: Apply PVA Confirmation. CODE: IF (PRIMARY_TREND=='BULLISH' and current_data_block.nifty_monthly_spot > PVA_ANCHOR) or (PRIMARY_TREND=='BEARISH' and current_data_block.nifty_monthly_spot < PVA_ANCHOR) THEN Confidence_Score += 15.
+6.3: Apply Volatility Pressure. CODE: IF VOL_PRESSURE == 'CONFIRMED_BULLISH' or VOL_PRESSURE == 'CONFIRMED_BEARISH' THEN Confidence_Score += 10.
+6.4: Apply OI Momentum Confirmation. CODE: IF (PRIMARY_TREND=='BULLISH' and OI_MOMENTUM_VECTOR > 0) or (PRIMARY_TREND=='BEARISH' and OI_MOMENTUM_VECTOR < 0) THEN Confidence_Score += 5.
+6.5: Apply Alignment Modifier. CODE: IF ALIGNMENT == 'ALIGNED' THEN Confidence_Score += 20. IF ALIGNMENT == 'DIVERGENT' THEN Confidence_Score -= 30.
+6.6: Finalize Score. CODE: Confidence_Score = max(0, min(100, Confidence_Score)).
+6.7: TRACE & LOCK: TRACE: Final Confidence Score = {Confidence_Score}. [LOCKED: CONFIDENCE_SCORE]
+PART 3: OUTPUT BLOCK
 
- PART 3: OUTPUT BLOCK
-
-IF ANALYSIS_STATUS == 'INITIALIZING', display ONLY the [TRADING_IMPLICATION] and [STATE_BLOCK_FOR_NEXT_SESSION] sections. Otherwise, display all sections.
+IF ANALYSIS_STATUS == 'AWAITING_HISTORY', display ONLY the [TRADING_IMPLICATION] section. Otherwise, display all sections.
 
 [LOCKED_VALUES_SUMMARY]
-- DATA_GAP_WARNING: [Value]
-- PRICE_VECTOR: [Value]
-- PVA_ANCHOR: [Value]
-- VOLATILITY_VECTOR: [Value]
-- REGIME: [Value]
-- ATM_IV: [Value]
-- PRIMARY_TREND: [Value]
-- BANKNIFTY_TREND: [Value]
-- ALIGNMENT: [Value]
-- WEEKLY_WALL: [Value]
-- WEEKLY_FLOOR: [Value]
-- CONFIDENCE_SCORE: [Value]
 
+DATA_GAP_WARNING: [Value]
+PRICE_VECTOR: [Value]
+PVA_ANCHOR: [Value]
+VOLATILITY_VECTOR: [Value]
+VOL_PRESSURE: [Value]
+REGIME: [Value]
+ATM_IV: [Value]
+OI_MOMENTUM_VECTOR: [Value]
+PRIMARY_TREND: [Value]
+BANKNIFTY_TREND: [Value]
+ALIGNMENT: [Value]
+WEEKLY_WALL: [Value]
+WEEKLY_FLOOR: [Value]
+CONFIDENCE_SCORE: [Value]
 [ANALYSIS_NARRATIVE]
-- Primary Trend: The confirmed multi-day trend for Nifty is [LOCKED: PRIMARY_TREND], based on a 3-day analysis of Monthly OI.
-- Market Regime: The market is currently in a [LOCKED: REGIME] state, with an ATM IV of [LOCKED: ATM_IV].
-- Cross-Index Confirmation: The broader market is [LOCKED: ALIGNMENT] with the primary trend, as BankNifty's trend is [LOCKED: BANKNIFTY_TREND].
-- Daily Price Action: Today's price move was [LOCKED: PRICE_VECTOR:+.2f] points. The market's financial center of gravity (PVA) was the [LOCKED: PVA_ANCHOR] strike, with the spot closing {above/below} it.
-- Volatility Context: The Volatility Vector was [LOCKED: VOLATILITY_VECTOR:+.2f], indicating {rising/falling} fear relative to the price move.
-- Tactical Hurdles: For the short-term, expect immediate resistance at the [LOCKED: WEEKLY_WALL] and support at the [LOCKED: WEEKLY_FLOOR].
 
+Primary Trend: The confirmed multi-day trend for Nifty is [LOCKED: PRIMARY_TREND], based on a 3-day analysis of Monthly OI changes.
+Market Regime: The market is currently in a [LOCKED: REGIME] state, with an ATM IV of [LOCKED: ATM_IV].
+Trend Conviction: The underlying force, measured by the OI Momentum Vector, was significant at [LOCKED: OI_MOMENTUM_VECTOR:+.0f], {if > 0, display 'adding weight to the bullish case.' else if < 0, display 'adding weight to the bearish case.' else display 'showing no strong directional conviction.'}
+Cross-Index Confirmation: The broader market is [LOCKED: ALIGNMENT] with the primary trend, as BankNifty's trend is [LOCKED: BANKNIFTY_TREND].
+Daily Price & Volatility Action: Today's price move of [LOCKED: PRICE_VECTOR:+.2f] points was [LOCKED: VOL_PRESSURE] by volatility action. The market's financial center (PVA) was at [LOCKED: PVA_ANCHOR], with spot closing {above/below} it.
+Tactical Hurdles: For the short-term, expect immediate resistance at [LOCKED: WEEKLY_WALL] and support at [LOCKED: WEEKLY_FLOOR].
+Key Observation: {IF ALIGNMENT=='DIVERGENT', display "The divergence with BankNifty is the most critical factor today, significantly reducing trend confidence."} {ELSE IF VOL_PRESSURE contains 'CONFIRMED', display "The alignment of price and volatility provides strong confirmation for the daily move."} {ELSE display "The strong OI buildup at key Monthly strikes was the day's defining activity."}
 [TRADING_IMPLICATION]
-- BIAS: IF IS_INITIAL_RUN, display 'AWAITING_DATA'. Else, display [LOCKED: PRIMARY_TREND].
-- CONFIDENCE: IF IS_INITIAL_RUN, display 'N/A'. Else, display [LOCKED: CONFIDENCE_SCORE]/100.
-- STRATEGY:
-    - If BULLISH: Look for long opportunities, using the [LOCKED: WEEKLY_FLOOR] as a potential entry zone or stop-loss reference.
-    - If BEARISH: Look for short opportunities, using the [LOCKED: WEEKLY_WALL] as a potential entry zone or stop-loss reference.
-    - If NEUTRAL: Expect range-bound activity between [LOCKED: WEEKLY_FLOOR] and [LOCKED: WEEKLY_WALL]. Wait for a clear trend to re-emerge.
-- WARNINGS: {IF IS_INITIAL_RUN, display "INITIALIZATION RUN COMPLETE. Please use the generated State Block for your next session."} {IF ALIGNMENT=='DIVERGENT', display "CRITICAL DIVERGENCE WITH BANKNIFTY. HIGH CAUTION ADVISED."} {IF DATA_GAP_WARNING==TRUE, display "DATA GAP DETECTED. OI CHANGES REFLECT MULTIPLE DAYS; MAGNITUDE MAY BE INFLATED."}
 
-[STATE_BLOCK_FOR_NEXT_SESSION] (COPY THIS ENTIRE BLOCK FOR YOUR NEXT RUN)
-json
-{
-  "generated_on": "[Value of 'run_date' from input]",
-  "nifty_state": {
-    "last_3_trading_dates": "[CODE: IF IS_INITIAL_RUN, create list with 3 copies of 'run_date'. Else, create list using historical_state_block.nifty_state.last_3_trading_dates[1:] + [run_date]]",
-    "last_3_eod_spots": "[CODE: IF IS_INITIAL_RUN, create list with 3 copies of 'nifty_monthly_spot'. Else, create list using historical_state_block.nifty_state.last_3_eod_spots[1:] + [nifty_monthly_spot]]",
-    "last_3_pcr_ratios": "[CODE: IF IS_INITIAL_RUN, create list [1.0, 1.0, 1.0]. Else, use value of [LOCKED: all_pcrs]]",
-    "previous_atm_straddle_price": "[CODE: IF IS_INITIAL_RUN, calculate current_atm_straddle_price. Else, use value of [LOCKED: current_atm_straddle_price]]",
-    "previous_eod_oi": {
-      "...": "..." // Generate a new key-value map of 'strike_type': 'current_oi' from the nifty_monthly_chain
-    }
-  },
-  "banknifty_state": {
-    "last_3_pcr_ratios": "[CODE: IF IS_INITIAL_RUN, create list [1.0, 1.0, 1.0]. Else, use value of [LOCKED: banknifty_all_pcrs]]",
-    "previous_eod_oi": {
-      "...": "..." // Generate a new key-value map for BankNifty
-    }
-  }
-}
-
-
----
-
- PART 4: MANDATORY COMPLIANCE AUDIT
+BIAS: IF IS_INSUFFICIENT_HISTORY, display 'AWAITING_HISTORY'. Else, display [LOCKED: PRIMARY_TREND].
+CONFIDENCE: IF IS_INSUFFICIENT_HISTORY, display 'N/A'. Else, display [LOCKED: CONFIDENCE_SCORE]/100.
+STRATEGY:
+IF PRIMARY_TREND=='BULLISH' and CONFIDENCE_SCORE > 70: Aggressive bullish positions are warranted. Use [LOCKED: WEEKLY_FLOOR] as a reference for entries or tight stops.
+IF PRIMARY_TREND=='BULLISH' and CONFIDENCE_SCORE <= 70: Cautious bullish exposure. Consider waiting for price to validate support at [LOCKED: WEEKLY_FLOOR] before entry.
+IF PRIMARY_TREND=='BEARISH' and CONFIDENCE_SCORE > 70: Aggressive bearish positions are warranted. Use [LOCKED: WEEKLY_WALL] as a reference for entries or tight stops.
+IF PRIMARY_TREND=='BEARISH' and CONFIDENCE_SCORE <= 70: Cautious bearish exposure. Consider waiting for price to be rejected at [LOCKED: WEEKLY_WALL] before entry.
+IF PRIMARY_TREND=='NEUTRAL_CONSOLIDATION': Market lacks direction. Prefer range-bound strategies or stay sidelined. Key range is [LOCKED: WEEKLY_FLOOR] - [LOCKED: WEEKLY_WALL].
+IF ANALYSIS_STATUS=='AWAITING_HISTORY': Provide at least 3 historical EOD files for a full analysis.
+WARNINGS: {IF IS_INSUFFICIENT_HISTORY, display "INSUFFICIENT HISTORY. Full analysis requires 3 previous EOD files."} {IF ALIGNMENT=='DIVERGENT', display "CRITICAL DIVERGENCE WITH BANKNIFTY. HIGH CAUTION ADVISED."} {IF DATA_GAP_WARNING==TRUE, display "DATA GAP DETECTED. TREND ANALYSIS MAY BE UNRELIABLE."} {IF IS_EXPIRY_DAY==TRUE, display "WEEKLY EXPIRY DAY. Tactical levels (Wall/Floor) are less reliable; refer to next week's chain for forward-looking levels."}
+PART 4: MANDATORY COMPLIANCE AUDIT
 
 [Instructions: Answer YES/NO to every check. A single NO invalidates the entire output.]
-1.  Was the IS_INITIAL_RUN check performed and the main analysis correctly skipped if true? [YES/NO]
-2.  Was PVA_ANCHOR used for confirmation instead of raw volume? [YES/NO]
-3.  Was the REGIME correctly identified and used to select PCR thresholds? [YES/NO]
-4.  Was the PRIMARY_TREND based on a 3-day rule using Monthly Nifty data ONLY? [YES/NO]
-5.  Was the ALIGNMENT check with BankNifty performed and the score adjusted for divergence? [YES/NO]
-6.  Was WEEKLY_WALL/FLOOR derived from static Weekly OI only? [YES/NO]
-7.  Does the [ANALYSIS_NARRATIVE] contain ONLY values present in the [LOCKED_VALUES_SUMMARY] or input data? [YES/NO]
-8.  Was the [STATE_BLOCK_FOR_NEXT_SESSION] correctly generated with EXPLICIT logic for both initial and subsequent runs? [YES/NO]
 
+Was the IS_INSUFFICIENT_HISTORY check performed and the main analysis correctly skipped if true? [YES/NO]
+Were historical EOD files parsed to calculate day-over-day metrics from 4 distinct data sets (T, T-1, T-2, T-3)? [YES/NO]
+Was VOLATILITY_PRESSURE determined by comparing the Price Vector and Volatility Vector? [YES/NO]
+Was OI_MOMENTUM_VECTOR calculated and used in scoring? [YES/NO]
+Was PRIMARY_TREND based on a 3-day PCR rule and REGIME-aware thresholds? [YES/NO]
+Was a check for the weekly expiry day (IS_EXPIRY_DAY) performed and a warning generated if true? [YES/NO]
+Does the [ANALYSIS_NARRATIVE] contain ONLY values present in the [LOCKED_VALUES_SUMMARY] or input data, with conditional text strictly following the rules? [YES/NO]
 [AUDIT COMPLETE. END OF PROCESS.]
-
-[HISTORICAL_STATE_BLOCK]
-{
-  "generated_on": "2025-11-04",
-  "nifty_state": {
-    "last_3_trading_dates": ["2025-11-04", "2025-11-04", "2025-11-04"],
-    "last_3_eod_spots": [25598, 25598, 25598],
-    "last_3_pcr_ratios": [1.0, 1.0, 1.0],
-    "previous_atm_straddle_price": 0.2,
-    "previous_eod_oi": {
-      "22850_CALL": "28",
-      "22850_PUT": "19819",
-      "22900_CALL": "5",
-      "22900_PUT": "8175",
-      "22950_CALL": "10",
-      "22950_PUT": "5736",
-      "23000_CALL": "58",
-      "23000_PUT": "11419",
-      "23050_CALL": "27",
-      "23050_PUT": "247",
-      "23100_CALL": "7",
-      "23100_PUT": "904",
-      "23150_CALL": "10",
-      "23150_PUT": "759",
-      "23200_CALL": "2",
-      "23200_PUT": "1251",
-      "23250_CALL": "14",
-      "23250_PUT": "570",
-      "23300_CALL": "16",
-      "23300_PUT": "7420",
-      "23350_CALL": "12",
-      "23350_PUT": "1118",
-      "23400_CALL": "20",
-      "23400_PUT": "8787",
-      "23450_CALL": "15",
-      "23450_PUT": "406",
-      "23500_CALL": "61",
-      "23500_PUT": "12713",
-      "23550_CALL": "4",
-      "23550_PUT": "767",
-      "23600_CALL": "12",
-      "23600_PUT": "2557",
-      "23650_CALL": "3",
-      "23650_PUT": "1222",
-      "23700_CALL": "32",
-      "23700_PUT": "2961",
-      "23750_CALL": "16",
-      "23750_PUT": "1554",
-      "23800_CALL": "1",
-      "23800_PUT": "3335",
-      "23850_CALL": "3",
-      "23850_PUT": "1233",
-      "23900_CALL": "1",
-      "23900_PUT": "1900",
-      "23950_CALL": "8",
-      "23950_PUT": "1370",
-      "24000_CALL": "288",
-      "24000_PUT": "37129",
-      "24050_CALL": "37",
-      "24050_PUT": "1163",
-      "24100_CALL": "12",
-      "24100_PUT": "2542",
-      "24150_CALL": "4",
-      "24150_PUT": "1730",
-      "24200_CALL": "21",
-      "24200_PUT": "2354",
-      "24250_CALL": "3",
-      "24250_PUT": "1543",
-      "24300_CALL": "8",
-      "24300_PUT": "2093",
-      "24350_CALL": "2",
-      "24350_PUT": "5088",
-      "24400_CALL": "13",
-      "24400_PUT": "7129",
-      "24450_CALL": "2",
-      "24450_PUT": "3331",
-      "24500_CALL": "110",
-      "24500_PUT": "36586",
-      "24550_CALL": "12",
-      "24550_PUT": "8196",
-      "24600_CALL": "51",
-      "24600_PUT": "12268",
-      "24650_CALL": "11",
-      "24650_PUT": "6692",
-      "24700_CALL": "88",
-      "24700_PUT": "26286",
-      "24750_CALL": "34",
-      "24750_PUT": "8752",
-      "24800_CALL": "173",
-      "24800_PUT": "33064",
-      "24850_CALL": "57",
-      "24850_PUT": "15948",
-      "24900_CALL": "351",
-      "24900_PUT": "43287",
-      "24950_CALL": "95",
-      "24950_PUT": "17534",
-      "25000_CALL": "920",
-      "25000_PUT": "124249",
-      "25050_CALL": "50",
-      "25050_PUT": "18187",
-      "25100_CALL": "288",
-      "25100_PUT": "50277",
-      "25150_CALL": "236",
-      "25150_PUT": "24924",
-      "25200_CALL": "1267",
-      "25200_PUT": "60437",
-      "25250_CALL": "249",
-      "25250_PUT": "30320",
-      "25300_CALL": "1281",
-      "25300_PUT": "70819",
-      "25350_CALL": "823",
-      "25350_PUT": "35909",
-      "25400_CALL": "2428",
-      "25400_PUT": "70594",
-      "25450_CALL": "3536",
-      "25450_PUT": "55175",
-      "25500_CALL": "15369",
-      "25500_PUT": "99527",
-      "25550_CALL": "44416",
-      "25550_PUT": "139668",
-      "25600_CALL": "296925",
-      "25600_PUT": "301878",
-      "25650_CALL": "218899",
-      "25650_PUT": "55236",
-      "25700_CALL": "191815",
-      "25700_PUT": "67727",
-      "25750_CALL": "107027",
-      "25750_PUT": "19291",
-      "25800_CALL": "163127",
-      "25800_PUT": "13559",
-      "25850_CALL": "63330",
-      "25850_PUT": "6121",
-      "25900_CALL": "90784",
-      "25900_PUT": "15428",
-      "25950_CALL": "58422",
-      "25950_PUT": "3902",
-      "26000_CALL": "130460",
-      "26000_PUT": "22846",
-      "26050_CALL": "60159",
-      "26050_PUT": "2889",
-      "26100_CALL": "101414",
-      "26100_PUT": "8696",
-      "26150_CALL": "63255",
-      "26150_PUT": "3169",
-      "26200_CALL": "125335",
-      "26200_PUT": "4361",
-      "26250_CALL": "60960",
-      "26250_PUT": "1789",
-      "26300_CALL": "93026",
-      "26300_PUT": "1707",
-      "26350_CALL": "34187",
-      "26350_PUT": "299",
-      "26400_CALL": "70041",
-      "26400_PUT": "752",
-      "26450_CALL": "23711",
-      "26450_PUT": "350",
-      "26500_CALL": "107834",
-      "26500_PUT": "1319",
-      "26550_CALL": "20556",
-      "26550_PUT": "289",
-      "26600_CALL": "43214",
-      "26600_PUT": "610",
-      "26650_CALL": "13247",
-      "26650_PUT": "225",
-      "26700_CALL": "74675",
-      "26700_PUT": "264",
-      "26750_CALL": "24235",
-      "26750_PUT": "107",
-      "26800_CALL": "59110",
-      "26800_PUT": "194",
-      "26850_CALL": "18276",
-      "26850_PUT": "97",
-      "26900_CALL": "40461",
-      "26900_PUT": "141",
-      "26950_CALL": "13356",
-      "26950_PUT": "29",
-      "27000_CALL": "92901",
-      "27000_PUT": "472",
-      "27050_CALL": "12849",
-      "27050_PUT": "19",
-      "27100_CALL": "32688",
-      "27100_PUT": "47",
-      "27150_CALL": "13393",
-      "27150_PUT": "3",
-      "27200_CALL": "19650",
-      "27200_PUT": "13",
-      "27250_CALL": "5769",
-      "27250_PUT": "6",
-      "27300_CALL": "22350",
-      "27300_PUT": "6",
-      "27350_CALL": "9711",
-      "27350_PUT": "5",
-      "27400_CALL": "28212",
-      "27400_PUT": "7",
-      "27450_CALL": "1686",
-      "27450_PUT": "5",
-      "27500_CALL": "34529",
-      "27500_PUT": "13",
-      "27550_CALL": "1893",
-      "27550_PUT": "3",
-      "27600_CALL": "24208",
-      "27600_PUT": "3",
-      "27650_CALL": "1964",
-      "27650_PUT": "4",
-      "27700_CALL": "12021",
-      "27700_PUT": "48",
-      "27750_CALL": "3264",
-      "27750_PUT": "0",
-      "27800_CALL": "12426",
-      "27800_PUT": "0"
-    }
-  },
-  "banknifty_state": {
-    "last_3_pcr_ratios": [1.0, 1.0, 1.0],
-    "previous_eod_oi": {
-      "46000_CALL": "8",
-      "46000_PUT": "1069",
-      "46500_CALL": "1",
-      "46500_PUT": "669",
-      "47000_CALL": "1",
-      "47000_PUT": "1103",
-      "47500_CALL": "0",
-      "47500_PUT": "357",
-      "48000_CALL": "2302",
-      "48000_PUT": "2105",
-      "48500_CALL": "21",
-      "48500_PUT": "210",
-      "48700_CALL": "0",
-      "48700_PUT": "20",
-      "48800_CALL": "0",
-      "48800_PUT": "0",
-      "48900_CALL": "0",
-      "48900_PUT": "0",
-      "49000_CALL": "529",
-      "49000_PUT": "981",
-      "49100_CALL": "0",
-      "49100_PUT": "89",
-      "49200_CALL": "0",
-      "49200_PUT": "0",
-      "49300_CALL": "0",
-      "49300_PUT": "0",
-      "49400_CALL": "0",
-      "49400_PUT": "14",
-      "49500_CALL": "10",
-      "49500_PUT": "382",
-      "49600_CALL": "1",
-      "49600_PUT": "0",
-      "49700_CALL": "1",
-      "49700_PUT": "0",
-      "49800_CALL": "1",
-      "49800_PUT": "30",
-      "49900_CALL": "2",
-      "49900_PUT": "0",
-      "50000_CALL": "2764",
-      "50000_PUT": "5797",
-      "50100_CALL": "1",
-      "50100_PUT": "0",
-      "50200_CALL": "2",
-      "50200_PUT": "0",
-      "50300_CALL": "4",
-      "50300_PUT": "20",
-      "50400_CALL": "2",
-      "50400_PUT": "0",
-      "50500_CALL": "30",
-      "50500_PUT": "237",
-      "50600_CALL": "2",
-      "50600_PUT": "0",
-      "50700_CALL": "3",
-      "50700_PUT": "0",
-      "50800_CALL": "2",
-      "50800_PUT": "0",
-      "50900_CALL": "8",
-      "50900_PUT": "1",
-      "51000_CALL": "635",
-      "51000_PUT": "2882",
-      "51100_CALL": "9",
-      "51100_PUT": "0",
-      "51200_CALL": "8",
-      "51200_PUT": "0",
-      "51300_CALL": "11",
-      "51300_PUT": "0",
-      "51400_CALL": "11",
-      "51400_PUT": "0",
-      "51500_CALL": "27",
-      "51500_PUT": "431",
-      "51600_CALL": "12",
-      "51600_PUT": "2",
-      "51700_CALL": "16",
-      "51700_PUT": "4",
-      "51800_CALL": "17",
-      "51800_PUT": "0",
-      "51900_CALL": "17",
-      "51900_PUT": "2",
-      "52000_CALL": "1536",
-      "52000_PUT": "3175",
-      "52100_CALL": "23",
-      "52100_PUT": "21",
-      "52200_CALL": "17",
-      "52200_PUT": "0",
-      "52300_CALL": "18",
-      "52300_PUT": "0",
-      "52400_CALL": "17",
-      "52400_PUT": "0",
-      "52500_CALL": "30",
-      "52500_PUT": "1430",
-      "52600_CALL": "22",
-      "52600_PUT": "0",
-      "52700_CALL": "19",
-      "52700_PUT": "0",
-      "52800_CALL": "18",
-      "52800_PUT": "0",
-      "52900_CALL": "17",
-      "52900_PUT": "0",
-      "53000_CALL": "659",
-      "53000_PUT": "7730",
-      "53100_CALL": "15",
-      "53100_PUT": "87",
-      "53200_CALL": "23",
-      "53200_PUT": "74",
-      "53300_CALL": "14",
-      "53300_PUT": "47",
-      "53400_CALL": "21",
-      "53400_PUT": "60",
-      "53500_CALL": "580",
-      "53500_PUT": "7822",
-      "53600_CALL": "20",
-      "53600_PUT": "179",
-      "53700_CALL": "21",
-      "53700_PUT": "82",
-      "53800_CALL": "43",
-      "53800_PUT": "265",
-      "53900_CALL": "21",
-      "53900_PUT": "214",
-      "54000_CALL": "1868",
-      "54000_PUT": "12162",
-      "54100_CALL": "22",
-      "54100_PUT": "412",
-      "54200_CALL": "111",
-      "54200_PUT": "137",
-      "54300_CALL": "28",
-      "54300_PUT": "390",
-      "54400_CALL": "139",
-      "54400_PUT": "184",
-      "54500_CALL": "560",
-      "54500_PUT": "6137",
-      "54600_CALL": "22",
-      "54600_PUT": "560",
-      "54700_CALL": "57",
-      "54700_PUT": "480",
-      "54800_CALL": "61",
-      "54800_PUT": "402",
-      "54900_CALL": "90",
-      "54900_PUT": "486",
-      "55000_CALL": "3305",
-      "55000_PUT": "18308",
-      "55100_CALL": "27",
-      "55100_PUT": "492",
-      "55200_CALL": "21",
-      "55200_PUT": "1072",
-      "55300_CALL": "32",
-      "55300_PUT": "514",
-      "55400_CALL": "185",
-      "55400_PUT": "504",
-      "55500_CALL": "2691",
-      "55500_PUT": "8822",
-      "55600_CALL": "63",
-      "55600_PUT": "2047",
-      "55700_CALL": "35",
-      "55700_PUT": "1272",
-      "55800_CALL": "60",
-      "55800_PUT": "1390",
-      "55900_CALL": "78",
-      "55900_PUT": "1420",
-      "56000_CALL": "4509",
-      "56000_PUT": "20662",
-      "56100_CALL": "42",
-      "56100_PUT": "1463",
-      "56200_CALL": "116",
-      "56200_PUT": "1305",
-      "56300_CALL": "85",
-      "56300_PUT": "1485",
-      "56400_CALL": "84",
-      "56400_PUT": "1150",
-      "56500_CALL": "2195",
-      "56500_PUT": "12629",
-      "56600_CALL": "142",
-      "56600_PUT": "1749",
-      "56700_CALL": "238",
-      "56700_PUT": "1770",
-      "56800_CALL": "235",
-      "56800_PUT": "2402",
-      "56900_CALL": "234",
-      "56900_PUT": "1244",
-      "57000_CALL": "27952",
-      "57000_PUT": "36004",
-      "57100_CALL": "260",
-      "57100_PUT": "1896",
-      "57200_CALL": "373",
-      "57200_PUT": "2411",
-      "57300_CALL": "228",
-      "57300_PUT": "1605",
-      "57400_CALL": "497",
-      "57400_PUT": "2371",
-      "57500_CALL": "4946",
-      "57500_PUT": "14489",
-      "57600_CALL": "1388",
-      "57600_PUT": "2783",
-      "57700_CALL": "1863",
-      "57700_PUT": "3667",
-      "57800_CALL": "3338",
-      "57800_PUT": "5997",
-      "57900_CALL": "4329",
-      "57900_PUT": "4688",
-      "58000_CALL": "36637",
-      "58000_PUT": "49036",
-      "58100_CALL": "6557",
-      "58100_PUT": "3531",
-      "58200_CALL": "10047",
-      "58200_PUT": "5140",
-      "58300_CALL": "6815",
-      "58300_PUT": "4814",
-      "58400_CALL": "5068",
-      "58400_PUT": "2233",
-      "58500_CALL": "27987",
-      "58500_PUT": "14320",
-      "58600_CALL": "4187",
-      "58600_PUT": "1927",
-      "58700_CALL": "3476",
-      "58700_PUT": "1091",
-      "58800_CALL": "4281",
-      "58800_PUT": "2075",
-      "58900_CALL": "3529",
-      "58900_PUT": "1381",
-      "59000_CALL": "26187",
-      "59000_PUT": "7769",
-      "59100_CALL": "2511",
-      "59100_PUT": "1716",
-      "59200_CALL": "2733",
-      "59200_PUT": "257",
-      "59300_CALL": "2352",
-      "59300_PUT": "175",
-      "59400_CALL": "1933",
-      "59400_PUT": "108",
-      "59500_CALL": "16112",
-      "59500_PUT": "1200",
-      "59600_CALL": "1533",
-      "59600_PUT": "132",
-      "59700_CALL": "2149",
-      "59700_PUT": "129",
-      "59800_CALL": "2189",
-      "59800_PUT": "86",
-      "59900_CALL": "1399",
-      "59900_PUT": "59",
-      "60000_CALL": "31575",
-      "60000_PUT": "3411",
-      "60100_CALL": "1480",
-      "60100_PUT": "32",
-      "60200_CALL": "2761",
-      "60200_PUT": "21",
-      "60300_CALL": "1494",
-      "60300_PUT": "16",
-      "60400_CALL": "1472",
-      "60400_PUT": "39",
-      "60500_CALL": "11993",
-      "60500_PUT": "44",
-      "60600_CALL": "821",
-      "60600_PUT": "23",
-      "60700_CALL": "905",
-      "60700_PUT": "15",
-      "60800_CALL": "907",
-      "60800_PUT": "23",
-      "60900_CALL": "646",
-      "60900_PUT": "13",
-      "61000_CALL": "16995",
-      "61000_PUT": "677",
-      "61100_CALL": "2769",
-      "61100_PUT": "6",
-      "61200_CALL": "1526",
-      "61200_PUT": "11",
-      "61300_CALL": "628",
-      "61300_PUT": "7",
-      "61400_CALL": "577",
-      "61400_PUT": "7",
-      "61500_CALL": "7497",
-      "61500_PUT": "22",
-      "61600_CALL": "435",
-      "61600_PUT": "15",
-      "61700_CALL": "320",
-      "61700_PUT": "8",
-      "61800_CALL": "518",
-      "61800_PUT": "10",
-      "61900_CALL": "530",
-      "61900_PUT": "9",
-      "62000_CALL": "19111",
-      "62000_PUT": "1597",
-      "62100_CALL": "950",
-      "62100_PUT": "7",
-      "62200_CALL": "501",
-      "62200_PUT": "6",
-      "62300_CALL": "211",
-      "62300_PUT": "9",
-      "62400_CALL": "444",
-      "62400_PUT": "8",
-      "62500_CALL": "6492",
-      "62500_PUT": "14",
-      "62600_CALL": "332",
-      "62600_PUT": "13",
-      "62700_CALL": "129",
-      "62700_PUT": "9",
-      "62800_CALL": "239",
-      "62800_PUT": "6",
-      "62900_CALL": "45",
-      "62900_PUT": "9",
-      "63000_CALL": "12001",
-      "63000_PUT": "1383",
-      "63100_CALL": "278",
-      "63100_PUT": "0",
-      "63200_CALL": "114",
-      "63200_PUT": "0",
-      "63300_CALL": "58",
-      "63300_PUT": "0",
-      "63400_CALL": "16",
-      "63400_PUT": "0",
-      "63500_CALL": "1686",
-      "63500_PUT": "86",
-      "64000_CALL": "4279",
-      "64000_PUT": "96",
-      "64500_CALL": "1351",
-      "64500_PUT": "27",
-      "65000_CALL": "6386",
-      "65000_PUT": "999",
-      "65500_CALL": "4644",
-      "65500_PUT": "2",
-      "66000_CALL": "3598",
-      "66000_PUT": "0"
-    }
-  }
-}
-[HISTORICAL_STATE_BLOCK END]
-=================================================================================
 """
 
     # Format the complete multi-expiry data

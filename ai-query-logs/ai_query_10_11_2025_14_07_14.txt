@@ -1,0 +1,586 @@
+
+# ===================================================================
+# NIFTY INTRADAY + REVERSAL PROMPT v14.0 [FINAL + BLACK-BOX PROOF]
+# EVERY STEP = CODE + AUDIT + TRACE + LOCKED VALUES | PRICE-VECTOR-AWARE
+# LOGIC: "TREND → UNWIND → COUNTER → PAIN" + MAX PAIN + FULL TRACE
+# ===================================================================
+
+# ———————————————————————
+# COMPLIANCE VERIFICATION (TOP) — MANDATORY
+# ———————————————————————
+- Step 1: [PASS]  # Data includes Chg OI, Premium, Strike, Static OI
+- Step 2: [PASS]  # ATM = closest strike to spot
+- Step 3: [PASS]  # Chg OI > 0 only for writing
+- Chg OI > Static OI Hierarchy: [VERIFIED]  # Static OI NEVER used in direction
+- Protocol Violations: [0]
+
+# ———————————————————————
+# 0. LIVE MARKET CONTEXT — FULLY CODED + VALUES LOCKED
+# ———————————————————————
+SPOT: [LIVE]  # Possible: Any float
+PREVIOUS_SPOT: [Spot from last snapshot]  # REQUIRED for vector
+PRICE_VECTOR: {SPOT - PREVIOUS_SPOT}  # Possible: +XX, -XX, 0
+VWAP: [LIVE or UNAVAILABLE]  # Possible: Float or "UNAVAILABLE"
+TIME_NOW: [HH:MM]  # Possible: 00:00–23:59
+TIME_SINCE_OPEN: [MINUTES or MARKET CLOSED]  # Possible: Integer or "MARKET CLOSED"
+EXPIRY: [TODAY]  # Possible: DD-MMM-YYYY
+ATM: [Closest strike to spot]  # CODE: |SPOT - strike| minimized
+ATM_RANGE: [ATM - 300 to ATM + 300]  # CODE: inclusive
+ATM_EXTENDED: [ATM - 500 to ATM + 500]
+DATA_POINTS: [1 or more]  # REQUIRED for unwind
+AFTER CONTEXT: "SPOT={SPOT}, Vector={PRICE_VECTOR:+}, Prev={PREVIOUS_SPOT} | ATM={ATM}, Range={ATM_RANGE}, Data points={DATA_POINTS}"
+
+# ———————————————————————
+# 1. MOMENTUM ENGINE — FULLY CODED + VALUES LOCKED + TRACE
+# ———————————————————————
+AFTER STEP 1: "Data sufficient - proceeding to seller identification"
+
+# ——— STEP 2.1: DOMINANT STRIKES — CODE ENFORCED ———
+PUT_CHG_POS = [(strike, max(Chg_OI, 0)) for strike in ATM_RANGE if type=='PUT']
+CALL_CHG_POS = [(strike, max(Chg_OI, 0)) for strike in ATM_RANGE if type=='CALL']
+
+DOMINANT_PUT_STRIKES = sorted(PUT_CHG_POS, key=lambda x: x[1], reverse=True)[:3]
+DOMINANT_CALL_STRIKES = sorted(CALL_CHG_POS, key=lambda x: x[1], reverse=True)[:3]
+
+TOTAL_PUT_OI = sum(max(Chg_OI,0) for _, Chg_OI in PUT_CHG_POS)
+TOTAL_CALL_OI = sum(max(Chg_OI,0) for _, Chg_OI in CALL_CHG_POS)
+TOP3_PUT_OI = sum(Chg_OI for _, Chg_OI in DOMINANT_PUT_STRIKES)
+TOP3_CALL_OI = sum(Chg_OI for _, Chg_OI in DOMINANT_CALL_STRIKES)
+
+PCT_TOP3_PUT = TOP3_PUT_OI / TOTAL_PUT_OI if TOTAL_PUT_OI > 0 else 0
+PCT_TOP3_CALL = TOP3_CALL_OI / TOTAL_CALL_OI if TOTAL_CALL_OI > 0 else 0
+PCT_TOP3 = max(PCT_TOP3_PUT, PCT_TOP3_CALL)
+
+AFTER STEP 2.1: "Dominant: {len(DOMINANT_PUT_STRIKES)} puts, {len(DOMINANT_CALL_STRIKES)} calls | Top3 % = {PCT_TOP3:.0%}"
+
+# ——— STEP 2.2: CLASSIFICATION — CODE ENFORCED ———
+INST_COUNT = 0
+TOTAL_DOM = len(DOMINANT_PUT_STRIKES) + len(DOMINANT_CALL_STRIKES)
+for strike, _ in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES:
+   prem = Premium(strike)
+   if prem < 100: INST_COUNT += 1
+INST_PCT = INST_COUNT / TOTAL_DOM * 100 if TOTAL_DOM > 0 else 0
+
+AFTER STEP 2.2: "Classification: {INST_PCT:.1f}% Institutional"
+
+# ——— STEP 2.3: HIERARCHY ———
+AFTER STEP 2.3: "Static OI ignored: YES"
+
+# ——— STEP 2.4: RATIO & MOMENTUM — CODE ENFORCED ———
+Ratio = TOTAL_PUT_OI / TOTAL_CALL_OI if TOTAL_CALL_OI > 0 else 999
+MOMENTUM = "BULLISH" if Ratio > 1.20 else "BEARISH" if Ratio < 0.80 else "NEUTRAL"
+AFTER STEP 2.4: "Ratio = {Ratio:.2f} → {MOMENTUM}"
+
+# ——— STEP 2.5: STRENGTH METER — CODE ENFORCED ———
+SCORE = 0
+if INST_PCT >= 85: SCORE += 3
+if PCT_TOP3 >= 0.60: SCORE += 2
+if Ratio > 1.50 or Ratio < 0.60: SCORE += 1
+if (OI_PCR > 1 and Volume_PCR > 1) or (OI_PCR < 1 and Volume_PCR < 1): SCORE += 1
+if any(Premium(strike) < 80 for strike, _ in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES): SCORE += 1
+
+STRENGTH = "STRONG" if SCORE > 7 else "MODERATE" if SCORE >= 5 else "WEAK"
+AFTER STEP 2.5: "Strength = {STRENGTH} ({SCORE}/10)"
+
+# ——— STEP 2.6: BANKNIFTY — CODE ENFORCED ———
+BANKNIFTY_OI_PCR = BankNifty OI PCR
+BANKNIFTY_DOMINANT = "PUT WRITING" if BANKNIFTY_OI_PCR > 1.0 else "CALL WRITING" if BANKNIFTY_OI_PCR < 0.9 else "NEUTRAL"
+ALIGNMENT = "ALIGNED" if    (MOMENTUM == "BULLISH" and BANKNIFTY_DOMINANT == "PUT WRITING") or    (MOMENTUM == "BEARISH" and BANKNIFTY_DOMINANT == "CALL WRITING")    else "DIVERGENT"
+AFTER STEP 2.6: "BankNifty: {BANKNIFTY_DOMINANT} → {ALIGNMENT}"
+
+# ———————————————————————
+# 2. PEAK TRACKING — TIME-SERIES AWARE + CONNECTED
+# ———————————————————————
+PEAK_CHG_OI_DICT = {}  # {strike: max_positive_Chg_OI_seen}
+UNWIND_POSSIBLE = DATA_POINTS >= 2
+
+if UNWIND_POSSIBLE:
+   for strike in ATM_EXTENDED:
+      current = max(current_Chg_OI(strike), 0)
+      if current > PEAK_CHG_OI_DICT.get(strike, 0):
+         PEAK_CHG_OI_DICT[strike] = current
+   AFTER PEAK UPDATE: "Peak tracking active: {len(PEAK_CHG_OI_DICT)} strikes"
+else:
+   AFTER PEAK UPDATE: "Peak tracking: INSUFFICIENT DATA (need ≥2 snapshots)"
+
+# ———————————————————————
+# 3. REVERSAL ENGINE v14.0 — FULLY CONNECTED + PRICE-VECTOR-AWARE
+# ———————————————————————
+AFTER REVERSAL STEP 1: "Checking relative unwind..."
+
+# ——— PHASE 1: RELATIVE UNWIND — USING PEAK TRACKING ———
+UNWIND_SIGNALS = []
+UNWIND_COUNT = 0
+
+if UNWIND_POSSIBLE:
+   for strike, _ in DOMINANT_PUT_STRIKES:
+      peak = PEAK_CHG_OI_DICT.get(strike, 0)
+      current = max(current_Chg_OI(strike), 0)
+      if peak > 10000 and current < (peak * 0.70):
+         UNWIND_SIGNALS.append(f"{strike} Put Unwind: {current:+,} (from {peak:+,}) → {((peak-current)/peak)*100:.1f}%")
+         UNWIND_COUNT += 1
+   for strike, _ in DOMINANT_CALL_STRIKES:
+      peak = PEAK_CHG_OI_DICT.get(strike, 0)
+      current = max(current_Chg_OI(strike), 0)
+      if peak > 10000 and current < (peak * 0.70):
+         UNWIND_SIGNALS.append(f"{strike} Call Unwind: {current:+,} (from {peak:+,}) → {((peak-current)/peak)*100:.1f}%")
+         UNWIND_COUNT += 1
+   AFTER PHASE 1: "Relative unwind: {UNWIND_COUNT} signals"
+else:
+   AFTER PHASE 1: "Relative unwind: NOT POSSIBLE (1 snapshot)"
+
+# ——— PHASE 2: COUNTER-POSITIONING ———
+COUNTER_SIGNALS = []
+COUNTER_COUNT = 0
+for strike in range(ATM-300, ATM+1, 50):
+   if Chg_OI(strike, 'PUT') > 15000 and Premium(strike, 'PUT') < 90:
+      COUNTER_SIGNALS.append(f"{strike} Put: +{Chg_OI(strike,'PUT'):,} (Prem {Premium(strike,'PUT')}) → INST SUPPORT")
+      COUNTER_COUNT += 1
+for strike in range(ATM, ATM+301, 50):
+   if Chg_OI(strike, 'CALL') > 15000 and Premium(strike, 'CALL') < 90:
+      COUNTER_SIGNALS.append(f"{strike} Call: +{Chg_OI(strike,'CALL'):,} (Prem {Premium(strike,'CALL')}) → INST RESISTANCE")
+      COUNTER_COUNT += 1
+AFTER PHASE 2: "Counter-positioning: {COUNTER_COUNT} signals"
+
+# ——— PHASE 3: MAX PAIN — COMPUTED ———
+CURRENT_MAX_PAIN = strike with MAX(Put_OI + Call_OI)
+SPOT_TO_PAIN = SPOT - CURRENT_MAX_PAIN
+AFTER MAX PAIN: "Max Pain = {CURRENT_MAX_PAIN}, Spot diff = {SPOT_TO_PAIN:+}"
+
+# ——— PHASE 4: PAIN_PRESSURE — PRICE-VECTOR-AWARE ———
+PAIN_PRESSURE = "NONE"
+TRAPPED = False
+
+if MOMENTUM == "BULLISH":
+   if SPOT_TO_PAIN > 0 and SPOT_TO_PAIN <= 100 and PRICE_VECTOR < 0:
+      PAIN_PRESSURE = "BEARISH: Spot FALLING INTO Max Pain → TRAPPED PUT WRITERS"
+      TRAPPED = True
+   else:
+      PAIN_PRESSURE = "NEUTRAL: No active trap on Put writers"
+elif MOMENTUM == "BEARISH":
+   if SPOT_TO_PAIN < 0 and abs(SPOT_TO_PAIN) <= 100 and PRICE_VECTOR > 0:
+      PAIN_PRESSURE = "BULLISH: Spot RISING INTO Max Pain → TRAPPED CALL WRITERS"
+      TRAPPED = True
+   else:
+      PAIN_PRESSURE = "NEUTRAL: No active trap on Call writers"
+else:
+   PAIN_PRESSURE = "NEUTRAL: Momentum unclear → no directional pain"
+
+AFTER PHASE 4: "Pain pressure: {PAIN_PRESSURE} → TRAPPED = {TRAPPED}"
+
+# ——— PCR & BANKNIFTY DIVERGENCE ———
+PCR_DIV = (Ratio > 1.20 and Volume_PCR_30M < 0.80) or (Ratio < 0.80 and Volume_PCR_30M > 1.50)
+BN_DIV = (Ratio > 1.20 and BANKNIFTY_DOMINANT == "CALL WRITING") or (Ratio < 0.80 and BANKNIFTY_DOMINANT == "PUT WRITING")
+
+# ——— REVERSAL SCORING — CODE ENFORCED ———
+REV_SCORE = 30 * UNWIND_COUNT + 25 * COUNTER_COUNT + 18 * int(TRAPPED) + 12 * int(PCR_DIV) + 8 * int(BN_DIV)
+# Can exceed 100
+CONFIDENCE = "XHIGH" if REV_SCORE >= 80 else "HIGH" if REV_SCORE >= 65 else "MEDIUM" if REV_SCORE >= 50 else "LOW"
+
+AFTER SCORING: "Reversal Score = {REV_SCORE}/100 → {CONFIDENCE} | Can exceed 100"
+
+# ——— REVERSAL DIRECTION ———
+if MOMENTUM == "BEARISH" and "BULLISH" in PAIN_PRESSURE:
+   REV_DIR = "BEARISH → BULLISH"
+elif MOMENTUM == "BULLISH" and "BEARISH" in PAIN_PRESSURE:
+   REV_DIR = "BULLISH → BEARISH"
+else:
+   REV_DIR = MOMENTUM
+AFTER DIRECTION: "Reversal direction: {REV_DIR}"
+
+# ———————————————————————
+# 4. CRITICAL LEVELS — CODE ENFORCED
+# ———————————————————————
+RESISTANCE = max((s for s, _ in DOMINANT_CALL_STRIKES), default=ATM + 100)
+SUPPORT = max((s for s, _ in DOMINANT_PUT_STRIKES), default=ATM - 100)
+
+if MOMENTUM == "BULLISH":
+   HOLD_LEVEL = f"Above {SUPPORT}"
+   TRIGGER_CONDITION = "BREAK ABOVE"
+   TRIGGER_LEVEL = f"{RESISTANCE}"
+elif MOMENTUM == "BEARISH":
+   HOLD_LEVEL = f"Below {RESISTANCE}"
+   TRIGGER_CONDITION = "BREAK BELOW"
+   TRIGGER_LEVEL = f"{SUPPORT}"
+else:
+   HOLD_LEVEL = f"Range {SUPPORT}–{RESISTANCE}"
+   TRIGGER_CONDITION = "BREAK EITHER SIDE"
+   TRIGGER_LEVEL = f"{SUPPORT}–{RESISTANCE}"
+
+AFTER LEVELS: "Hold = {HOLD_LEVEL} | Trigger = {TRIGGER_CONDITION} {TRIGGER_LEVEL}"
+
+# ———————————————————————
+# 5. FINAL OUTPUT — ALL VALUES LOCKED
+# ———————————————————————
+QUANTITATIVE EVIDENCE:
+Net Chg OI (Puts - Calls): {TOTAL_PUT_OI - TOTAL_CALL_OI:+,}
+Total Put Chg OI (Positive): {TOTAL_PUT_OI:,}
+Total Call Chg OI (Positive): {TOTAL_CALL_OI:,}
+Ratio: {Ratio:.2f}
+
+KEY FLOW EVIDENCE:
+[STRIKE]: [+/-XXXXX] - [Put/Call] Writing - [INSTITUTIONAL/RETAIL/MIXED]
+...
+
+MOMENTUM DRIVERS:
+Primary: {INST_PCT:.0f}% Institutional {MOMENTUM.lower()} flow
+Secondary: {PCT_TOP3:.0%} in top 3 strikes
+Contradictory: {len(DOMINANT_PUT_STRIKES) if MOMENTUM=='BEARISH' else len(DOMINANT_CALL_STRIKES)} minor opposite
+
+BANKNIFTY CONFIRMATION: {ALIGNMENT} [{BANKNIFTY_DOMINANT} vs {MOMENTUM}]
+
+CRITICAL LEVELS:
+Current Momentum holds: {HOLD_LEVEL}
+Momentum Shift Trigger: {TRIGGER_CONDITION} {TRIGGER_LEVEL}
+
+CURRENT MOMENTUM: {MOMENTUM}
+STRENGTH: {STRENGTH}
+CONFIDENCE: {CONFIDENCE}
+
+PCR Data:
+OI PCR [{OI_PCR:.2f}] [{'ALIGNED' if (OI_PCR>1 and TOTAL_PUT_OI>TOTAL_CALL_OI) or (OI_PCR<1 and TOTAL_CALL_OI>TOTAL_PUT_OI) else 'DIVERGENT'}]
+Volume PCR [{Volume_PCR:.2f}] [{'ALIGNED' if not PCR_DIV else 'DIVERGENT'}]
+
+STRENGTH METER: {SCORE}/10
+[Justification via coded rules]
+
+ANALYSIS NARRATIVE:
+[Auto-generated from above]
+
+TRADING IMPLICATION:
+[Auto-derived from REV_DIR and CONFIDENCE]
+
+# ———————————————————————
+# REVERSAL ALERT
+# ———————————————————————
+REVERSAL SCORE: {REV_SCORE}/100
+CONFIDENCE: {CONFIDENCE}
+DIRECTION: {REV_DIR}
+ENTRY WINDOW: NEXT 15–60 MIN
+TRIGGER: {TRIGGER_CONDITION} {TRIGGER_LEVEL}
+EVIDENCE SUMMARY:
+1. Unwind: {UNWIND_COUNT} signals
+2. Counter: {COUNTER_COUNT} signals
+3. Pain: {PAIN_PRESSURE}
+4. PCR Div: {PCR_DIV}
+5. BN Div: {BN_DIV}
+
+# ———————————————————————
+# MANDATORY QUALITY CHECKS (FINAL AUDIT) — BOTTOM
+# ———————————————————————
+- PRICE_VECTOR: SPOT - PREVIOUS_SPOT? → [YES/NO]
+- NEGATIVE Chg OI: <0 → 0? → [YES/NO]
+- DOMINANT STRIKES: Top 3 positive Chg OI? → [YES/NO]
+- TOP3 %: max(PCT_TOP3_PUT, PCT_TOP3_CALL)? → [YES/NO]
+- INST %: <100=INST, 100-150=MIXED, >150=RETAIL? → [YES/NO]
+- RATIO: Positive only? → [YES/NO]
+- MOMENTUM: BULLISH/BEARISH/NEUTRAL only? → [YES/NO]
+- STRENGTH: STRONG/MODERATE/WEAK only? → [YES/NO]
+- BANKNIFTY_DOMINANT: PUT/CALL/NEUTRAL only? → [YES/NO]
+- ALIGNMENT: ALIGNED/DIVERGENT only? → [YES/NO]
+- UNWIND_POSSIBLE: True only if ≥2 points? → [YES/NO]
+- UNWIND_COUNT: len(UNWIND_SIGNALS)? → [YES/NO]
+- MAX PAIN: MAX(Put+Call OI)? → [YES/NO]
+- TRAPPED: In zone AND vector TOWARDS pain? → [YES/NO]
+- TRAPPED FALSE: If moving AWAY? → [YES/NO]
+- REV_SCORE: 30*UNWIND + 25*COUNTER + 18*TRAPPED + ...? → [YES/NO]
+- REV_SCORE >100: Allowed? → [YES/NO]
+- CONFIDENCE: XHIGH/HIGH/MEDIUM/LOW only? → [YES/NO]
+- REV_DIR: Exact match? → [YES/NO]
+- TRIGGER_CONDITION: BREAK ABOVE/BELOW/EITHER SIDE only? → [YES/NO]
+- TRIGGER_LEVEL: Strike or range? → [YES/NO]
+- ALL TRACED: AFTER STEP X present? → [YES/NO]
+- PROTOCOL VIOLATIONS: [0]
+-----------------------------------------------------------------------------------------------    
+
+
+CURRENT DATA FOR ANALYSIS - FETCHED AT: 2025-11-10 14:07:14
+================================================================================
+NIFTY DATA:
+- Current Value: 25616
+- Expiry Date: 11-Nov-2025
+- OI PCR: 1.12
+- Volume PCR: 0.91
+
+BANKNIFTY DATA:
+- Current Value: 58005.6
+- Expiry Date: 25-Nov-2025
+- OI PCR: 0.93
+- Volume PCR: 0.87
+
+
+COMPLETE NIFTY OPTION CHAIN DATA:
+================================================================================
+OI Data for NIFTY - Current: 25616, Expiry: 11-Nov-2025
+Full Chain PCR: OI=1.12, Volume=0.91
+================================================================================
+CALL OPTION                                       |   STRIKE   |PUT OPTION                                          |  CHG OI DIFF       
+    Chg OI      Volume       LTP          OI       IV  |    Price    |      Chg OI      Volume       LTP          OI       IV  |             CE-PE
+------------------------------------------------------------------------------------------------------------------------------------------------------
+        -5          12    2345.0          23    115.8  |    23300    |          -1      194887       0.5       90370     62.5  |                -4
+         0           0         0           3        0  |    23350    |        -175       18688       0.5        5398     62.8  |               175
+         0           0         0           7        0  |    23400    |       -1383       22232       0.6        4519     62.0  |              1383
+         0           2    2197.5           6    111.1  |    23450    |         501        9542       0.7        1431     60.7  |              -501
+       -11          27    2156.8         449    114.3  |    23500    |       -6095      105160       0.6       35969     59.3  |              6084
+         0           0         0           0        0  |    23550    |         260        6206       0.7        1015     58.4  |              -260
+         0           1    2047.2           4    104.5  |    23600    |        1029       12600       0.8        4463     57.5  |             -1029
+         0           0         0           2        0  |    23650    |         601        7267       0.8        1338     56.1  |              -601
+         0           0         0           4        0  |    23700    |         503       24003       0.8        4130     55.1  |              -503
+         0           0         0           0        0  |    23750    |         489       24754       0.8        3007     53.8  |              -489
+         0           3    1839.4           8     91.4  |    23800    |       -1134       63322       0.8       14824     52.4  |              1134
+         0           0         0           5        0  |    23850    |        -884       25791       0.9        1683     51.7  |               884
+         0           1    1736.8           6     85.7  |    23900    |       -1114       47237       0.9        6881     50.0  |              1114
+         0           0         0           4        0  |    23950    |         759       26361       0.9        4726     49.3  |              -759
+      -218         328    1630.0         651     55.1  |    24000    |      -13541      222659       0.9       72492     47.9  |             13323
+        -2           5    1589.5           6     81.1  |    24050    |        1406       45163       1.1        4285     46.8  |             -1408
+         0           6    1549.0          12     84.0  |    24100    |        1280       73357       1.1       11990     45.4  |             -1280
+         0           0         0           9        0  |    24150    |       -2748       52053       1.1        3604     44.2  |              2748
+       -16          27    1445.0          19     77.6  |    24200    |      -22703      157774       1.1       30060     42.6  |             22687
+         0           0         0          24        0  |    24250    |       -6775       75192       1.1        7391     41.5  |              6775
+        -2          18    1330.0          36     65.1  |    24300    |      -13934      187131       1.1       24300     40.1  |             13932
+         0           0         0           8        0  |    24350    |        2596       71375       1.2        8902     39.1  |             -2596
+         4          47    1225.0          52     57.8  |    24400    |      -20487      245024       1.3       25617     37.9  |             20491
+        27         262    1198.2          30     68.2  |    24450    |       -1049      130458       1.3       18063     36.6  |              1076
+       -79         560    1110.2         824     49.0  |    24500    |       -3391      688422       1.4      116289     35.2  |              3312
+         0           0         0          12        0  |    24550    |        4889      246760       1.5       13293     34.2  |             -4889
+        19         355    1047.0         139     60.9  |    24600    |       19714      571673       1.5       61875     32.9  |            -19695
+        91         592     965.2         119     40.5  |    24650    |       11522      301541       1.6       30618     31.9  |            -11431
+      -253        9117     915.8         842     41.2  |    24700    |       11731      558212       1.6       69991     30.5  |            -11984
+        17         870     866.5         114     38.2  |    24750    |       26022      416667       1.8       46935     29.2  |            -26005
+       179        3159     816.0         692     32.1  |    24800    |       52344      760392       1.9      116951     27.9  |            -52165
+         3          45     760.2         199     28.1  |    24850    |       13634      401424       1.9       31412     26.6  |            -13631
+       -92         624     735.0         384     31.5  |    24900    |       22496      642617       2.0       71721     25.2  |            -22588
+        -8         214     682.8         208     45.6  |    24950    |       -2903      385423       2.1       29939     23.9  |              2895
+      -526        8803     631.0        3621     27.5  |    25000    |       27326     1053178       2.3      178072     22.7  |            -27852
+      -114         749     581.5         336     29.1  |    25050    |       -2836      451731       2.5       39322     21.1  |              2722
+       -82        3508     533.0        1055     26.9  |    25100    |       17403      705380       2.6       92677     19.9  |            -17485
+       -98        1511     486.7         634     24.1  |    25150    |       -1618      431228       3.0       41937     18.7  |              1520
+     -3623       31994     432.7        3806     21.1  |    25200    |      -16984     1036357       3.5      108423     17.5  |             13361
+      -490        9725     383.9        2368     19.4  |    25250    |       11648      995792       4.2      104840     16.3  |            -12138
+     -4979      135596     334.9       10143     17.4  |    25300    |       27633     1663624       5.2      186748     15.3  |            -32612
+     -5296       78493     285.1        9673     16.2  |    25350    |       26560     1311878       6.8      115221     14.3  |            -31856
+    -15121      484524     239.0       34149     15.1  |    25400    |       76862     2585525       9.3      218433     13.4  |            -91983
+     -5515      573734     192.6       19023     14.0  |    25450    |       73583     2306205      13.2      140139     12.7  |            -79098
+    -27145     2756156     149.5       83609     13.3  |    25500    |      198134     5179540      20.3      296193     12.1  |           -225279
+     18771     3580081     110.5       76664     12.7  |    25550    |      199356     4571586      31.0      223651     11.6  |           -180585
+    121345     7620425      77.5      249899     12.2  |    25600    |      263214     6770955      48.2      317713     11.3  |           -141869
+    140854     5844076      51.5      213195     12.1  |    25650    |      105978     3455529      71.8      120293     11.0  |             34876
+    118028     5654084      32.5      259264     11.9  |    25700    |       54766     2088089     102.8       74353     10.9  |             63262
+     66893     3144722      19.6      131643     12.1  |    25750    |       12613      517561     140.1       17678     10.4  |             54280
+     64604     3582622      11.7      186623     12.3  |    25800    |        8194      434314     182.0       21817     10.2  |             56410
+     16877     2251479       6.7       97488     12.6  |    25850    |         307       77253     227.7        4480      8.3  |             16570
+     68298     2028517       4.0      166654     13.1  |    25900    |       -1232       75091     274.2        8816        0  |             69530
+     30084     1277798       2.8       77759     13.9  |    25950    |         147        8981     322.9        1129        0  |             29937
+    -12247     2238095       2.1      189049     15.0  |    26000    |       -5648       44222     373.5       13797        0  |             -6599
+      7978      459569       1.7       49264     16.1  |    26050    |         -57        1680     420.9         724        0  |              8035
+     31573      885823       1.4      100507     17.2  |    26100    |        -479        2740     469.6        4078        0  |             32052
+      4517      208223       1.4       29468     18.5  |    26150    |         -13         287     522.0         824        0  |              4530
+    -18930      534063       1.2       89305     19.8  |    26200    |        -455        1630     571.2        3498        0  |            -18475
+     10072      180935       1.2       35953     21.0  |    26250    |         -17         315     636.6         660        0  |             10089
+     -7212      447476       1.1       63533     22.3  |    26300    |        -333         684     667.0        1025        0  |             -6879
+      8444      164366       1.1       28836     23.4  |    26350    |          -8          47     712.5         246        0  |              8452
+     11389      379551       1.0       77773     24.4  |    26400    |        -203         482     767.5         454        0  |             11592
+      4986      188637       1.0       22924     25.9  |    26450    |          -9          16     795.0         238        0  |              4995
+      2416      710054       0.9      133387     27.1  |    26500    |       -1657        2097     880.5        2575        0  |              4073
+      3527      101029       0.9       17019     28.4  |    26550    |           0           9     903.0          74        0  |              3527
+     -8937      252512       0.8       46270     29.5  |    26600    |           0          62     980.4         246        0  |             -8937
+      4205       66325       0.9       22762     30.6  |    26650    |           0           3    1006.2           5        0  |              4205
+    -17778      169473       0.8       33514     31.6  |    26700    |         -71         137    1042.2         162        0  |            -17707
+     -2164       30494       0.8       18833     33.1  |    26750    |           0           0         0           5        0  |             -2164
+     -5104       82918       0.8       38674     34.1  |    26800    |          -8          94    1157.4         110        0  |             -5096
+     -1267       81518       0.8       17215     34.8  |    26850    |           0           3    1201.2           8        0  |             -1267
+       847       54944       0.8       25082     36.6  |    26900    |         -20          68    1285.0          78        0  |               867
+     -1512       30579       0.8        7805     37.5  |    26950    |           0           0         0           6        0  |             -1512
+    -36723      204556       0.8       75774     38.4  |    27000    |        -266         341    1383.0         353        0  |            -36457
+     -4676       31312       0.8        6701     39.6  |    27050    |           0           0         0           5        0  |             -4676
+    -16394       47864       0.7       19271     40.5  |    27100    |          -3          10    1442.5          15        0  |            -16391
+     -3349       28809       0.7        4889     42.0  |    27150    |           0           0         0           4        0  |             -3349
+    -13634       37792       0.7       31201     43.2  |    27200    |          -5          10    1578.5          20        0  |            -13629
+     -1057       22835       0.6        6039     43.7  |    27250    |           0           0         0           5        0  |             -1057
+      2288       29169       0.7       24837     45.9  |    27300    |           0           4    1654.3          17        0  |              2288
+        -7       13669       0.6        4604     46.0  |    27350    |           0           0         0          14        0  |                -7
+     -2576       17907       0.7       18834     47.5  |    27400    |           0           0         0           9        0  |             -2576
+       232        6196       0.6        1671     48.6  |    27450    |           0           0         0           4        0  |               232
+    -13765       57792       0.7       40095     49.8  |    27500    |          -1          11    1851.0          27        0  |            -13764
+       158        6738       0.6        2222     50.5  |    27550    |           0           0         0           5        0  |               158
+     -1134       17319       0.6        6521     51.2  |    27600    |           0           0         0           2        0  |             -1134
+       -21        4797       0.6        1777     52.3  |    27650    |           0           0         0          10        0  |               -21
+      1297        9859       0.6        4829     53.4  |    27700    |           0           0         0           6        0  |              1297
+        87       11751       0.5        2858     54.5  |    27750    |           0           0         0           7        0  |                87
+       535       54561       0.6       32725     55.6  |    27800    |           0           0         0           7        0  |               535
+======================================================================================================================================================
+NIFTY PCR: OI PCR = 1.12, Volume PCR = 0.91
+
+
+
+COMPLETE BANKNIFTY OPTION CHAIN DATA:
+================================================================================
+OI Data for BANKNIFTY - Current: 58005.6, Expiry: 25-Nov-2025
+Full Chain PCR: OI=0.93, Volume=0.87
+================================================================================
+CALL OPTION                                       |   STRIKE   |PUT OPTION                                          |  CHG OI DIFF       
+    Chg OI      Volume       LTP          OI       IV  |    Price    |      Chg OI      Volume       LTP          OI       IV  |             CE-PE
+------------------------------------------------------------------------------------------------------------------------------------------------------
+         0           0         0           7        0  |    46000    |          42         495       5.3        1431     43.4  |               -42
+         0           0         0           1        0  |    46500    |          92         590       5.3        1098     41.7  |               -92
+         0           0         0           1        0  |    47000    |          20         308       5.8        1251     40.2  |               -20
+         0           0         0           0        0  |    47500    |           0           7       6.5         461     38.9  |                 0
+         1           2   10289.4        2237     56.7  |    48000    |           4         343       6.0        2076     36.8  |                -3
+         0           0         0          21        0  |    48500    |          -5         222       6.5         209     35.3  |                 5
+         0           0         0           0        0  |    48700    |           0           0         0          30        0  |                 0
+         0           0         0           0        0  |    48800    |           0           0         0           0        0  |                 0
+         0           0         0           0        0  |    48900    |           0           0         0           0        0  |                 0
+         0           0         0         526        0  |    49000    |         -20         213       7.3         958     34.0  |                20
+         0           0         0           0        0  |    49100    |          -1           8       7.2          72     33.6  |                 1
+         0           0         0           0        0  |    49200    |           0           0         0           0        0  |                 0
+         0           0         0           0        0  |    49300    |           0           0         0           0        0  |                 0
+         0           0         0           0        0  |    49400    |          73         126       6.3          87     32.0  |               -73
+         0           0         0          10        0  |    49500    |           1         243       6.8         365     31.9  |                -1
+         0           0         0           1        0  |    49600    |           0           0         0           0        0  |                 0
+         0           0         0           1        0  |    49700    |           0           0         0           0        0  |                 0
+         0           0         0           1        0  |    49800    |          -7          32       7.0          35     31.0  |                 7
+         0           0         0           2        0  |    49900    |           0           0         0           0        0  |                 0
+       -32          40    8240.0        2769     41.0  |    50000    |         -33        2371       7.0        5823     30.2  |                 1
+         0           0         0           1        0  |    50100    |           0           0         0           0        0  |                 0
+         0           0         0           2        0  |    50200    |           0           0         0           0        0  |                 0
+         0           0         0           4        0  |    50300    |           0           2       6.8          29     29.1  |                 0
+         0           0         0           2        0  |    50400    |           0           0         0           0        0  |                 0
+         0           0         0          29        0  |    50500    |           5         376       7.8         241     28.9  |                -5
+         0           0         0           2        0  |    50600    |           0           0         0           0        0  |                 0
+         0           0         0           3        0  |    50700    |           0           0         0           0        0  |                 0
+         0           0         0           2        0  |    50800    |           0           0         0           0        0  |                 0
+         0           0         0           8        0  |    50900    |           0           0         0           1        0  |                 0
+        -1           6    7275.0         625     39.5  |    51000    |         -14        1218       9.0        2967     27.4  |                13
+         0           0         0           9        0  |    51100    |           0           0         0           0        0  |                 0
+         0           0         0           8        0  |    51200    |           0           0         0           0        0  |                 0
+         9          56    6932.3          20     33.6  |    51300    |          16          38       8.6          16     26.3  |                -7
+         0           0         0          11        0  |    51400    |           0           0         0           0        0  |                 0
+         0           6    6744.8          27     34.1  |    51500    |          18         173       9.8         457     26.0  |               -18
+         0           2    6937.6          12     51.5  |    51600    |          28          63       9.8          34     25.7  |               -28
+         0           0         0          16        0  |    51700    |          13          26       9.6          23     25.2  |               -13
+         0           0         0          17        0  |    51800    |           0           0         0           0        0  |                 0
+         0           0         0          17        0  |    51900    |           4          18       9.3          12     24.4  |                -4
+       -18          26    6230.0        1512     29.9  |    52000    |        -138        2314      10.4        3141     24.3  |               120
+         0           0         0          23        0  |    52100    |          -9         127      10.3          65     24.0  |                 9
+         0           0         0          17        0  |    52200    |           0           0         0           0        0  |                 0
+         0           0         0          18        0  |    52300    |           5         183      10.4          46     23.3  |                -5
+         0           0         0          17        0  |    52400    |           0           0         0           0        0  |                 0
+         0           0         0          28        0  |    52500    |          23         704      11.3        1671     22.7  |               -23
+         0           0         0          22        0  |    52600    |           0           0         0           0        0  |                 0
+         0           0         0          19        0  |    52700    |           0           0         0           0        0  |                 0
+         0           0         0          18        0  |    52800    |          10          71      12.0          74     21.9  |               -10
+         0           0         0          17        0  |    52900    |           0           0         0           0        0  |                 0
+       -19          25    5297.6         602     31.1  |    53000    |        -281        4618      12.4        8392     21.3  |               262
+         0           0         0          15        0  |    53100    |          -2          97      12.7         175     21.1  |                 2
+         0           0         0          23        0  |    53200    |          -4          36      13.5          68     20.8  |                 4
+         0           0         0          14        0  |    53300    |           1          18      14.8          73     20.7  |                -1
+         0           0         0          21        0  |    53400    |           5          62      15.0          71     20.2  |                -5
+         0           2    4812.0         567     29.4  |    53500    |        -229        5250      14.7        7879     19.9  |               229
+         0           0         0          20        0  |    53600    |          54         326      15.7         260     19.6  |               -54
+         0           0         0          21        0  |    53700    |          22         121      16.1         115     19.4  |               -22
+         0           0         0          43        0  |    53800    |          21         365      16.6         400     19.1  |               -21
+         0           0         0          21        0  |    53900    |          26         422      17.1         282     18.8  |               -26
+       -18          29    4250.0        1829     22.5  |    54000    |         311        9001      18.9       11711     18.8  |              -329
+         0           0         0          22        0  |    54100    |         -61         619      20.0         696     18.5  |                61
+         0           0         0         110        0  |    54200    |         198         841      21.1         498     18.2  |              -198
+         0           0         0          28        0  |    54300    |         -30         683      21.6         488     18.0  |                30
+         0           0         0         139        0  |    54400    |         -45         592      23.0         402     17.7  |                45
+        -4          10    3823.2         504     24.7  |    54500    |           8        6803      24.6        6066     17.6  |               -12
+         0           0         0          21        0  |    54600    |          62         571      25.9         964     17.4  |               -62
+         0           2    3553.4          56     19.4  |    54700    |          62         929      28.8         827     17.1  |               -62
+         0           0         0          61        0  |    54800    |        -189         923      30.5        1341     17.0  |               189
+         0           0         0          87        0  |    54900    |         441        1509      31.9        1147     16.7  |              -441
+      -183         602    3291.0        3190     20.3  |    55000    |         160       17941      34.0       19502     16.5  |              -343
+         0           0         0          27        0  |    55100    |         -35         585      35.9         659     16.2  |                35
+         0           0         0          19        0  |    55200    |         134         891      40.4        1490     16.1  |              -134
+         0           0         0          26        0  |    55300    |        -203        1520      41.7         997     15.9  |               203
+         1           6    2974.8         170     22.1  |    55400    |          10         907      45.0         664     15.6  |                -9
+       -15          36    2786.9        2645     17.5  |    55500    |        -341       19858      47.8       12139     15.5  |               326
+         0           0         0          56        0  |    55600    |         621        3241      52.5        3134     15.3  |              -621
+         0           2    2598.0          35     17.0  |    55700    |          21        1917      56.5        1713     15.1  |               -21
+        -2           9    2499.7          53     16.6  |    55800    |          -2        2881      60.7        1841     14.9  |                 0
+         0           0         0          76        0  |    55900    |        -302        2282      67.0        1326     14.7  |               302
+       -33         398    2355.8        5178     17.2  |    56000    |          74       26630      71.3       25575     14.6  |              -107
+         0           0         0          37        0  |    56100    |        -108        1745      79.0        1060     14.4  |               108
+         0           3    2220.8         111     19.0  |    56200    |        -236        2759      85.0        2076     14.2  |               236
+         3          12    2042.6          74     15.6  |    56300    |        -158        3450      92.1        2063     14.0  |               161
+         0           9    1995.5         106     18.7  |    56400    |         173        3537     101.5        1726     13.9  |              -173
+       173         878    1890.5        2598     15.6  |    56500    |         378       18798     109.7       13772     13.7  |              -205
+        -7          20    1802.0         165     15.9  |    56600    |         182        3971     120.5        2316     13.5  |              -189
+       -12          51    1742.2         404     16.5  |    56700    |         -27        5027     131.8        3009     13.4  |                15
+       -25          73    1620.0        1482     15.2  |    56800    |        1003        8956     145.5        4587     13.2  |             -1028
+        -2          71    1534.2         349     14.9  |    56900    |         102        7564     158.8        2301     13.1  |              -104
+       655        3591    1460.0       16538     14.4  |    57000    |        1179       34911     173.1       37473     13.0  |              -524
+       -34         126    1396.6         644     15.2  |    57100    |         -49        6832     190.5        3155     12.8  |                15
+       -55         447    1277.3        1132     13.4  |    57200    |        -118       12179     209.0        6030     12.7  |                63
+         2         479    1197.9         960     13.7  |    57300    |         165       10842     228.4        5209     12.5  |              -163
+      -137        1023    1140.8        1204     13.6  |    57400    |         742       10869     250.0        5279     12.4  |              -879
+        20        8251    1064.7        7910     13.4  |    57500    |        1171       39451     275.0       22121     12.3  |             -1151
+      -177        3092     990.0        2042     13.2  |    57600    |         451       15461     299.9        5130     12.1  |              -628
+      -493       12624     912.0        2907     13.0  |    57700    |         604       17905     329.2        5861     12.0  |             -1097
+      -748       28319     849.7        4346     12.8  |    57800    |        1768       37337     358.9        9503     11.8  |             -2516
+      1670       42635     781.8        5910     12.7  |    57900    |        2964       46101     392.9        7619     11.8  |             -1294
+      4553      142508     719.1       48253     12.6  |    58000    |        5613      151979     430.1       48954     11.7  |             -1060
+      2408       46427     658.5        8413     12.5  |    58100    |        2020       43172     468.6        6207     11.5  |               388
+      1896       54297     600.8       11530     12.4  |    58200    |        2109       32600     510.9        7098     11.4  |              -213
+      2677       39698     546.8        9316     12.3  |    58300    |        2278       25360     556.4        6464     11.3  |               399
+      1211       24260     496.5        6085     12.1  |    58400    |         971       11562     606.7        3410     11.2  |               240
+      3816       79633     447.4       42144     12.0  |    58500    |       12209       40345     651.1       39825     11.0  |             -8393
+       694       18564     403.9        4393     12.0  |    58600    |         327        4468     713.8        1938     10.9  |               367
+      1367       15950     362.8        4993     11.9  |    58700    |         178        2153     770.4        1216     10.4  |              1189
+      -630       13851     327.1        6219     11.9  |    58800    |         129        1450     832.2        1367     10.8  |              -759
+       112       10633     292.0        3671     12.0  |    58900    |          22         535     915.6         412     10.6  |                90
+      2546       51367     261.6       28399     11.9  |    59000    |         275        7007     964.5        7292     10.7  |              2271
+       411        9187     233.0        3030     11.8  |    59100    |         -29         208    1043.4         425     10.5  |               440
+       190        9120     208.2        3051     11.9  |    59200    |          13         106    1112.2         269     10.9  |               177
+      -288       10934     185.3        2903     11.9  |    59300    |         -13          74    1201.5         157     10.4  |              -275
+       256        9410     165.0        2456     11.9  |    59400    |          -2          23    1225.4          91      7.8  |               258
+        14       25046     146.6       16961     11.9  |    59500    |          -5         534    1370.4        1239     10.0  |                19
+       393        4627     130.4        2388     12.0  |    59600    |          -1          10    1415.5         112      8.3  |               394
+       352        5545     116.4        2102     12.1  |    59700    |           0           0         0         119        0  |               352
+       470        6649     104.0        2871     12.1  |    59800    |           0           0         0          73        0  |               470
+       303        7221      93.2        2373     12.2  |    59900    |           1           6    1693.9          57      8.1  |               302
+      2725       36417      83.0       33675     12.3  |    60000    |         -33         829    1785.0        3610      9.0  |              2758
+       -83        3096      74.0        1374     12.5  |    60100    |           0           0         0          32        0  |               -83
+       -71        4277      66.6        2380     12.6  |    60200    |           0           1    1974.2          21        0  |               -71
+       417        3563      60.6        2101     12.7  |    60300    |           0           0         0          16        0  |               417
+       304        1822      53.4        1570     12.8  |    60400    |           0           0         0          39        0  |               304
+       868       16570      48.5       14769     12.8  |    60500    |           0           2    2264.2          42        0  |               868
+       121        1260      44.7        1128     13.0  |    60600    |           0           0         0          23        0  |               121
+        49        1182      40.6        1322     13.1  |    60700    |           0           0         0          15        0  |                49
+       216        2231      37.2        1069     13.3  |    60800    |           0           0         0          23        0  |               216
+        72        2037      34.5        1282     13.5  |    60900    |           0           0         0          13        0  |                72
+       677       17365      31.6       16783     13.7  |    61000    |           1           6    2695.0         656        0  |               676
+       294        2364      29.9        2847     13.9  |    61100    |           0           0         0           6        0  |               294
+        57         980      27.4        1169     14.1  |    61200    |           0           0         0          11        0  |                57
+       164         842      25.2         508     14.3  |    61300    |           0           0         0           7        0  |               164
+        84         476      23.9         491     14.4  |    61400    |           0           0         0           7        0  |                84
+       125        5917      21.6        8688     14.5  |    61500    |           0           0         0          22        0  |               125
+         1         466      20.8         350     14.8  |    61600    |           0           0         0          15        0  |                 1
+       168         669      19.1         441     15.0  |    61700    |           0           0         0           8        0  |               168
+       629        2077      18.7        1070     15.2  |    61800    |           0           0         0          10        0  |               629
+       343        1191      17.9         711     15.5  |    61900    |           0           0         0           9        0  |               343
+      1695       13956      16.2       20340     15.5  |    62000    |          59          70    3730.0        1621        0  |              1636
+       -77         253      16.1         571     15.9  |    62100    |           0           0         0           7        0  |               -77
+       209         430      15.5         571     16.1  |    62200    |           0           0         0           6        0  |               209
+        30         126      14.2         214     16.2  |    62300    |           0           0         0           9        0  |                30
+        18          90      14.2         459     16.6  |    62400    |           0           0         0           8        0  |                18
+      -452        3294      12.7        6520     16.6  |    62500    |           0           0         0          14        0  |              -452
+       -20         382      12.5         299     16.9  |    62600    |           0           0         0          13        0  |               -20
+         6          77      12.4         116     17.2  |    62700    |           0           0         0           9        0  |                 6
+        -2          54      10.9         155     17.2  |    62800    |           0           0         0           6        0  |                -2
+        68         299      10.8         122     17.5  |    62900    |           0           0         0           9        0  |                68
+       -44        4802      10.8       11304     17.7  |    63000    |         -14          19    4730.0        1358        0  |               -30
+        13         112      10.3         282     18.0  |    63100    |           0           0         0           0        0  |                13
+        27         137      10.9         153     18.4  |    63200    |           0           0         0           0        0  |                27
+        -3          73       9.4          78     18.3  |    63300    |           0           0         0           0        0  |                -3
+        -1           6       9.0          21     18.5  |    63400    |           0           0         0           0        0  |                -1
+       -88        1119       8.7        1498     18.7  |    63500    |           0           0         0          86        0  |               -88
+      -116        1824       7.2        3369     19.7  |    64000    |           0           1    5750.0          95        0  |              -116
+      -171         514       6.2        1201     20.7  |    64500    |           0           0         0          27        0  |              -171
+       -69        2305       5.6        6680     21.8  |    65000    |         -19          24    6630.1         988        0  |               -50
+        33        7786       5.2        4953     22.9  |    65500    |           0           0         0           2        0  |                33
+      1090       12836       5.0        4703     24.2  |    66000    |           0           0         0           0        0  |              1090
+======================================================================================================================================================
+BANKNIFTY PCR: OI PCR = 0.93, Volume PCR = 0.87
+================================================================================

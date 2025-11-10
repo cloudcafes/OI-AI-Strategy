@@ -9,7 +9,7 @@ import chardet
 import re
 
 SEARCH_DIRECTORY = "/home/danand/qcs_infra_tf" if platform.system() != "Windows" else "C:\\dev\\python-projects\\OI-AI-Strategy"
-DEFAULT_EXTENSIONS = ["*.py","*.html"]
+DEFAULT_EXTENSIONS = ["*.py"]
 OUTPUT_FILENAME_PREFIX = "complete_code"
 ENCODING = "utf-8"
 DELIMITER = "=" * 80
