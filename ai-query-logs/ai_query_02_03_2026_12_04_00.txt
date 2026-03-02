@@ -1,0 +1,947 @@
+
+# ===================================================================
+# NIFTY INTRADAY + REVERSAL PROMPT v15.0 [FULLY FIXED + BLACK-BOX PROOF]
+# FIXES: Theta/Premium, IV/Vega Engine, Volume Validation, ITM/OTM Weighting,
+#        Expiry Mode, Counter Normalization, Max Pain Reliability,
+#        TRAPPED Dead Zone, PCR Data Quality, Support/Resistance Logic,
+#        Time-of-Day Entry Filter
+# LOGIC: "TREND → UNWIND → COUNTER → PAIN" + MAX PAIN + FULL TRACE
+# ===================================================================
+
+# ═══════════════════════════════════════════════════════
+# COMPLIANCE VERIFICATION (TOP) — MANDATORY
+# ═══════════════════════════════════════════════════════
+- Step 1: [PASS]  # Data includes Chg OI, Premium (LTP), Strike, Static OI, IV, Volume
+- Step 2: [PASS]  # ATM = closest strike to spot
+- Step 3: [PASS]  # Chg OI > 0 only for writing direction
+- Chg OI > Static OI Hierarchy: [VERIFIED]  # Static OI NEVER used in direction (Max Pain only)
+- Protocol Violations: [0]
+
+# ═══════════════════════════════════════════════════════
+# 0. LIVE MARKET CONTEXT — FULLY CODED + VALUES LOCKED
+# ═══════════════════════════════════════════════════════
+SPOT:            [LIVE float]
+PREVIOUS_SPOT:   [Spot from last snapshot — REQUIRED for vector]
+PRICE_VECTOR:    SPOT - PREVIOUS_SPOT          # Possible: +XX, -XX, 0, UNAVAILABLE
+VWAP:            [LIVE float or UNAVAILABLE]
+TIME_NOW:        [HH:MM]
+TIME_SINCE_OPEN: [Integer minutes or MARKET CLOSED]
+EXPIRY:          [DD-MMM-YYYY]
+TODAY:           [DD-MMM-YYYY from system]
+DTE:             (EXPIRY - TODAY).days          # 0 = expiry day, 1 = day before, etc.
+
+# ——— EXPIRY / DTE MODE — FIXES GAP 1 + FLAW 1 (THETA) ———
+IS_EXPIRY_DAY = (DTE == 0)
+
+# Dynamic Premium Threshold based on DTE (fixes hardcoded ₹100 flaw):
+# Logic: ATM premium ≈ IV × Spot × sqrt(DTE/365) × 0.4
+# Simplified tiered approach:
+if DTE == 0:
+    INST_THRESHOLD     = 30     # Expiry day: deep theta collapse
+    COUNTER_THRESHOLD  = 25     # Counter-positioning premium filter
+    DTE_MODE           = "EXPIRY_DAY"
+elif DTE == 1:
+    INST_THRESHOLD     = 60
+    COUNTER_THRESHOLD  = 50
+    DTE_MODE           = "DAY_BEFORE_EXPIRY"
+elif DTE <= 7:
+    INST_THRESHOLD     = 100
+    COUNTER_THRESHOLD  = 90
+    DTE_MODE           = "NEAR_EXPIRY"
+elif DTE <= 15:
+    INST_THRESHOLD     = 150
+    COUNTER_THRESHOLD  = 130
+    DTE_MODE           = "MID_CYCLE"
+else:
+    INST_THRESHOLD     = 200
+    COUNTER_THRESHOLD  = 175
+    DTE_MODE           = "EARLY_CYCLE"
+
+ATM:             [Closest strike to spot — CODE: |SPOT - strike| minimized]
+ATM_RANGE:       [ATM - 300 to ATM + 300]       # inclusive, 50-pt spacing
+ATM_EXTENDED:    [ATM - 500 to ATM + 500]
+DATA_POINTS:     [Integer ≥ 1]                  # REQUIRED for unwind
+
+AFTER CONTEXT: "SPOT={SPOT}, Vector={PRICE_VECTOR:+}, Prev={PREVIOUS_SPOT} | ATM={ATM}, DTE={DTE} ({DTE_MODE}), INST_THRESHOLD={INST_THRESHOLD}, Data points={DATA_POINTS}"
+
+# ═══════════════════════════════════════════════════════
+# 0-B. IV BASELINE — FIXES FLAW 2 (VEGA / VOLATILITY ENGINE)
+# ═══════════════════════════════════════════════════════
+# Compute average IV of the top 6 most-liquid strikes (by volume) in ATM_RANGE
+# to establish a session IV baseline. Used throughout to flag Long buildup vs Writing.
+
+TOP_VOLUME_STRIKES = sorted(
+    [(strike, Volume(strike,'CALL') + Volume(strike,'PUT'))
+     for strike in ATM_RANGE],
+    key=lambda x: x[1], reverse=True
+)[:6]
+
+IV_BASELINE = mean([IV(strike, type)
+    for strike, _ in TOP_VOLUME_STRIKES
+    for type in ['CALL', 'PUT']
+    if IV(strike, type) > 0])
+
+# Per-strike IV flag (used in Step 2.1 dominant strike classification):
+def IV_FLAG(strike, type):
+    strike_iv = IV(strike, type)
+    if strike_iv == 0 or IV_BASELINE == 0:
+        return "IV_UNKNOWN"
+    ratio = strike_iv / IV_BASELINE
+    if ratio > 1.25:
+        return "IV_SPIKE"      # Rising IV → potential Long buildup, NOT clean writing
+    elif ratio < 0.80:
+        return "IV_CRUSH"      # Falling IV → clean writing environment
+    else:
+        return "IV_NORMAL"
+
+AFTER IV_BASELINE: "IV Baseline = {IV_BASELINE:.1f} | Computed from {len(TOP_VOLUME_STRIKES)} liquid strikes"
+
+# ═══════════════════════════════════════════════════════
+# 1. MOMENTUM ENGINE — FULLY CODED + VALUES LOCKED + TRACE
+# ═══════════════════════════════════════════════════════
+AFTER STEP 1: "Data sufficient — proceeding to seller identification"
+
+# ——— STEP 2.1: DOMINANT STRIKES — CODE ENFORCED ———
+# FIXES: Volume Validation (Flaw 3), ITM/OTM Weighting (Flaw 4), IV Flag (Flaw 2)
+
+# Moneyness helper:
+def MONEYNESS(strike, type):
+    if type == 'PUT':
+        return SPOT - strike      # positive = OTM put, negative = ITM put
+    else:
+        return strike - SPOT      # positive = OTM call, negative = ITM call
+
+# ITM/OTM Weight: ITM writing is more directional → weight 2x (fixes Flaw 4)
+def OI_WEIGHT(strike, type):
+    m = MONEYNESS(strike, type)
+    if m < 0:
+        return 2.0    # ITM writing — highly directional, weight double
+    elif m <= 100:
+        return 1.5    # Near-ATM writing — moderately directional
+    else:
+        return 1.0    # OTM writing — passive yield, no extra weight
+
+# Volume Validation: require Volume > 3 × Chg_OI to confirm active positioning (fixes Flaw 3)
+# Threshold is 3x (not 5x) to avoid over-filtering on expiry when lots of small trades sum up
+def VOLUME_VALID(strike, type):
+    chg = max(Chg_OI(strike, type), 0)
+    vol = Volume(strike, type)
+    if chg == 0:
+        return False
+    return vol >= (3 * chg)
+
+# Build weighted positive Chg OI with volume validation:
+PUT_CHG_POS  = []
+for strike in ATM_RANGE:
+    raw = max(Chg_OI(strike, 'PUT'), 0)
+    if raw > 0:
+        weighted = raw * OI_WEIGHT(strike, 'PUT')
+        vol_ok   = VOLUME_VALID(strike, 'PUT')
+        iv_flag  = IV_FLAG(strike, 'PUT')
+        PUT_CHG_POS.append((strike, weighted, raw, vol_ok, iv_flag))
+
+CALL_CHG_POS = []
+for strike in ATM_RANGE:
+    raw = max(Chg_OI(strike, 'CALL'), 0)
+    if raw > 0:
+        weighted = raw * OI_WEIGHT(strike, 'CALL')
+        vol_ok   = VOLUME_VALID(strike, 'CALL')
+        iv_flag  = IV_FLAG(strike, 'CALL')
+        CALL_CHG_POS.append((strike, weighted, raw, vol_ok, iv_flag))
+
+# Sort by weighted OI descending → top 3:
+DOMINANT_PUT_STRIKES  = sorted(PUT_CHG_POS,  key=lambda x: x[1], reverse=True)[:3]
+DOMINANT_CALL_STRIKES = sorted(CALL_CHG_POS, key=lambda x: x[1], reverse=True)[:3]
+
+# Totals use RAW (unweighted) Chg OI for ratio purity:
+TOTAL_PUT_OI  = sum(x[2] for x in PUT_CHG_POS)
+TOTAL_CALL_OI = sum(x[2] for x in CALL_CHG_POS)
+
+TOP3_PUT_OI  = sum(x[2] for x in DOMINANT_PUT_STRIKES)
+TOP3_CALL_OI = sum(x[2] for x in DOMINANT_CALL_STRIKES)
+
+PCT_TOP3_PUT  = TOP3_PUT_OI  / TOTAL_PUT_OI  if TOTAL_PUT_OI  > 0 else 0
+PCT_TOP3_CALL = TOP3_CALL_OI / TOTAL_CALL_OI if TOTAL_CALL_OI > 0 else 0
+PCT_TOP3      = max(PCT_TOP3_PUT, PCT_TOP3_CALL)
+
+# Volume validation summary:
+VOL_INVALID_COUNT = sum(1 for x in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES if not x[3])
+IV_SPIKE_COUNT    = sum(1 for x in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES if x[4] == "IV_SPIKE")
+
+AFTER STEP 2.1: "Dominant: {len(DOMINANT_PUT_STRIKES)} puts, {len(DOMINANT_CALL_STRIKES)} calls | Top3% = {PCT_TOP3:.0%} | Vol-Invalid Dominants = {VOL_INVALID_COUNT} | IV Spikes = {IV_SPIKE_COUNT}"
+
+# ——— STEP 2.2: CLASSIFICATION — DYNAMIC THRESHOLD (FIXES GAP 1 + FLAW 1) ———
+INST_COUNT = 0
+TOTAL_DOM  = len(DOMINANT_PUT_STRIKES) + len(DOMINANT_CALL_STRIKES)
+
+for strike, weighted, raw, vol_ok, iv_flag in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES:
+    prem = Premium(strike)      # LTP of the option
+    if prem < INST_THRESHOLD:   # DTE-adjusted threshold (not hardcoded ₹100)
+        INST_COUNT += 1
+
+INST_PCT = INST_COUNT / TOTAL_DOM * 100 if TOTAL_DOM > 0 else 0
+
+# Classification label (same logic, now using dynamic threshold):
+# < INST_THRESHOLD → INSTITUTIONAL
+# INST_THRESHOLD to 1.5× → MIXED
+# > 1.5× INST_THRESHOLD → RETAIL
+INST_LABEL = "INSTITUTIONAL" if INST_PCT >= 85 else "MIXED" if INST_PCT >= 50 else "RETAIL"
+
+# IV override: if IV_SPIKE_COUNT > 1, dominant strikes may be Long buildup not Writing
+IV_WRITING_CONFIDENCE = "LOW — IV SPIKE detected: possible LONG BUILDUP, not clean writing" if IV_SPIKE_COUNT >= 2 else                         "MODERATE — 1 IV spike present" if IV_SPIKE_COUNT == 1 else                         "HIGH — IV normal/crush environment"
+
+if IS_EXPIRY_DAY:
+    CLASSIFICATION_WARNING = f"⚠️ EXPIRY DAY: Premium threshold adjusted to {INST_THRESHOLD} (DTE=0 theta collapse — classification less reliable)"
+else:
+    CLASSIFICATION_WARNING = f"DTE={DTE}: Premium threshold = {INST_THRESHOLD}"
+
+AFTER STEP 2.2: "Classification: {INST_PCT:.1f}% → {INST_LABEL} | {CLASSIFICATION_WARNING} | Writing Confidence: {IV_WRITING_CONFIDENCE}"
+
+# ——— STEP 2.3: HIERARCHY ———
+AFTER STEP 2.3: "Static OI ignored for direction: YES | Used only for Max Pain calculation"
+
+# ——— STEP 2.4: RATIO & MOMENTUM — CODE ENFORCED ———
+Ratio    = TOTAL_PUT_OI / TOTAL_CALL_OI if TOTAL_CALL_OI > 0 else 999
+MOMENTUM = "BULLISH" if Ratio > 1.20 else "BEARISH" if Ratio < 0.80 else "NEUTRAL"
+
+AFTER STEP 2.4: "Ratio = {Ratio:.2f} → {MOMENTUM}"
+
+# ——— STEP 2.5: STRENGTH METER — CODE ENFORCED ———
+SCORE = 0
+if INST_PCT >= 85:                                                   SCORE += 3  # Strong institutional participation
+if PCT_TOP3 >= 0.60:                                                 SCORE += 2  # Concentration of writing
+if Ratio > 1.50 or Ratio < 0.60:                                    SCORE += 1  # Extreme ratio
+if (OI_PCR > 1 and Volume_PCR > 1) or (OI_PCR < 1 and Volume_PCR < 1): SCORE += 1  # PCR alignment
+if any(x[2] > 0 and Premium(x[0]) < INST_THRESHOLD
+       for x in DOMINANT_PUT_STRIKES + DOMINANT_CALL_STRIKES):      SCORE += 1  # DTE-adjusted premium check
+if VOL_INVALID_COUNT == 0:                                           SCORE += 1  # All dominant strikes volume-validated
+if IV_SPIKE_COUNT == 0:                                              SCORE += 1  # Clean IV environment (no spike)
+
+# Expiry day penalty: cap SCORE at 6 if IS_EXPIRY_DAY (classification unreliable)
+if IS_EXPIRY_DAY:
+    SCORE = min(SCORE, 6)
+    EXPIRY_CAP_APPLIED = True
+else:
+    EXPIRY_CAP_APPLIED = False
+
+STRENGTH = "STRONG" if SCORE > 7 else "MODERATE" if SCORE >= 5 else "WEAK"
+
+AFTER STEP 2.5: "Strength = {STRENGTH} ({SCORE}/10) | Expiry cap applied: {EXPIRY_CAP_APPLIED}"
+
+# ——— STEP 2.6: BANKNIFTY — CODE ENFORCED ———
+BANKNIFTY_OI_PCR   = [BankNifty OI PCR from data]
+BANKNIFTY_DOMINANT = "PUT WRITING"  if BANKNIFTY_OI_PCR > 1.0  else                      "CALL WRITING" if BANKNIFTY_OI_PCR < 0.9  else "NEUTRAL"
+ALIGNMENT          = "ALIGNED"   if (MOMENTUM == "BULLISH" and BANKNIFTY_DOMINANT == "PUT WRITING") or                                      (MOMENTUM == "BEARISH" and BANKNIFTY_DOMINANT == "CALL WRITING")                      else "DIVERGENT"
+
+AFTER STEP 2.6: "BankNifty PCR={BANKNIFTY_OI_PCR:.2f} → {BANKNIFTY_DOMINANT} | Nifty-BN: {ALIGNMENT}"
+
+# ═══════════════════════════════════════════════════════
+# 2. PEAK TRACKING — TIME-SERIES AWARE + CONNECTED
+# ═══════════════════════════════════════════════════════
+PEAK_CHG_OI_DICT = {}   # {strike_type_key: max_positive_Chg_OI_seen_this_session}
+UNWIND_POSSIBLE  = DATA_POINTS >= 2
+
+if UNWIND_POSSIBLE:
+    for strike in ATM_EXTENDED:
+        for type in ['PUT', 'CALL']:
+            key     = f"{strike}_{type}"
+            current = max(Chg_OI(strike, type), 0)
+            if current > PEAK_CHG_OI_DICT.get(key, 0):
+                PEAK_CHG_OI_DICT[key] = current
+    AFTER PEAK UPDATE: "Peak tracking active: {len(PEAK_CHG_OI_DICT)} strike-type keys tracked"
+else:
+    AFTER PEAK UPDATE: "Peak tracking: INSUFFICIENT DATA (need ≥2 snapshots) — Unwind engine DISABLED"
+
+# ═══════════════════════════════════════════════════════
+# 3. REVERSAL ENGINE v15.0 — FULLY FIXED + PRICE-VECTOR-AWARE
+# ═══════════════════════════════════════════════════════
+AFTER REVERSAL STEP 1: "Checking relative unwind..."
+
+# ——— PHASE 1: RELATIVE UNWIND — USING PEAK TRACKING ———
+UNWIND_SIGNALS = []
+UNWIND_COUNT   = 0
+
+if UNWIND_POSSIBLE:
+    for strike, weighted, raw, vol_ok, iv_flag in DOMINANT_PUT_STRIKES:
+        key     = f"{strike}_PUT"
+        peak    = PEAK_CHG_OI_DICT.get(key, 0)
+        current = max(Chg_OI(strike, 'PUT'), 0)
+        if peak > 10000 and current < (peak * 0.70):
+            pct_drop = ((peak - current) / peak) * 100
+            UNWIND_SIGNALS.append(
+                f"{strike} Put Unwind: {current:+,} (from peak {peak:+,}) → {pct_drop:.1f}% drop"
+            )
+            UNWIND_COUNT += 1
+    for strike, weighted, raw, vol_ok, iv_flag in DOMINANT_CALL_STRIKES:
+        key     = f"{strike}_CALL"
+        peak    = PEAK_CHG_OI_DICT.get(key, 0)
+        current = max(Chg_OI(strike, 'CALL'), 0)
+        if peak > 10000 and current < (peak * 0.70):
+            pct_drop = ((peak - current) / peak) * 100
+            UNWIND_SIGNALS.append(
+                f"{strike} Call Unwind: {current:+,} (from peak {peak:+,}) → {pct_drop:.1f}% drop"
+            )
+            UNWIND_COUNT += 1
+    AFTER PHASE 1: "Relative unwind: {UNWIND_COUNT} signals | {UNWIND_SIGNALS}"
+else:
+    AFTER PHASE 1: "Relative unwind: NOT POSSIBLE (single snapshot)"
+
+# ——— PHASE 2: COUNTER-POSITIONING — FIXED THRESHOLD + NORMALIZATION (GAP 2) ———
+# Uses DTE-adjusted COUNTER_THRESHOLD (not hardcoded ₹90)
+# Normalization: caps inflation from expiry-day density
+
+COUNTER_SIGNALS_PUT  = []
+COUNTER_SIGNALS_CALL = []
+
+for strike in range(ATM - 300, ATM + 1, 50):
+    chg  = Chg_OI(strike, 'PUT')
+    prem = Premium_PUT(strike)
+    vol  = Volume(strike, 'PUT')
+    if chg > 15000 and prem < COUNTER_THRESHOLD and vol >= (3 * chg):  # Volume-validated
+        COUNTER_SIGNALS_PUT.append(
+            f"{strike} Put: +{chg:,} (Prem {prem}, Vol {vol:,}) → INST SUPPORT"
+        )
+
+for strike in range(ATM, ATM + 301, 50):
+    chg  = Chg_OI(strike, 'CALL')
+    prem = Premium_CALL(strike)
+    vol  = Volume(strike, 'CALL')
+    if chg > 15000 and prem < COUNTER_THRESHOLD and vol >= (3 * chg):  # Volume-validated
+        COUNTER_SIGNALS_CALL.append(
+            f"{strike} Call: +{chg:,} (Prem {prem}, Vol {vol:,}) → INST RESISTANCE"
+        )
+
+# ——— NORMALIZATION (GAP 2 FIX) ———
+# Only count signals that are directionally meaningful vs current momentum:
+# BULLISH momentum → only call counter signals matter (resistance check)
+# BEARISH momentum → only put counter signals matter (support check)
+# NEUTRAL → both matter BUT cap total at 5 to prevent expiry inflation
+if MOMENTUM == "BULLISH":
+    EFFECTIVE_COUNTER_SIGNALS = COUNTER_SIGNALS_CALL   # Resistance building matters
+    RAW_COUNTER_COUNT         = len(COUNTER_SIGNALS_CALL)
+    COUNTER_NOTE              = "BULLISH momentum: only CALL counter signals scored"
+elif MOMENTUM == "BEARISH":
+    EFFECTIVE_COUNTER_SIGNALS = COUNTER_SIGNALS_PUT    # Support building matters
+    RAW_COUNTER_COUNT         = len(COUNTER_SIGNALS_PUT)
+    COUNTER_NOTE              = "BEARISH momentum: only PUT counter signals scored"
+else:
+    EFFECTIVE_COUNTER_SIGNALS = COUNTER_SIGNALS_PUT + COUNTER_SIGNALS_CALL
+    RAW_COUNTER_COUNT         = len(EFFECTIVE_COUNTER_SIGNALS)
+    COUNTER_NOTE              = "NEUTRAL momentum: both sides scored, capped at 5"
+
+# Cap for NEUTRAL to prevent expiry inflation:
+COUNTER_COUNT = min(RAW_COUNTER_COUNT, 5) if MOMENTUM == "NEUTRAL" else RAW_COUNTER_COUNT
+
+AFTER PHASE 2: "Counter-positioning raw={RAW_COUNTER_COUNT} → effective={COUNTER_COUNT} | {COUNTER_NOTE}"
+
+# ——— PHASE 3: MAX PAIN — WITH RELIABILITY CHECK (GAP 3 FIX) ———
+# Step 1: Find Max Pain using Static OI (correct)
+MAX_PAIN_CANDIDATES = {}
+for strike in ATM_EXTENDED:
+    total_static = StaticOI(strike, 'PUT') + StaticOI(strike, 'CALL')
+    MAX_PAIN_CANDIDATES[strike] = total_static
+
+CURRENT_MAX_PAIN = max(MAX_PAIN_CANDIDATES, key=MAX_PAIN_CANDIDATES.get)
+
+# Step 2: Validate with today's activity (GAP 3 FIX)
+PAIN_STRIKE_CHG_OI = abs(Chg_OI(CURRENT_MAX_PAIN, 'PUT')) + abs(Chg_OI(CURRENT_MAX_PAIN, 'CALL'))
+MAX_PAIN_RELIABLE  = PAIN_STRIKE_CHG_OI >= 10000
+
+if not MAX_PAIN_RELIABLE:
+    MAX_PAIN_WARNING = f"⚠️ Max Pain strike {CURRENT_MAX_PAIN} has LOW today activity ({PAIN_STRIKE_CHG_OI:,} total Chg OI) — may reflect stale static OI. Treat with caution."
+else:
+    MAX_PAIN_WARNING = f"Max Pain validated: {PAIN_STRIKE_CHG_OI:,} Chg OI active at {CURRENT_MAX_PAIN}"
+
+SPOT_TO_PAIN = SPOT - CURRENT_MAX_PAIN
+
+AFTER MAX PAIN: "Max Pain = {CURRENT_MAX_PAIN} | SPOT_TO_PAIN = {SPOT_TO_PAIN:+} | Reliable = {MAX_PAIN_RELIABLE} | {MAX_PAIN_WARNING}"
+
+# ——— PHASE 4: PAIN_PRESSURE — PRICE-VECTOR-AWARE + APPROACHING ZONE (GAP 4 FIX) ———
+PAIN_PRESSURE    = "NONE"
+TRAPPED          = False
+APPROACHING_PAIN = False
+
+if PRICE_VECTOR == "UNAVAILABLE":
+    PAIN_PRESSURE = "UNAVAILABLE: No price vector (single snapshot) — TRAPPED logic disabled"
+    TRAPPED       = False
+elif not MAX_PAIN_RELIABLE:
+    PAIN_PRESSURE = "UNRELIABLE: Max Pain not validated — TRAPPED logic disabled"
+    TRAPPED       = False
+elif MOMENTUM == "BULLISH":
+    if SPOT_TO_PAIN > 0 and SPOT_TO_PAIN <= 100 and PRICE_VECTOR < 0:
+        PAIN_PRESSURE = "BEARISH: Spot FALLING INTO Max Pain → TRAPPED PUT WRITERS"
+        TRAPPED       = True
+    elif SPOT_TO_PAIN > 100 and SPOT_TO_PAIN <= 200 and PRICE_VECTOR < 0:
+        APPROACHING_PAIN = True
+        PAIN_PRESSURE    = "WATCH: Spot approaching Max Pain from above (100–200 zone) — potential trap forming"
+    else:
+        PAIN_PRESSURE = "NEUTRAL: No active trap on Put writers"
+elif MOMENTUM == "BEARISH":
+    if SPOT_TO_PAIN < 0 and abs(SPOT_TO_PAIN) <= 100 and PRICE_VECTOR > 0:
+        PAIN_PRESSURE = "BULLISH: Spot RISING INTO Max Pain → TRAPPED CALL WRITERS"
+        TRAPPED       = True
+    elif abs(SPOT_TO_PAIN) > 100 and abs(SPOT_TO_PAIN) <= 200 and PRICE_VECTOR > 0:
+        APPROACHING_PAIN = True
+        PAIN_PRESSURE    = "WATCH: Spot approaching Max Pain from below (100–200 zone) — potential trap forming"
+    else:
+        PAIN_PRESSURE = "NEUTRAL: No active trap on Call writers"
+else:
+    # NEUTRAL momentum: check if spot is drifting toward pain regardless
+    if abs(SPOT_TO_PAIN) <= 100:
+        PAIN_PRESSURE = "NEUTRAL-NEAR: Spot within 100pts of Max Pain — expiry gravity active"
+    elif abs(SPOT_TO_PAIN) <= 200 and PRICE_VECTOR != "UNAVAILABLE":
+        if (SPOT_TO_PAIN < 0 and PRICE_VECTOR > 0) or (SPOT_TO_PAIN > 0 and PRICE_VECTOR < 0):
+            APPROACHING_PAIN = True
+            PAIN_PRESSURE    = "WATCH: Neutral momentum but spot drifting toward Max Pain (100–200 zone)"
+        else:
+            PAIN_PRESSURE = "NEUTRAL: Momentum unclear → no directional pain"
+    else:
+        PAIN_PRESSURE = "NEUTRAL: Momentum unclear → no directional pain"
+
+AFTER PHASE 4: "Pain pressure: {PAIN_PRESSURE} | TRAPPED={TRAPPED} | APPROACHING={APPROACHING_PAIN}"
+
+# ——— PCR DIVERGENCE — DATA QUALITY GATED (GAP 5 FIX) ———
+# Volume_PCR_30M = 30-minute rolling PCR (preferred). If unavailable, use full-session.
+# Full-session PCR is unreliable in morning session. Flag accordingly.
+
+if Volume_PCR_30M != "UNAVAILABLE":
+    PCR_SOURCE  = "30M_ROLLING"
+    PCR_DIV_VOL = Volume_PCR_30M
+    PCR_QUALITY = "HIGH"
+elif TIME_SINCE_OPEN >= 120:
+    PCR_SOURCE  = "FULL_SESSION_MATURE"     # Session > 2hrs — full session PCR is usable
+    PCR_DIV_VOL = Volume_PCR
+    PCR_QUALITY = "MEDIUM"
+else:
+    PCR_SOURCE  = "FULL_SESSION_EARLY"      # Session < 2hrs — PCR noisy, skip divergence
+    PCR_DIV_VOL = "SKIP"
+    PCR_QUALITY = "LOW — skipped (session < 2 hrs, full-session PCR unreliable)"
+
+if PCR_DIV_VOL == "SKIP":
+    PCR_DIV = False
+else:
+    PCR_DIV = (Ratio > 1.20 and PCR_DIV_VOL < 0.80) or (Ratio < 0.80 and PCR_DIV_VOL > 1.50)
+
+BN_DIV = (Ratio > 1.20 and BANKNIFTY_DOMINANT == "CALL WRITING") or          (Ratio < 0.80 and BANKNIFTY_DOMINANT == "PUT WRITING")
+
+AFTER PCR_DIV: "PCR Divergence: {PCR_DIV} | Source: {PCR_SOURCE} | Quality: {PCR_QUALITY} | BN_DIV: {BN_DIV}"
+
+# ——— REVERSAL SCORING — CODE ENFORCED ———
+# Weights: Unwind=30, Counter=25, Trapped=18, PCR_Div=12, BN_Div=8
+# Approaching Pain adds partial score (9 = half of TRAPPED weight)
+REV_SCORE = (
+    30 * UNWIND_COUNT         +
+    25 * COUNTER_COUNT        +
+    18 * int(TRAPPED)         +
+     9 * int(APPROACHING_PAIN)+   # NEW: approaching zone = half-weight of full trap
+    12 * int(PCR_DIV)         +
+     8 * int(BN_DIV)
+)
+# Can exceed 100 — by design
+CONFIDENCE = "XHIGH"  if REV_SCORE >= 80  else              "HIGH"   if REV_SCORE >= 65  else              "MEDIUM" if REV_SCORE >= 50  else "LOW"
+
+# IV override: downgrade confidence if writing environment is contaminated by IV spike
+if IV_WRITING_CONFIDENCE.startswith("LOW") and CONFIDENCE in ("XHIGH", "HIGH"):
+    CONFIDENCE        = "MEDIUM"
+    CONFIDENCE_NOTE   = "⚠️ Downgraded from {original} due to IV spike — possible Long buildup, not clean writing"
+else:
+    CONFIDENCE_NOTE   = "Clean signal"
+
+AFTER SCORING: "Reversal Score = {REV_SCORE} → {CONFIDENCE} | {CONFIDENCE_NOTE} | Can exceed 100 ✅"
+
+# ——— REVERSAL DIRECTION ———
+if MOMENTUM == "BEARISH" and "BULLISH" in PAIN_PRESSURE:
+    REV_DIR = "BEARISH → BULLISH"
+elif MOMENTUM == "BULLISH" and "BEARISH" in PAIN_PRESSURE:
+    REV_DIR = "BULLISH → BEARISH"
+else:
+    REV_DIR = MOMENTUM
+
+AFTER DIRECTION: "Reversal direction: {REV_DIR}"
+
+# ═══════════════════════════════════════════════════════
+# 4. CRITICAL LEVELS — FIXED LOGIC (GAP 6 FIX)
+# ═══════════════════════════════════════════════════════
+# RESISTANCE = call strike with HIGHEST weighted Chg OI (DOMINANT_CALL_STRIKES[0])
+# SUPPORT    = put strike with HIGHEST weighted Chg OI  (DOMINANT_PUT_STRIKES[0])
+# DOMINANT_*_STRIKES are already sorted descending by weighted OI → [0] = strongest
+
+RESISTANCE = DOMINANT_CALL_STRIKES[0][0] if DOMINANT_CALL_STRIKES else ATM + 100
+SUPPORT    = DOMINANT_PUT_STRIKES[0][0]  if DOMINANT_PUT_STRIKES  else ATM - 100
+
+# Secondary levels (2nd and 3rd dominant):
+RESISTANCE_2 = DOMINANT_CALL_STRIKES[1][0] if len(DOMINANT_CALL_STRIKES) > 1 else None
+RESISTANCE_3 = DOMINANT_CALL_STRIKES[2][0] if len(DOMINANT_CALL_STRIKES) > 2 else None
+SUPPORT_2    = DOMINANT_PUT_STRIKES[1][0]  if len(DOMINANT_PUT_STRIKES)  > 1 else None
+SUPPORT_3    = DOMINANT_PUT_STRIKES[2][0]  if len(DOMINANT_PUT_STRIKES)  > 2 else None
+
+if MOMENTUM == "BULLISH":
+    HOLD_LEVEL         = f"Above {SUPPORT}"
+    TRIGGER_CONDITION  = "BREAK ABOVE"
+    TRIGGER_LEVEL      = f"{RESISTANCE}"
+elif MOMENTUM == "BEARISH":
+    HOLD_LEVEL         = f"Below {RESISTANCE}"
+    TRIGGER_CONDITION  = "BREAK BELOW"
+    TRIGGER_LEVEL      = f"{SUPPORT}"
+else:
+    HOLD_LEVEL         = f"Range {SUPPORT}–{RESISTANCE}"
+    TRIGGER_CONDITION  = "BREAK EITHER SIDE"
+    TRIGGER_LEVEL      = f"{SUPPORT}–{RESISTANCE}"
+
+AFTER LEVELS: "Support={SUPPORT}({SUPPORT_2},{SUPPORT_3}) | Resistance={RESISTANCE}({RESISTANCE_2},{RESISTANCE_3}) | Hold={HOLD_LEVEL} | Trigger={TRIGGER_CONDITION} {TRIGGER_LEVEL}"
+
+# ═══════════════════════════════════════════════════════
+# 4-B. TIME-OF-DAY ENTRY FILTER — NEW (GAP 7 FIX)
+# ═══════════════════════════════════════════════════════
+if IS_EXPIRY_DAY and TIME_SINCE_OPEN >= 330:       # After 3:00 PM on expiry
+    ENTRY_WINDOW  = "🚫 NO NEW POSITIONS — Expiry close risk (T-30 min). Most brokers block new trades after 3:15 PM on expiry."
+    ENTRY_ALLOWED = False
+elif IS_EXPIRY_DAY and TIME_SINCE_OPEN >= 300:     # 2:45–3:00 PM on expiry
+    ENTRY_WINDOW  = "⚠️ HIGH RISK WINDOW — Within 45 min of expiry. Gamma extremely unstable. Reduce size or avoid."
+    ENTRY_ALLOWED = True
+elif TIME_SINCE_OPEN < 30:                         # First 30 min any day
+    ENTRY_WINDOW  = "⚠️ OPENING VOLATILITY — OI not yet stable. Wait for 30-min mark before acting on signals."
+    ENTRY_ALLOWED = False
+elif TIME_SINCE_OPEN < 60:                         # 30–60 min
+    ENTRY_WINDOW  = "CAUTION: Early session (30–60 min). OI stabilizing. Confirm with 2nd snapshot before entry."
+    ENTRY_ALLOWED = True
+else:
+    ENTRY_WINDOW  = "NEXT 15–60 MIN from signal"
+    ENTRY_ALLOWED = True
+
+AFTER ENTRY_FILTER: "Entry window: {ENTRY_WINDOW} | Allowed: {ENTRY_ALLOWED}"
+
+# ═══════════════════════════════════════════════════════
+# 5. FINAL OUTPUT — ALL VALUES LOCKED
+# ═══════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════
+NIFTY INTRADAY ANALYSIS — v15.0
+DATA TIME: {TIME_NOW} | DTE: {DTE} ({DTE_MODE})
+═══════════════════════════════════════════════
+
+QUANTITATIVE EVIDENCE:
+  Net Chg OI (Puts - Calls):    {TOTAL_PUT_OI - TOTAL_CALL_OI:+,}
+  Total Put Chg OI (Positive):  {TOTAL_PUT_OI:,}
+  Total Call Chg OI (Positive): {TOTAL_CALL_OI:,}
+  Ratio (Put/Call):             {Ratio:.2f}
+  IV Baseline:                  {IV_BASELINE:.1f}
+  IV Writing Confidence:        {IV_WRITING_CONFIDENCE}
+
+KEY FLOW EVIDENCE — TOP DOMINANT STRIKES:
+  [Format: STRIKE | TYPE | Raw Chg OI | Weighted OI | Premium | Vol-Valid | IV-Flag | Classification]
+  PUT WRITERS (Support):
+  {DOMINANT_PUT_STRIKES — full detail row each}
+  CALL WRITERS (Resistance):
+  {DOMINANT_CALL_STRIKES — full detail row each}
+
+VOLUME VALIDATION SUMMARY:
+  Dominant strikes with invalid volume (Vol < 3×ChgOI): {VOL_INVALID_COUNT}
+  {List any invalid strikes and note as "PASSIVE WALL — not active battlefield"}
+
+IV ENGINE SUMMARY:
+  IV_SPIKE strikes in dominants: {IV_SPIKE_COUNT}
+  {List any IV_SPIKE strikes and flag as "Potential LONG BUILDUP — not confirmed writing"}
+
+MOMENTUM DRIVERS:
+  Primary:      {INST_PCT:.0f}% → {INST_LABEL} ({DTE_MODE} threshold = {INST_THRESHOLD})
+  Concentration:{PCT_TOP3:.0%} in top 3 strikes (threshold 60% for strong signal)
+  Ratio:        {Ratio:.2f} → {MOMENTUM}
+  Contradictory:{len(DOMINANT_PUT_STRIKES) if MOMENTUM=='BEARISH' else len(DOMINANT_CALL_STRIKES)} dominant opposite-side strikes
+
+BANKNIFTY CONFIRMATION: {ALIGNMENT}
+  BankNifty OI PCR = {BANKNIFTY_OI_PCR:.2f} → {BANKNIFTY_DOMINANT}
+  vs Nifty Momentum = {MOMENTUM}
+
+CRITICAL LEVELS:
+  Primary Support (strongest OI wall):     {SUPPORT}
+  Secondary Support:                       {SUPPORT_2} / {SUPPORT_3}
+  Primary Resistance (strongest OI wall):  {RESISTANCE}
+  Secondary Resistance:                    {RESISTANCE_2} / {RESISTANCE_3}
+  Max Pain:                                {CURRENT_MAX_PAIN} (Reliable: {MAX_PAIN_RELIABLE})
+  Max Pain Warning:                        {MAX_PAIN_WARNING}
+  Current Momentum holds:                  {HOLD_LEVEL}
+  Momentum Shift Trigger:                  {TRIGGER_CONDITION} {TRIGGER_LEVEL}
+
+CURRENT MOMENTUM: {MOMENTUM}
+STRENGTH:         {STRENGTH} ({SCORE}/10) | Expiry cap: {EXPIRY_CAP_APPLIED}
+CONFIDENCE:       {CONFIDENCE} | {CONFIDENCE_NOTE}
+
+PCR DATA:
+  OI PCR    [{OI_PCR:.2f}]    [{'ALIGNED' if (OI_PCR>1 and TOTAL_PUT_OI>TOTAL_CALL_OI) or (OI_PCR<1 and TOTAL_CALL_OI>TOTAL_PUT_OI) else 'DIVERGENT'}]
+  Volume PCR [{Volume_PCR:.2f}]  [Source: {PCR_SOURCE} | Quality: {PCR_QUALITY}]
+  PCR Divergence: {PCR_DIV}
+
+STRENGTH METER: {SCORE}/10
+  +3 if INST_PCT ≥ 85%      → [{'+3' if INST_PCT>=85 else '+0'}]
+  +2 if PCT_TOP3 ≥ 60%      → [{'+2' if PCT_TOP3>=0.60 else '+0'}]
+  +1 if Ratio extreme        → [{'+1' if Ratio>1.50 or Ratio<0.60 else '+0'}]
+  +1 if PCR aligned          → [{'+1' if (OI_PCR>1 and Volume_PCR>1) or (OI_PCR<1 and Volume_PCR<1) else '+0'}]
+  +1 if premium DTE-adjusted → [computed]
+  +1 if all vol-validated    → [{'+1' if VOL_INVALID_COUNT==0 else '+0'}]
+  +1 if IV environment clean → [{'+1' if IV_SPIKE_COUNT==0 else '+0'}]
+  Expiry cap (max 6 if DTE=0): {EXPIRY_CAP_APPLIED}
+
+ANALYSIS NARRATIVE:
+  [Auto-generated from all computed values above — summarize momentum, IV environment,
+   Max Pain gravity, support/resistance walls, and expiry context in 4–6 sentences]
+
+TRADING IMPLICATION:
+  Momentum: {REV_DIR}
+  Confidence: {CONFIDENCE}
+  [Auto-derived directional bias + range + key levels to watch]
+
+═══════════════════════════════════════════════
+REVERSAL ALERT
+═══════════════════════════════════════════════
+REVERSAL SCORE:  {REV_SCORE} (can exceed 100)
+CONFIDENCE:      {CONFIDENCE}
+DIRECTION:       {REV_DIR}
+ENTRY WINDOW:    {ENTRY_WINDOW}
+ENTRY ALLOWED:   {ENTRY_ALLOWED}
+TRIGGER:         {TRIGGER_CONDITION} {TRIGGER_LEVEL}
+
+EVIDENCE BREAKDOWN:
+  1. Unwind    [{UNWIND_COUNT} signals × 30 = {30*UNWIND_COUNT}]:  {UNWIND_SIGNALS if UNWIND_COUNT > 0 else 'None (single snapshot or no unwind detected)'}
+  2. Counter   [{COUNTER_COUNT} signals × 25 = {25*COUNTER_COUNT}]: {COUNTER_NOTE}
+  3. Trapped   [{int(TRAPPED)} × 18 = {18*int(TRAPPED)}]:          {PAIN_PRESSURE}
+  4. Approach  [{int(APPROACHING_PAIN)} × 9 = {9*int(APPROACHING_PAIN)}]:  {'Spot in 100–200pt approach zone' if APPROACHING_PAIN else 'Not in approach zone'}
+  5. PCR Div   [{int(PCR_DIV)} × 12 = {12*int(PCR_DIV)}]:          Source={PCR_SOURCE}
+  6. BN Div    [{int(BN_DIV)} × 8  = {8*int(BN_DIV)}]:             {BANKNIFTY_DOMINANT} vs {MOMENTUM}
+  ─────────────────────────────────────────────
+  TOTAL SCORE: {REV_SCORE}
+
+# ═══════════════════════════════════════════════════════
+# MANDATORY QUALITY CHECKS (FINAL AUDIT) — BOTTOM
+# ═══════════════════════════════════════════════════════
+- PRICE_VECTOR: SPOT - PREVIOUS_SPOT or UNAVAILABLE?           → [YES/NO]
+- NEGATIVE Chg OI: <0 → 0?                                    → [YES/NO]
+- DTE computed correctly?                                      → [YES/NO]
+- INST_THRESHOLD DTE-adjusted (not hardcoded)?                 → [YES/NO]
+- COUNTER_THRESHOLD DTE-adjusted (not hardcoded)?              → [YES/NO]
+- IV_BASELINE computed from liquid strikes?                    → [YES/NO]
+- IV_FLAG applied per dominant strike?                         → [YES/NO]
+- IV_WRITING_CONFIDENCE used to gate CONFIDENCE?               → [YES/NO]
+- OI_WEIGHT applied (ITM=2x, near-ATM=1.5x, OTM=1x)?          → [YES/NO]
+- VOLUME_VALID check (Vol ≥ 3×ChgOI) per dominant strike?      → [YES/NO]
+- DOMINANT STRIKES sorted by WEIGHTED OI descending?           → [YES/NO]
+- TOTAL_PUT_OI / TOTAL_CALL_OI use RAW (not weighted)?         → [YES/NO]
+- TOP3 %: max(PCT_TOP3_PUT, PCT_TOP3_CALL)?                    → [YES/NO]
+- RATIO: Positive only?                                        → [YES/NO]
+- MOMENTUM: BULLISH/BEARISH/NEUTRAL only?                      → [YES/NO]
+- EXPIRY_CAP applied (SCORE capped at 6 on DTE=0)?             → [YES/NO]
+- STRENGTH: STRONG/MODERATE/WEAK only?                         → [YES/NO]
+- BANKNIFTY_DOMINANT: PUT WRITING/CALL WRITING/NEUTRAL only?   → [YES/NO]
+- ALIGNMENT: ALIGNED/DIVERGENT only?                           → [YES/NO]
+- UNWIND_POSSIBLE: True only if ≥2 snapshots?                  → [YES/NO]
+- UNWIND_COUNT: len(UNWIND_SIGNALS)?                           → [YES/NO]
+- MAX PAIN: MAX(StaticPutOI + StaticCallOI) per strike?        → [YES/NO]
+- MAX_PAIN_RELIABLE: Chg OI at pain strike ≥ 10,000?           → [YES/NO]
+- TRAPPED: In 100pt zone AND vector TOWARD pain?               → [YES/NO]
+- APPROACHING_PAIN: In 100–200pt zone AND vector TOWARD pain?  → [YES/NO]
+- TRAPPED FALSE if vector AWAY or UNAVAILABLE?                 → [YES/NO]
+- COUNTER_COUNT capped at 5 when MOMENTUM=NEUTRAL?             → [YES/NO]
+- COUNTER directional filter applied (vs momentum)?            → [YES/NO]
+- PCR_DIV: uses 30M PCR if available, else full-session?       → [YES/NO]
+- PCR_DIV: SKIPPED if session < 2hrs AND 30M unavailable?      → [YES/NO]
+- SUPPORT = DOMINANT_PUT_STRIKES[0][0] (highest OI, not max strike)?  → [YES/NO]
+- RESISTANCE = DOMINANT_CALL_STRIKES[0][0] (highest OI, not max strike)? → [YES/NO]
+- ENTRY_WINDOW: time-of-day and expiry-aware?                  → [YES/NO]
+- ENTRY_ALLOWED: False if DTE=0 and TIME_SINCE_OPEN ≥ 330?    → [YES/NO]
+- REV_SCORE: 30U+25C+18T+9A+12P+8B formula?                   → [YES/NO]
+- REV_SCORE >100: Allowed?                                     → [YES/NO]
+- CONFIDENCE: XHIGH/HIGH/MEDIUM/LOW only?                      → [YES/NO]
+- CONFIDENCE downgraded if IV_SPIKE in dominants?              → [YES/NO]
+- REV_DIR: exact match from direction logic?                   → [YES/NO]
+- TRIGGER_CONDITION: BREAK ABOVE/BELOW/EITHER SIDE only?       → [YES/NO]
+- TRIGGER_LEVEL: strongest-OI strike or range?                 → [YES/NO]
+- ALL TRACED: every AFTER STEP X present?                      → [YES/NO]
+- PROTOCOL VIOLATIONS: [0]
+# ═══════════════════════════════════════════════════════
+# END OF PROMPT v15.0
+# FIXES APPLIED: 11 total (7 gaps + 4 structural flaws)
+# Theta/DTE-adjusted thresholds | IV/Vega engine | Volume validation |
+# ITM/OTM weighting | Expiry mode | Counter normalization |
+# Max Pain reliability | TRAPPED approach zone | PCR data quality |
+# Support/Resistance logic | Time-of-day entry filter
+# ═══════════════════════════════════════════════════════
+
+
+CURRENT DATA FOR ANALYSIS - FETCHED AT: 2026-03-02 12:04:00
+================================================================================
+NIFTY DATA:
+- Current Value: 24796
+- Expiry Date: 02-Mar-2026
+- OI PCR: 0.83
+- Volume PCR: 1.10
+
+BANKNIFTY DATA:
+- Current Value: 59783.85
+- Expiry Date: 30-Mar-2026
+- OI PCR: 1.02
+- Volume PCR: 1.34
+
+
+COMPLETE NIFTY OPTION CHAIN DATA:
+================================================================================
+OI Data for NIFTY - Current: 24796, Expiry: 02-Mar-2026
+Full Chain PCR: OI=0.83, Volume=1.10
+================================================================================
+CALL OPTION                                       |   STRIKE   |PUT OPTION                                          |  CHG OI DIFF       
+    Chg OI      Volume       LTP          OI       IV  |    Price    |      Chg OI      Volume       LTP          OI       IV  |             CE-PE
+------------------------------------------------------------------------------------------------------------------------------------------------------
+        -1           3    1750.1          42     89.0  |    23100    |      -28207      535642       0.2       95852     47.0  |             28206
+         0           0         0           1        0  |    23150    |        6899      119905       0.2       13722     45.0  |             -6899
+         0           0         0           2        0  |    23200    |        2857      163267       0.2       22526     43.7  |             -2857
+         0           0         0           3        0  |    23250    |        4798      103760       0.3       11876     43.2  |             -4798
+         0           3    1670.0           6    128.1  |    23300    |        8669      152475       0.3       18821     41.9  |             -8669
+         0           0         0           4        0  |    23350    |       10941      145498       0.3       14198     41.2  |            -10941
+        -4           7    1440.0           7     69.5  |    23400    |       11658      205448       0.3       17504     39.9  |            -11662
+         0           0         0           3        0  |    23450    |        9063      158691       0.3       13340     38.5  |             -9063
+       -72         141    1326.8          58     53.1  |    23500    |       82281      920613       0.3      128186     37.2  |            -82353
+         0           2    1135.8           2        0  |    23550    |       19320      278297       0.3       22554     36.8  |            -19320
+         0           6    1253.8          11     69.4  |    23600    |       25785      380884       0.5       36956     35.9  |            -25785
+         0           0         0           3        0  |    23650    |       14474      242529       0.5       18705     34.1  |            -14474
+         9          22    1151.8          16     64.0  |    23700    |       38054      496930       0.5       54953     33.5  |            -38045
+         0           0         0           2        0  |    23750    |       24764      325819       0.6       28249     32.1  |            -24764
+         8          38    1003.8          21     48.3  |    23800    |       63183      733711       0.6       92791     31.0  |            -63175
+         2           6     998.1           4     55.5  |    23850    |       19671      338997       0.7       24568     30.1  |            -19669
+        11          38     897.8          21        0  |    23900    |       44887      726392       0.7       72137     28.7  |            -44876
+         0           0         0           4        0  |    23950    |       27241      427091       0.8       35587     27.9  |            -27241
+       128        2124     760.6         567        0  |    24000    |      167001     2201881       0.8      292538     26.8  |           -166873
+         7          18     710.2          11        0  |    24050    |       46322      560089       0.8       51085     25.5  |            -46315
+        17         313     659.8         184        0  |    24100    |       99723     1234883       0.9      122330     24.4  |            -99706
+        27          53     610.4          30        0  |    24150    |       60848      852057       1.0       66365     23.4  |            -60821
+       114        1313     560.2         138        0  |    24200    |       79531     1716742       1.1      129267     21.9  |            -79417
+        88         389     521.4          92        0  |    24250    |       51748     1309890       1.2       60077     21.0  |            -51660
+       229        2213     459.7         287        0  |    24300    |       94503     2234331       1.4      136668     19.6  |            -94274
+       294        1578     410.1         300        0  |    24350    |       52934     1428350       1.7       63464     18.9  |            -52640
+       736        7481     361.2         770        0  |    24400    |       82591     2279063       2.2      125162     17.8  |            -81855
+       610        5726     312.5         625        0  |    24450    |       59067     1744786       3.0       69712     17.0  |            -58457
+      9594       89671     262.7       10645        0  |    24500    |      205352     4468603       4.7      307441     16.3  |           -195758
+      1822       22337     215.9        1847        0  |    24550    |       75670     2110709       6.7       94396     15.5  |            -73848
+     15543      165672     169.6       15744        0  |    24600    |      210385     4568097      10.8      246296     14.9  |           -194842
+     10428      138196     126.8       10620        0  |    24650    |      156334     3671455      17.8      174085     14.4  |           -145906
+     59505      680811      87.8       59807      3.7  |    24700    |      277100     6597402      30.2      336319     14.2  |           -217595
+     84970      887576      55.6       85195      7.8  |    24750    |      183593     4969257      48.6      207516     14.1  |            -98623
+    284741     3488658      33.1      285785      8.6  |    24800    |      294589     9745743      74.8      356683     14.3  |             -9848
+    280372     4565020      17.1      280773      9.0  |    24850    |      144395     7030398     110.0      165427     14.6  |            135977
+    334970     7517037       9.4      336158      9.3  |    24900    |       93990     8135919     150.0      143503     15.5  |            240980
+    189253     5295998       5.3      189845      9.6  |    24950    |       17861     3067220     195.7       39057     16.9  |            171392
+    353485     8434448       3.6      367273     10.3  |    25000    |      -58223     3504384     244.1       72724     19.0  |            411708
+    118942     4194105       2.5      120888     11.0  |    25050    |      -18625      579935     293.4       11030     21.2  |            137567
+    132356     5008507       2.0      146615     11.9  |    25100    |      -39931      632142     343.1       29142     23.5  |            172287
+     66310     3259054       1.7       91018     13.1  |    25150    |      -32154      218352     391.9       13381     25.6  |             98464
+    105751     4093629       1.6      176829     14.4  |    25200    |      -48586      330785     443.0       30211     28.2  |            154337
+     35419     2248019       1.4       87182     15.6  |    25250    |      -26454      108501     491.8       12866     28.9  |             61873
+     31713     3052520       1.4      193994     16.9  |    25300    |      -30861      159043     541.5       19823     32.8  |             62574
+     10500     1745851       1.2      120397     18.3  |    25350    |       -9094       39497     591.1        9430     34.6  |             19594
+    -12383     2098981       1.1      189633     19.6  |    25400    |      -15428       59937     642.7       17905     38.0  |              3045
+     -2326     1390419       1.0       99998     20.9  |    25450    |       -6839       22933     692.9        6510     40.0  |              4513
+     90005     2577223       0.9      316408     22.1  |    25500    |       -3585       60177     741.0       33245     42.0  |             93590
+      1322     1175426       0.9      100372     23.3  |    25550    |       -1939        8073     793.0        7624     44.5  |              3261
+    -20619     1582913       0.8      173262     24.3  |    25600    |       -3754       18970     841.0       13101     45.5  |            -16865
+    -27719      841771       0.8       69395     25.6  |    25650    |       -1289        5431     886.0        4375     48.4  |            -26430
+     -8712     1223785       0.7      157580     26.8  |    25700    |       -2179        7145     940.4        8123     49.5  |             -6533
+    -12649      547862       0.7       79533     27.9  |    25750    |        -297        1523     992.0        2817     50.3  |            -12352
+    -16090      987012       0.7      129577     28.9  |    25800    |       -2314        6838    1045.0        4267     50.5  |            -13776
+    -18145      362231       0.6       49572     30.0  |    25850    |         -73         635    1091.0        1187     55.3  |            -18072
+    -32217      643553       0.6       76995     31.2  |    25900    |        -561        2314    1141.8        2565     57.2  |            -31656
+    -17484      259040       0.5       28257     32.5  |    25950    |         -92         476    1180.0         997     57.1  |            -17392
+    -42046     1412965       0.5      218573     32.7  |    26000    |       -1751        4391    1238.2        7497     58.1  |            -40295
+    -60360      373754       0.5       50029     34.0  |    26050    |         -26         138    1255.0         784     62.9  |            -60334
+    -68489      448385       0.4       57937     35.2  |    26100    |        -452        1031    1343.9        1685     61.8  |            -68037
+    -22642      201005       0.4       20632     36.4  |    26150    |         -36          90    1330.0         581     41.0  |            -22606
+    -72148      461976       0.5       52967     37.1  |    26200    |        -239         500    1440.0        1265     67.4  |            -71909
+    -32710      188002       0.4       25315     37.8  |    26250    |         -14         209    1455.1         367     70.5  |            -32696
+    -69348      344820       0.3       67321     39.5  |    26300    |        -248         484    1497.3         906     72.3  |            -69100
+     -6718       81415       0.4       13993     40.1  |    26350    |         -12          44    1560.0         126     52.0  |             -6706
+    -49721      272939       0.4       27356     41.3  |    26400    |         -87         310    1617.7         390     72.6  |            -49634
+     -5451       54444       0.3       10758     43.0  |    26450    |          -2           7    1640.0          42     66.0  |             -5449
+    -26502      772427       0.3      161917     43.0  |    26500    |       -1017        2421    1718.1        2556     79.8  |            -25485
+    -11541       59306       0.3        9068     44.7  |    26550    |           0           2    1709.5          11        0  |            -11541
+    -35723      134104       0.3       28658     45.2  |    26600    |         -12          23    1820.0         437        0  |            -35711
+     -5544       44959       0.3        5932     46.3  |    26650    |           0           0         0           3        0  |             -5544
+    -15128      134540       0.3       34139     46.6  |    26700    |        -143         309    1930.0         157     79.0  |            -14985
+     -1235       33230       0.4       10185     49.2  |    26750    |           0           0         0           5        0  |             -1235
+    -20341      116254       0.3       23083     50.3  |    26800    |         -12          20    2045.0          58        0  |            -20329
+        55       63805       0.2        9495     51.4  |    26850    |           0           3    1819.0           2        0  |                55
+     -7887       81152       0.2       11918     51.8  |    26900    |         -17          73    2143.9         147     80.3  |             -7870
+      -469       37877       0.3        6323     52.9  |    26950    |           0           1    2184.0           6        0  |              -469
+    -53251      310913       0.2       82203     54.0  |    27000    |        -195         675    2249.4         835     83.4  |            -53056
+     -2489       29417       0.3        3076     55.8  |    27050    |           0           0         0           2        0  |             -2489
+     -2433       32839       0.2        5666     56.1  |    27100    |           0           1    2040.0           5        0  |             -2433
+      -113       39162       0.2        7208     57.2  |    27150    |           0           0         0           2        0  |              -113
+     -5831       65714       0.2       18715     57.4  |    27200    |           0           1    2340.0           3        0  |             -5831
+     -2866       22537       0.2        3431     58.4  |    27250    |           0           0         0           1        0  |             -2866
+     -3631       38718       0.2        9850     60.4  |    27300    |           0           0         0           1        0  |             -3631
+      -465       28717       0.2        4854     60.5  |    27350    |           0           0         0         117        0  |              -465
+      1111       36092       0.2       13788     61.5  |    27400    |           0           0         0           1        0  |              1111
+      -708       16348       0.2        2630     62.6  |    27450    |           0           0         0           2        0  |              -708
+    -20462      108276       0.2       21764     64.6  |    27500    |        -127         272    2700.0         304        0  |            -20335
+      -655       14246       0.2        1987     65.6  |    27550    |           0           0         0           3        0  |              -655
+     -2622       31989       0.3       10727     66.7  |    27600    |           0           0         0           3        0  |             -2622
+     -1116       25444       0.2        4490     67.7  |    27650    |           0           0         0           4        0  |             -1116
+     -7748       71405       0.3       22447     69.6  |    27700    |           0           0         0           3        0  |             -7748
+======================================================================================================================================================
+NIFTY PCR: OI PCR = 0.83, Volume PCR = 1.10
+
+
+
+COMPLETE BANKNIFTY OPTION CHAIN DATA:
+================================================================================
+OI Data for BANKNIFTY - Current: 59783.85, Expiry: 30-Mar-2026
+Full Chain PCR: OI=1.02, Volume=1.34
+================================================================================
+CALL OPTION                                       |   STRIKE   |PUT OPTION                                          |  CHG OI DIFF       
+    Chg OI      Volume       LTP          OI       IV  |    Price    |      Chg OI      Volume       LTP          OI       IV  |             CE-PE
+------------------------------------------------------------------------------------------------------------------------------------------------------
+         0           0         0           0        0  |    46500    |         188        4215      10.9        1221     34.6  |              -188
+         0           0         0         137        0  |    48000    |         331        2465      15.0         638     32.1  |              -331
+         0           0         0          88        0  |    49500    |         268        1016      19.9         396     29.4  |              -268
+        -8          11    9203.5        2466     33.5  |    51000    |          78        5374      21.9        4715     25.9  |               -86
+         0           0         0         193        0  |    51500    |         -82        1577      24.6         311     24.8  |                82
+       -26         156    8102.0        1915        0  |    52000    |         629        4991      26.5        3159     23.6  |              -655
+         0           0         0          13        0  |    52500    |         199        1203      29.6         554     22.7  |              -199
+        -5          21    7091.1         459        0  |    53000    |          20        4586      35.6        2521     21.7  |               -25
+         0           0         0           0        0  |    53400    |           0           0         0           0        0  |                 0
+         0           1    6800.0          29        0  |    53500    |         407        2038      40.4         839     21.0  |              -407
+         0           0         0           1        0  |    53600    |           0           0         0           0        0  |                 0
+         0           0         0           1        0  |    53700    |           0           0         0           0        0  |                 0
+         0           0         0           1        0  |    53800    |         114         218      45.4         119     20.5  |              -114
+         0           0         0           1        0  |    53900    |         104         218      44.4         109     20.3  |              -104
+      -122         158    6160.0         921        0  |    54000    |        2429        8011      48.1        7045     20.2  |             -2551
+         0           0         0           1        0  |    54100    |         166         606      49.3         296     20.0  |              -166
+         0           0         0           2        0  |    54200    |           0           0         0          15        0  |                 0
+         0           0         0          35        0  |    54300    |          93         471      54.3         178     19.6  |               -93
+         0           0         0           1        0  |    54400    |           0           0         0          17        0  |                 0
+         0           1    6050.0         315        0  |    54500    |         390        3710      56.6        2651     19.5  |              -390
+         0           0         0           1        0  |    54600    |           0           0         0          15        0  |                 0
+         0           0         0           3        0  |    54700    |           0           0         0          19        0  |                 0
+         0           0         0           2        0  |    54800    |           0           0         0          32        0  |                 0
+         0           0         0           1        0  |    54900    |          90        1785      65.5         255     19.0  |               -90
+        10         274    5150.4        3270     18.9  |    55000    |        1363       13784      69.0       12319     18.8  |             -1353
+         0           0         0           3        0  |    55100    |          52         965      70.8         182     18.6  |               -52
+         0           0         0           2        0  |    55200    |          31         332      72.7          81     18.3  |               -31
+         0           0         0           2        0  |    55300    |          -1         654      75.5          94     18.4  |                 1
+         0           0         0           2        0  |    55400    |          21         678      80.0         338     18.3  |               -21
+        -1           2    4799.0         217        0  |    55500    |         323        4864      83.3        4386     17.9  |              -324
+         0           0         0           2        0  |    55600    |         142         668      86.0         211     17.9  |              -142
+         0           0         0           2        0  |    55700    |         210        1351      89.3         337     17.9  |              -210
+         0           0         0           3        0  |    55800    |         257        1364      96.0         372     17.7  |              -257
+         0           0         0           1        0  |    55900    |         134         829     101.4         293     17.5  |              -134
+       -17          56    4300.0        2246        0  |    56000    |         119       15568     104.8        9358     17.3  |              -136
+         0           0         0           2        0  |    56100    |         250        1337     107.0         519     17.1  |              -250
+         0           0         0           2        0  |    56200    |         297        1882     113.1         927     16.9  |              -297
+         0           0         0           1        0  |    56300    |         197        1245     119.2         377     16.9  |              -197
+         0           0         0          11        0  |    56400    |         287        1809     126.0         542     16.7  |              -287
+         0           1    3950.0          94        0  |    56500    |        1260        7042     133.6        5583     16.5  |             -1260
+         0           0         0           5        0  |    56600    |         -16         730     136.8         195     16.5  |                16
+         0           0         0           2        0  |    56700    |          34         862     146.7         319     16.3  |               -34
+         0           0         0           3        0  |    56800    |         385        4592     153.8         609     16.2  |              -385
+         0           0         0           1        0  |    56900    |         132        1128     160.8         352     16.2  |              -132
+        23         236    3289.6        1533        0  |    57000    |         580       22690     170.2       15385     15.8  |              -557
+         0           0         0           5        0  |    57100    |         126        1331     178.1         378     15.8  |              -126
+         0           0         0           4        0  |    57200    |          84        1541     187.6         441     15.7  |               -84
+         0           1    3210.5           6        0  |    57300    |          71        1573     197.2         513     15.5  |               -71
+         0           0         0          10        0  |    57400    |         121        1855     210.4         487     15.6  |              -121
+        -4          13    2910.0         591        0  |    57500    |         210       14229     221.0        9476     15.3  |              -214
+        -5           8    2820.8          10        0  |    57600    |          93        1573     232.8         583     15.1  |               -98
+         0           0         0           6        0  |    57700    |        -212        3926     246.6        2152     15.1  |               212
+        -6          20    2600.0          17        0  |    57800    |          46        2484     258.1         901     15.1  |               -52
+         0           1    2943.0           5     14.7  |    57900    |          19        2188     271.4         562     15.2  |               -19
+        59         457    2440.0        3777        0  |    58000    |        -632       38771     287.4       18196     14.7  |               691
+         0           0         0          19        0  |    58100    |         652        3103     306.6         925     14.5  |              -652
+         0           0         0          50        0  |    58200    |         305        3007     321.7         689     14.5  |              -305
+        17          43    2200.0          43        0  |    58300    |         468        3285     338.3         872     14.4  |              -451
+         0           0         0          22        0  |    58400    |         183        2691     356.8         794     14.9  |              -183
+         4         358    2026.8        1747      8.5  |    58500    |        -205       22529     376.9       13390     14.3  |               209
+        23          32    1996.3         100        0  |    58600    |          79        3533     397.9         887     14.1  |               -56
+        11          41    1924.2          60        0  |    58700    |        -278        4630     417.6        1466     14.1  |               289
+         0           0         0         128        0  |    58800    |         122        5155     443.3        1238     13.9  |              -122
+        16          71    1768.0          58     10.9  |    58900    |         172        4276     467.2         810     13.8  |              -156
+       199        2545    1649.0        3093      9.8  |    59000    |        2600       50130     493.9       18853     13.8  |             -2401
+        21          70    1589.2         212     10.1  |    59100    |        1312        8231     521.9        1935     13.7  |             -1291
+       163         519    1503.3         277     14.2  |    59200    |         227       11399     549.1        2268     13.6  |               -64
+        53         308    1474.5         174     12.8  |    59300    |          18        7424     580.5        2409     13.5  |                35
+        92         259    1381.0         204     13.9  |    59400    |          68        6848     612.1        2353     13.4  |                24
+       619        3524    1302.5        2013      9.9  |    59500    |         869       38774     644.0       12966     13.3  |              -250
+       167         797    1238.2         274     10.3  |    59600    |         439       13383     681.5        1920     13.3  |              -272
+       407        2060    1181.9         524     10.1  |    59700    |        1087       16110     718.2        2811     13.2  |              -680
+      1370        8996    1120.4        1724     10.2  |    59800    |        2860       31079     754.7        4562     13.2  |             -1490
+      1054        7214    1057.6        1306     10.3  |    59900    |        1467       26316     795.0        3067     13.2  |              -413
+      5407       34723    1001.2       13593     10.4  |    60000    |        1841      101751     833.9       36940     13.1  |              3566
+      2163       12353     946.0        2621     10.4  |    60100    |        1803       25948     880.9        2950     13.1  |               360
+      1750       10376     892.5        2278     10.4  |    60200    |        1011       18281     925.1        2915     13.0  |               739
+      1804        7537     837.0        2268     10.3  |    60300    |         605       10937     971.6        2972     13.0  |              1199
+      2035       10086     787.0        3019     10.4  |    60400    |         670       10411    1020.5        2622     13.0  |              1365
+      4820       33927     741.4       11751     10.5  |    60500    |       -1007       32505    1072.2       13559     12.9  |              5827
+       952        7524     693.0        2479     10.5  |    60600    |       -1596        8894    1121.0        2088     12.8  |              2548
+       311        8045     650.8        4737     10.5  |    60700    |        -574        6182    1183.7        5127     12.8  |               885
+      -243        9103     607.2        4498     10.5  |    60800    |       -1494        6254    1236.2        3941     12.9  |              1251
+      -267        7948     570.0        4138     10.3  |    60900    |        -783        4211    1300.5        2418     12.9  |               516
+     -8611       57150     528.6       47525     10.4  |    61000    |       -6992       34711    1351.2       45992     12.8  |             -1619
+        16        7490     492.6        6945     10.4  |    61100    |        -320        3728    1416.0        4005     12.8  |               336
+      -403       11242     456.3        9129     10.5  |    61200    |       -1118        2663    1483.0        3890     12.9  |               715
+      -529        7172     423.8        5886     10.4  |    61300    |        -290         788    1548.8        2292     12.9  |              -239
+      -228        4354     392.6        3548     10.4  |    61400    |        -302         730    1616.3        1051     12.8  |                74
+       346       25843     363.0       19591     10.5  |    61500    |        -534        6140    1686.7        9982     12.8  |               880
+      -519        5128     333.9        4037     10.4  |    61600    |         -81         378    1761.7        1181     13.2  |              -438
+      -434        5208     308.4        2742     10.3  |    61700    |        -108         208    1798.2         737     13.0  |              -326
+       297        6464     284.6        4857     10.4  |    61800    |        -193         590    1898.0        2012     13.2  |               490
+       -70        6838     260.9        3389     10.4  |    61900    |         -16          37    1985.3         523     13.5  |               -54
+      3511       43890     239.4       23315     10.5  |    62000    |        3348        7580    2050.1        9483     13.1  |               163
+      -186        4985     220.8        1930     10.4  |    62100    |          -1          12    2032.7         227     13.5  |              -185
+      -654        5404     202.6        1666     10.4  |    62200    |         -14          40    2173.9         169     13.1  |              -640
+      -244        3864     185.0        2119     10.4  |    62300    |          -5          18    2310.0         269     13.8  |              -239
+     -1124        5618     170.9        1465     10.5  |    62400    |          -5          10    2399.8         183     11.3  |             -1119
+       -63       26831     155.5       11119     10.4  |    62500    |         -15         284    2448.6        1304     13.8  |               -48
+       -76        3640     143.1        1209     10.5  |    62600    |           0           0         0          84     14.1  |               -76
+       -49        3013     129.8        1326     10.6  |    62700    |           0           0         0          74     13.5  |               -49
+       169        4668     119.8        1812     10.6  |    62800    |           0           0         0          59     14.0  |               169
+       -75        2843     109.5        1392     10.6  |    62900    |           0           0         0          71     14.4  |               -75
+      1294       36581      99.0       21842     10.5  |    63000    |         -52         557    2900.0        2330     14.2  |              1346
+       -61        3494      92.5        1679     10.7  |    63100    |           0           0         0          25        0  |               -61
+      -227        4376      84.2        1364     10.7  |    63200    |           0           0         0          16        0  |              -227
+      -111        2748      76.0        1030     10.8  |    63300    |           0           0         0          25        0  |              -111
+      -162        1888      69.7         570     10.8  |    63400    |           0           0         0          26        0  |              -162
+      -965       16398      64.2       10425     10.8  |    63500    |           8          40    3339.2         224     14.1  |              -973
+       -64        1988      59.6         607     10.9  |    63600    |           0           0         0          56        0  |               -64
+      -251        1985      55.9         636     10.9  |    63700    |           0           0         0          10     11.3  |              -251
+      -255        2071      52.0         735     11.0  |    63800    |           0           0         0           7        0  |              -255
+       -72         762      47.7         586     11.0  |    63900    |           0           0         0           1        0  |               -72
+      -788       15897      43.8       13916     11.1  |    64000    |         -26         100    3745.0         669     15.4  |              -762
+      -123        2007      41.7        1355     11.2  |    64100    |           0           0         0           0        0  |              -123
+      -377        1673      38.9        1498     11.3  |    64200    |           0           0         0           0        0  |              -377
+        -6         616      35.5         209     11.4  |    64300    |           0           0         0           0        0  |                -6
+        30         520      33.4         372     11.5  |    64400    |           0           0         0           2        0  |                30
+      -134        9721      31.8        9226     11.6  |    64500    |           0           0         0          19     16.7  |              -134
+        15         297      29.0         493     11.7  |    64600    |           0           0         0           0        0  |                15
+       -44         791      27.9         609     11.6  |    64700    |           0           0         0           0        0  |               -44
+      -131         810      25.6         263     11.8  |    64800    |           0           0         0           0        0  |              -131
+       -52         556      24.2         676     11.9  |    64900    |           0           0         0           0        0  |               -52
+      -965       14093      23.7       14942     12.1  |    65000    |          26          69    4773.9        2657     18.0  |              -991
+       -40         609      22.1         509     12.3  |    65100    |           0           0         0           1        0  |               -40
+        -8         657      20.2         416     12.4  |    65200    |           0           0         0           1        0  |                -8
+        78         225      19.1          93     12.4  |    65300    |           0           0         0           0        0  |                78
+       -10         375      18.9         227     12.6  |    65400    |           0           0         0           1        0  |               -10
+       382        3952      17.8        3837     12.5  |    65500    |           0           0         0          12     20.3  |               382
+        95         317      17.4         278     12.7  |    65600    |           0           0         0           0        0  |                95
+       132         289      16.9         136     12.8  |    65700    |           0           0         0           0        0  |               132
+       -57         222      15.7         435     13.0  |    65800    |           0           0         0           0        0  |               -57
+         8          97      15.9         138     13.0  |    65900    |           0           0         0           0        0  |                 8
+      -225        5210      14.9        7680     13.1  |    66000    |         -24          27    5800.0        1943        0  |              -201
+         0           0         0           0        0  |    66100    |           0           0         0           0        0  |                 0
+       -20         170      14.6         123     13.5  |    66200    |           0           0         0           0        0  |               -20
+        29         168      14.0         101     13.6  |    66300    |           0           0         0           0        0  |                29
+        17          37      13.4          24     13.8  |    66400    |           0           0         0           0        0  |                17
+         8         609      13.0        1470     13.9  |    66500    |           0           0         0           4        0  |                 8
+        18          51      13.7          69     14.1  |    66600    |           0           0         0           0        0  |                18
+      -901        4111      11.7        5162     14.6  |    67000    |           5         103    6810.0        1000     21.3  |              -906
+       118         489      10.7        1490     15.3  |    67500    |           0           0         0          77        0  |               118
+       159        1257       9.8        2087     15.9  |    68000    |           0           0         0         560     25.1  |               159
+        34         675       9.3         566     16.6  |    68500    |           0           0         0           1        0  |                34
+       306        4483       8.1        4103     17.3  |    69000    |           0           0         0         208        0  |               306
+======================================================================================================================================================
+BANKNIFTY PCR: OI PCR = 1.02, Volume PCR = 1.34
+================================================================================

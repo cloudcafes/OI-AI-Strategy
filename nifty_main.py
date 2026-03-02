@@ -14,7 +14,8 @@ from nifty_core_config import (SYMBOL, FETCH_INTERVAL, running,
                               TOP_NIFTY_STOCKS, should_enable_multi_expiry, get_expiry_type_constants,
                               should_enable_single_ai_query, should_enable_multi_ai_query, get_ai_query_mode)
 from nifty_data_fetcher import (fetch_option_chain, parse_option_chain, calculate_pcr_values,
-                               calculate_pcr_for_expiry_data, fetch_banknifty_data, fetch_all_stock_data)
+                               calculate_pcr_for_expiry_data, fetch_banknifty_data, fetch_all_stock_data,
+                               stop_playwright)
 from nifty_ai_analyzer import NiftyAIAnalyzer
 from nifty_file_logger import save_ai_query_data
 from multi_expiry_file_logger import save_multi_expiry_ai_query_data, save_daily_eod_state_block
@@ -260,6 +261,11 @@ def data_collection_cycle():
         print(f"Fetching {SYMBOL} option chain...")
         data = fetch_option_chain(session)
         expiry_data = parse_option_chain(data)
+        # --- NEW SAFEGUARD FOR EMPTY DATA ---
+        if not expiry_data:
+            print("❌ No valid expiry data parsed. Skipping this cycle.")
+            return False
+        # ------------------------------------
         pcr_values = calculate_pcr_for_expiry_data(expiry_data)
 
         if should_enable_multi_expiry() and len(expiry_data) > 1:
@@ -474,6 +480,7 @@ def main():
     except Exception as e:
         print(f"Fatal error: {e}")
     finally:
+        stop_playwright()
         print("Application shutdown complete")
         os._exit(0)
 
