@@ -17,10 +17,10 @@ ENABLE_STOCK_DISPLAY = False
 # 2. API KEYS & CREDENTIALS
 # ---------------------------------------------------------
 # Best practice: Uses environment variables if available, otherwise falls back to hardcoded keys
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyBiCzVVlk_4fPbItMKNwpCOzVlffGQe4Gg")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8747682342:AAG5f--5bePDBGjTFQDw0B7rLNGZFNkzQU8")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "8483179520")
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "re_LyXNNt6f_4odzHWJPYvr38api9Nrgvptm")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "hardcoded")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "hardcoded")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "hardcoded")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "hardcoded")
 EMAIL_TO = os.getenv("EMAIL_TO", "talkdev@gmail.com")
 
 # ---------------------------------------------------------
