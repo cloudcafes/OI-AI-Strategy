@@ -1,29 +1,41 @@
-import datetime
 import time
 import signal
 import sys
-import os
 import urllib3
+
+# Disable SSL Warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from nifty_file_logger import save_ai_query_data
-from nifty_core_config import (SYMBOL, FETCH_INTERVAL, running,
-                              signal_handler, initialize_session,
-                              format_greek_value, should_run_ai_analysis,
-                              should_run_loop, should_display_stocks, get_fetch_interval,
-                              TOP_NIFTY_STOCKS, should_enable_multi_expiry, get_expiry_type_constants,
-                              should_enable_single_ai_query, should_enable_multi_ai_query, get_ai_query_mode)
-from nifty_data_fetcher import (fetch_option_chain, parse_option_chain, calculate_pcr_values,
-                               calculate_pcr_for_expiry_data, fetch_banknifty_data, fetch_all_stock_data,
-                               stop_playwright)
-from nifty_ai_analyzer import NiftyAIAnalyzer
+# Import our modularized components
+import nifty_config
+from nifty_config import (
+    SYMBOL, FETCH_INTERVAL, ENABLE_AI_ANALYSIS, 
+    ENABLE_LOOP_FETCHING, ENABLE_STOCK_DISPLAY
+)
+from nifty_fetcher import (
+    fetch_option_chain, parse_option_chain, calculate_pcr_values,
+    fetch_banknifty_data, fetch_all_stock_data, stop_playwright
+)
+from nifty_logger import save_ai_query_data, format_strike_row
+from nifty_ai import NiftyAIAnalyzer
 
+# Initialize the AI Analyzer
 ai_analyzer = NiftyAIAnalyzer()
 
-def display_nifty_single_expiry(oi_data, oi_pcr, volume_pcr):
-    """Display Nifty OI data for single expiry (backward compatible)"""
-    if not oi_data:
-        return
+# ---------------------------------------------------------
+# CONSOLE DISPLAY HELPERS
+# ---------------------------------------------------------
+def print_table_header():
+    """Prints the standardized table header for options data."""
+    print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
+    print(f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
+          f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
+          f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}")
+    print("-" * 150)
+
+def display_nifty_data(oi_data, oi_pcr, volume_pcr):
+    """Displays Nifty OI data to the console."""
+    if not oi_data: return
 
     current_value = oi_data[0]['nifty_value']
     expiry_date = oi_data[0]['expiry_date']
@@ -32,423 +44,151 @@ def display_nifty_single_expiry(oi_data, oi_pcr, volume_pcr):
     print(f"OI Data for NIFTY - Current: {current_value}, Expiry: {expiry_date}")
     print(f"Full Chain PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}")
     print(f"{'='*80}")
-    print(f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}")
-    print(f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | "
-          f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} "
-          f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}")
-    print("-" * 150)
+    print_table_header()
 
+    # Leverage the DRY formatter from nifty_logger
     for data in oi_data:
-        strike_price = data['strike_price']
-        ce_oi_formatted = str(data['ce_change_oi'])
-        ce_volume_formatted = str(data['ce_volume'])
-        ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
-        ce_oi_total_formatted = str(data['ce_oi'])
-        ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
-        pe_oi_formatted = str(data['pe_change_oi'])
-        pe_volume_formatted = str(data['pe_volume'])
-        pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
-        pe_oi_total_formatted = str(data['pe_oi'])
-        pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
-        chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
-        chg_oi_diff_formatted = str(chg_oi_diff)
-
-        formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
-                        f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
-                        f"{str(strike_price).center(9)} | "
-                        f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
-                        f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
-                        f"{chg_oi_diff_formatted.rjust(16)}")
-        print(formatted_row)
+        print(format_strike_row(data), end="")
 
     print("=" * 150)
-    print(f"NIFTY PCR: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}")
-
-def display_nifty_multi_expiry(expiry_data, pcr_values):
-    """Display Nifty OI data for multiple expiries"""
-    if not expiry_data:
-        return
-
-    constants = get_expiry_type_constants()
-
-    for expiry_type in constants['ALL_TYPES']:
-        if expiry_type in expiry_data and expiry_data[expiry_type]:
-            oi_data = expiry_data[expiry_type]
-            current_value = oi_data[0]['nifty_value']
-            expiry_date = oi_data[0]['expiry_date']
-            expiry_pcr = pcr_values.get(expiry_type, {})
-            oi_pcr = expiry_pcr.get('oi_pcr', 1.0)
-            volume_pcr = expiry_pcr.get('volume_pcr', 1.0)
-            strike_count = expiry_pcr.get('strike_count', 0)
-
-            print(f"\n{'='*80}")
-            expiry_label = expiry_type.upper().replace('_', ' ')
-            print(f"📅 NIFTY {expiry_label} - Current: {current_value}, Expiry: {expiry_date}")
-            print(f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}, Strikes: {strike_count}")
-            print(f"{'='*80}")
-            print(f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}")
-            print(f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | "
-                  f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} "
-                  f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}")
-            print("-" * 150)
-
-            for data in oi_data:
-                strike_price = data['strike_price']
-                ce_oi_formatted = str(data['ce_change_oi'])
-                ce_volume_formatted = str(data['ce_volume'])
-                ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
-                ce_oi_total_formatted = str(data['ce_oi'])
-                ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
-                pe_oi_formatted = str(data['pe_change_oi'])
-                pe_volume_formatted = str(data['pe_volume'])
-                pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
-                pe_oi_total_formatted = str(data['pe_oi'])
-                pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
-                chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
-                chg_oi_diff_formatted = str(chg_oi_diff)
-
-                formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
-                                f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
-                                f"{str(strike_price).center(9)} | "
-                                f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
-                                f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
-                                f"{chg_oi_diff_formatted.rjust(16)}")
-                print(formatted_row)
-
-            print("=" * 150)
 
 def display_banknifty_data(banknifty_data):
-    """Display BANKNIFTY OI data without Greeks - Show ALL strikes"""
-    if not banknifty_data or 'data' not in banknifty_data:
-        return
+    """Displays BANKNIFTY OI data to the console."""
+    if not banknifty_data or 'data' not in banknifty_data: return
 
-    monthly_data = banknifty_data['data'].get('monthly', [])
-    if not monthly_data:
-        return
-
-    current_value = banknifty_data['current_value']
-    expiry_date = banknifty_data['expiry_date']
-    pcr_values = banknifty_data.get('pcr_values', {})
-    monthly_pcr = pcr_values.get('monthly', {})
-    oi_pcr = monthly_pcr.get('oi_pcr', 1.0)
-    volume_pcr = monthly_pcr.get('volume_pcr', 1.0)
+    data_list = banknifty_data['data']
+    if not data_list: return
 
     print(f"\n{'='*80}")
-    print(f"🏦 BANKNIFTY MONTHLY - Current: {current_value}, Expiry: {expiry_date}")
-    print(f"PCR: OI={oi_pcr:.2f}, Volume={volume_pcr:.2f}")
+    print(f"🏦 BANKNIFTY MONTHLY - Current: {banknifty_data['current_value']}, Expiry: {banknifty_data['expiry_date']}")
     print(f"{'='*80}")
-    print(f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}")
-    print(f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | "
-          f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} "
-          f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}")
-    print("-" * 150)
+    print_table_header()
 
-    for data in monthly_data:
-        strike_price = data['strike_price']
-        ce_oi_formatted = str(data['ce_change_oi'])
-        ce_volume_formatted = str(data['ce_volume'])
-        ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
-        ce_oi_total_formatted = str(data['ce_oi'])
-        ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
-        pe_oi_formatted = str(data['pe_change_oi'])
-        pe_volume_formatted = str(data['pe_volume'])
-        pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
-        pe_oi_total_formatted = str(data['pe_oi'])
-        pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
-        chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
-        chg_oi_diff_formatted = str(chg_oi_diff)
-
-        formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
-                        f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
-                        f"{str(strike_price).center(9)} | "
-                        f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
-                        f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
-                        f"{chg_oi_diff_formatted.rjust(16)}")
-        print(formatted_row)
-
-    print("=" * 150)
-    print(f"BANKNIFTY PCR: OI PCR = {oi_pcr:.2f}, Volume PCR = {volume_pcr:.2f}")
-
-def display_stock_data(stock_data):
-    """Display stock OI data without Greeks in required format - Show ALL strikes"""
-    if not stock_data:
-        return
-
-    symbol = stock_data[0]['symbol']
-    stock_info = TOP_NIFTY_STOCKS[symbol]
-    current_price = stock_data[0]['stock_value']
-
-    print(f"\n{'='*80}")
-    print(f"OI Data for {stock_info['name']} ({symbol}) - Current Price: {current_price}")
-    print(f"{'='*80}")
-    print(f"{'CALL OPTION':<50}| STRIKE |{'PUT OPTION':<52}| {'CHG OI DIFF':<18}")
-    print(f"{'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} {'OI'.rjust(10)} {'IV'.rjust(7)} | "
-          f"{'Price'.center(9)} | {'Chg OI'.rjust(10)} {'Volume'.rjust(10)} {'LTP'.rjust(8)} "
-          f"{'OI'.rjust(10)} {'IV'.rjust(7)} | {'CE-PE'.rjust(16)}")
-    print("-" * 150)
-
-    for data in stock_data:
-        strike_price = data['strike_price']
-        ce_oi_formatted = str(data['ce_change_oi'])
-        ce_volume_formatted = str(data['ce_volume'])
-        ce_ltp_formatted = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0"
-        ce_oi_total_formatted = str(data['ce_oi'])
-        ce_iv_formatted = format_greek_value(data['ce_iv'], 1)
-        pe_oi_formatted = str(data['pe_change_oi'])
-        pe_volume_formatted = str(data['pe_volume'])
-        pe_ltp_formatted = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0"
-        pe_oi_total_formatted = str(data['pe_oi'])
-        pe_iv_formatted = format_greek_value(data['pe_iv'], 1)
-        chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
-        chg_oi_diff_formatted = str(chg_oi_diff)
-
-        formatted_row = (f"{ce_oi_formatted.rjust(10)} {ce_volume_formatted.rjust(10)} {ce_ltp_formatted.rjust(8)} "
-                        f"{ce_oi_total_formatted.rjust(10)} {ce_iv_formatted.rjust(7)} | "
-                        f"{str(strike_price).center(9)} | "
-                        f"{pe_oi_formatted.rjust(10)} {pe_volume_formatted.rjust(10)} {pe_ltp_formatted.rjust(8)} "
-                        f"{pe_oi_total_formatted.rjust(10)} {pe_iv_formatted.rjust(7)} | "
-                        f"{chg_oi_diff_formatted.rjust(16)}")
-        print(formatted_row)
+    for data in data_list:
+        print(format_strike_row(data), end="")
 
     print("=" * 150)
 
 def display_stocks_summary(stock_data):
-    """Display summary of all stocks with PCR values"""
-    if not stock_data:
-        return
+    """Displays a summary of top stocks."""
+    if not stock_data: return
 
-    print(f"\n{'='*80}")
-    print("TOP 10 NIFTY STOCKS SUMMARY")
-    print(f"{'='*80}")
+    print(f"\n{'='*80}\nTOP 10 NIFTY STOCKS SUMMARY\n{'='*80}")
     print(f"{'SYMBOL':<15} {'WEIGHT':<10} {'PRICE':<10} {'OI PCR':<10} {'VOL PCR':<10}")
     print("-" * 80)
 
     for symbol, info in stock_data.items():
-        price = info.get('current_price', 0)
-        oi_pcr = info.get('oi_pcr', 0)
-        vol_pcr = info.get('volume_pcr', 0)
-        weight = info.get('weight', 0)
-        print(f"{symbol:<15} {weight:<10.4f} {price:<10} {oi_pcr:<10.2f} {vol_pcr:<10.2f}")
-
+        print(f"{symbol:<15} {info.get('weight', 0):<10.4f} {info.get('current_price', 0):<10} "
+              f"{info.get('oi_pcr', 0):<10.2f} {info.get('volume_pcr', 0):<10.2f}")
     print("=" * 80)
 
-def print_ai_query_configuration():
-    """Print current AI query configuration"""
-    single_enabled = should_enable_single_ai_query()
-    multi_enabled = should_enable_multi_ai_query()
-    query_mode = get_ai_query_mode()
-    
-    print(f"\n🤖 AI QUERY CONFIGURATION:")
-    print(f"   Single AI Query: {'ENABLED' if single_enabled else 'DISABLED'}")
-    print(f"   Multi AI Query:  {'ENABLED' if multi_enabled else 'DISABLED'}")
-    print(f"   Query Mode:      {query_mode.upper()}")
-    
-    if not single_enabled and not multi_enabled:
-        print("   ⚠️  Both query types are disabled - no AI analysis will be performed")
-    elif query_mode == "both" and (not single_enabled or not multi_enabled):
-        print("   ⚠️  Query mode is 'both' but one query type is disabled")
-
+# ---------------------------------------------------------
+# CORE EXECUTION CYCLE
+# ---------------------------------------------------------
 def data_collection_cycle():
-    """Perform one complete data collection and analysis cycle"""
-    session = None
+    """Performs one complete data fetch, log, and AI analysis cycle."""
+    print(f"\nFetching {SYMBOL} option chain...")
+    
     try:
-        if session is None:
-            session = initialize_session()
-
-        print(f"Fetching {SYMBOL} option chain...")
-        data = fetch_option_chain(session)
-        expiry_data = parse_option_chain(data)
-        # --- NEW SAFEGUARD FOR EMPTY DATA ---
-        if not expiry_data:
+        # 1. Fetch & Parse Nifty
+        raw_data = fetch_option_chain()
+        oi_data = parse_option_chain(raw_data)
+        
+        if not oi_data:
             print("❌ No valid expiry data parsed. Skipping this cycle.")
             return False
-        # ------------------------------------
-        pcr_values = calculate_pcr_for_expiry_data(expiry_data)
-
-        if should_enable_multi_expiry() and len(expiry_data) > 1:
-            print(f"\n🎯 Multi-Expiry Analysis Enabled ({len(expiry_data)} timeframes)")
-            display_nifty_multi_expiry(expiry_data, pcr_values)
-        else:
-            constants = get_expiry_type_constants()
-            current_week_data = expiry_data.get(constants['CURRENT_WEEK'], [])
-            if current_week_data:
-                current_pcr = pcr_values.get(constants['CURRENT_WEEK'], {})
-                oi_pcr = current_pcr.get('oi_pcr', 1.0)
-                volume_pcr = current_pcr.get('volume_pcr', 1.0)
-                display_nifty_single_expiry(current_week_data, oi_pcr, volume_pcr)
-
+            
+        oi_pcr, volume_pcr = calculate_pcr_values(oi_data)
+        
+        # 2. Fetch BankNifty & Stocks
         banknifty_data = fetch_banknifty_data()
-        if banknifty_data:
-            display_banknifty_data(banknifty_data)
+        stock_data = fetch_all_stock_data() if ENABLE_STOCK_DISPLAY else None
 
-        stock_data = fetch_all_stock_data()
+        # 3. Console Display
+        display_nifty_data(oi_data, oi_pcr, volume_pcr)
+        if banknifty_data: display_banknifty_data(banknifty_data)
+        if stock_data: display_stocks_summary(stock_data)
 
-        print("\n💾 Saving AI query data to file and sending to Telegram...")
-        constants = get_expiry_type_constants()
-        current_week_data = expiry_data.get(constants['CURRENT_WEEK'], [])
-        current_pcr = pcr_values.get(constants['CURRENT_WEEK'], {})
-        oi_pcr = current_pcr.get('oi_pcr', 1.0)
-        volume_pcr = current_pcr.get('volume_pcr', 1.0)
-        current_nifty = current_week_data[0]['nifty_value'] if current_week_data else 0
-        expiry_date = current_week_data[0]['expiry_date'] if current_week_data else "N/A"
+        # 4. Save Logs & Email
+        print("\n💾 Archiving data and preparing email...")
+        current_nifty = oi_data[0]['nifty_value']
+        expiry_date = oi_data[0]['expiry_date']
+        
+        save_ai_query_data(
+            oi_data=oi_data,
+            oi_pcr=oi_pcr,
+            volume_pcr=volume_pcr,
+            current_nifty=current_nifty,
+            expiry_date=expiry_date,
+            banknifty_data=banknifty_data
+        )
 
-        file_path = save_ai_query_data(oi_data=current_week_data,
-                                     oi_pcr=oi_pcr,
-                                     volume_pcr=volume_pcr,
-                                     current_nifty=current_nifty,
-                                     expiry_date=expiry_date,
-                                     banknifty_data=banknifty_data)
-
-        if should_display_stocks() and stock_data:
-            display_stocks_summary(stock_data)
-            for symbol, info in stock_data.items():
-                display_stock_data(info['data'])
-
-        # AI Analysis Section
-        if should_run_ai_analysis():
-            print_ai_query_configuration()
-            
-            single_enabled = should_enable_single_ai_query()
-            multi_enabled = should_enable_multi_ai_query()
-            query_mode = get_ai_query_mode()
-            
-            if not single_enabled and not multi_enabled:
-                print("❌ AI analysis skipped: Both query types are disabled")
-            else:
-                print("\n" + "="*80)
-                print("REQUESTING AI ANALYSIS...")
-                print("="*80)
-                
-                try:
-                    # Prepare parameters for single analysis
-                    single_params = {}
-                    if single_enabled or query_mode == "both":
-                        single_params = {
-                            'oi_data': expiry_data,
-                            'oi_pcr': oi_pcr,
-                            'volume_pcr': volume_pcr,
-                            'current_nifty': current_nifty,
-                            'expiry_date': expiry_date,
-                            'stock_data': stock_data,
-                            'banknifty_data': banknifty_data
-                        }
-                    
-                    # Call the enhanced AI analyzer
-                    ai_analysis = ai_analyzer.get_ai_analysis(**single_params)
-                    print(ai_analysis)
-                    
-                except Exception as ai_error:
-                    print(f"⚠️ AI analysis failed: {ai_error}")
-                    print("Continuing without AI analysis...")
+        # 5. Execute AI Analysis & Telegram Alert
+        if ENABLE_AI_ANALYSIS:
+            print("\n" + "="*80 + "\nREQUESTING AI ANALYSIS...\n" + "="*80)
+            ai_analysis = ai_analyzer.get_ai_analysis()
+            print(ai_analysis)
 
         print("="*80)
-        constants = get_expiry_type_constants()
-        current_week_data = expiry_data.get(constants['CURRENT_WEEK'], [])
-        if current_week_data:
-            print(f"Nifty: {current_week_data[0]['nifty_value']}, Expiry: {current_week_data[0]['expiry_date']}")
-        if banknifty_data:
-            print(f"BankNifty: {banknifty_data['current_value']}, Expiry: {banknifty_data['expiry_date']}")
-        print(f"✅ Data collection cycle completed.")
+        print(f"✅ Cycle complete. Nifty: {current_nifty} | Expiry: {expiry_date}")
         return True
 
-    except KeyboardInterrupt:
-        print("\nKeyboard interrupt received in data collection.")
-        raise
     except Exception as e:
-        print(f"Error in data collection cycle: {e}")
+        print(f"❌ Error in data collection cycle: {e}")
         return False
-    finally:
-        if session:
-            session.close()
 
+# ---------------------------------------------------------
+# LOOP MANAGER
+# ---------------------------------------------------------
 def data_collection_loop():
-    """Main data collection loop with configurable behavior"""
-    global running
+    """Manages the continuous loop or single execution based on config."""
     try:
-        if should_run_loop():
-            print(f"Starting continuous data collection (interval: {get_fetch_interval()} seconds)")
+        if ENABLE_LOOP_FETCHING:
             cycle_count = 0
-            while running:
+            while nifty_config.running:
                 cycle_count += 1
-                print(f"\n{'#'*80}")
-                print(f"DATA COLLECTION CYCLE {cycle_count}")
-                print(f"{'#'*80}")
+                print(f"\n{'#'*80}\nDATA COLLECTION CYCLE {cycle_count}\n{'#'*80}")
+                
                 success = data_collection_cycle()
+                
                 if not success:
-                    print("Cycle failed, waiting before retry...")
+                    print("⚠️ Cycle failed, waiting 30 seconds before retry...")
                     time.sleep(30)
                     continue
 
-                if running:
-                    print(f"\nWaiting {get_fetch_interval()} seconds for next cycle...")
-                    for _ in range(get_fetch_interval()):
-                        if not running:
-                            break
+                if nifty_config.running:
+                    print(f"\n⏳ Waiting {FETCH_INTERVAL} seconds for next cycle...")
+                    for _ in range(FETCH_INTERVAL):
+                        if not nifty_config.running: break
                         time.sleep(1)
         else:
-            print("Starting single data collection cycle...")
             data_collection_cycle()
-            print("✅ Single data collection completed. Program exiting.")
+            print("\n✅ Single execution mode completed successfully.")
 
-    except KeyboardInterrupt:
-        print("\nData collection loop interrupted by user.")
     except Exception as e:
-        print(f"Fatal error in data collection loop: {e}")
+        print(f"❌ Fatal error in execution loop: {e}")
     finally:
-        running = False
-        print("Data collection stopped.")
+        nifty_config.running = False
 
+# ---------------------------------------------------------
+# ENTRY POINT
+# ---------------------------------------------------------
 def main():
-    print(f"Starting {SYMBOL} OI Data Analyzer")
-    print(f"Configuration:")
-    print(f" AI Analysis: {'ENABLED' if should_run_ai_analysis() else 'DISABLED'}")
-    print(f" Loop Mode: {'ENABLED' if should_run_loop() else 'DISABLED'}")
-    print(f" Stock Display: {'ENABLED' if should_display_stocks() else 'DISABLED'}")
-    print(f" Multi-Expiry: {'ENABLED' if should_enable_multi_expiry() else 'DISABLED'}")
-    print(f" Data Processing: Full Options Chains")
-    
-    # Print AI query configuration
-    print_ai_query_configuration()
-    
-    if should_run_loop():
-        print(f" Fetch interval: {get_fetch_interval()} seconds")
-    else:
-        print(" Single execution mode")
+    # Hook up Ctrl+C termination signals to our config's safe shutdown
+    signal.signal(signal.SIGINT, nifty_config.signal_handler)
+    signal.signal(signal.SIGTERM, nifty_config.signal_handler)
 
-    if should_run_ai_analysis():
-        single_enabled = should_enable_single_ai_query()
-        multi_enabled = should_enable_multi_ai_query()
-        query_mode = get_ai_query_mode()
-        
-        if single_enabled and multi_enabled:
-            print(" Both single and multi AI analysis will be performed")
-        elif single_enabled:
-            print(" Single AI analysis will be performed")
-        elif multi_enabled:
-            print(" Multi AI analysis will be performed")
-        else:
-            print(" AI analysis enabled but both query types are disabled")
-    else:
-        print(" AI analysis disabled - displaying raw data only")
-
-    if should_enable_multi_expiry():
-        print(" Multi-expiry analysis enabled - showing current_week, next_week, monthly")
-    else:
-        print(" Single expiry mode - showing current week only")
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    nifty_config.print_configuration_status()
 
     try:
         data_collection_loop()
     except KeyboardInterrupt:
-        print("\nMain: Keyboard interrupt caught")
-    except Exception as e:
-        print(f"Fatal error: {e}")
+        print("\n🛑 Manual interruption caught.")
     finally:
+        print("🧹 Cleaning up background processes...")
         stop_playwright()
-        print("Application shutdown complete")
-        os._exit(0)
+        print("✅ Application shutdown complete.")
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()
