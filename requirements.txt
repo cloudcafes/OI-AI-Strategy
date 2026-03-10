@@ -2,4 +2,4 @@ playwright
 requests
 urllib3
 resend
-google-generativeai
+google-genai
