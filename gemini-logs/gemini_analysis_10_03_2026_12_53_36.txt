@@ -1,0 +1,43 @@
+Source Data File: ai_query_10_03_2026_12_53_28.txt
+================================================================================
+GEMINI AI ANALYSIS - Generated at 2026-03-10 12:53:36
+================================================================================
+
+To provide the requested actionable analysis for Nifty, I have processed the provided snapshot data using the v15.0 logic engine.
+
+### ANALYSIS NARRATIVE
+The Nifty market is currently exhibiting **BEARISH** momentum as spot price (24,191) struggles to gain traction. The dominant flow is heavily skewed toward **CALL WRITING**, which has created a massive ceiling at 24,200 and 24,150. While there is minor Put writing activity, it lacks volume validation and is essentially passive yield-seeking, not an active defense. The BankNifty index is similarly weak (OI PCR 0.80, Volume PCR 0.77), which provides a negative correlation check (Alignment: ALIGNED). With the spot price currently trading below the significant 24,200 resistance and the OI PCR remaining below 1.0 (0.92), the market is in a "distribute and drift" phase. The lack of clean, volume-validated Put writing suggests that any bounce toward 24,200 will likely be sold off immediately by institutional participants.
+
+### TRADING IMPLICATION
+*   **Directional Bias:** **BEARISH**
+*   **Confidence:** **HIGH**
+*   **Actionable Strategy:** The market is currently in a "short-on-bounce" setup.
+    *   **Resistance (Primary):** 24,200 (Highest weighted OI). Any movement toward this level is a low-risk short entry.
+    *   **Support (Target):** 24,150, followed by a potential flush toward 24,100 if the current 24,200 wall holds.
+    *   **Trigger:** If Nifty fails to sustain above 24,200, initiate short positions for a target of 20-30 points.
+    *   **Invalidation:** A firm breakout and volume-backed consolidation above 24,250 would negate the bearish thesis.
+
+---
+
+### REVERSAL ALERT (Summary)
+*   **REVERSAL SCORE:** 37/100 (Indicates a lack of reversal signals; trend is firmly bearish).
+*   **DIRECTION:** BEARISH.
+*   **ENTRY WINDOW:** 15–60 minutes from the current signal.
+*   **ENTRY ALLOWED:** YES.
+*   **TRIGGER:** BREAK BELOW 24,150.
+
+### KEY EVIDENCE BREAKDOWN
+1.  **Unwind (0):** No significant Put unwind detected yet; traders are simply adding to Call positions.
+2.  **Counter (1 signal × 25 = 25):** Institutional resistance is building at 24,200, capping upside.
+3.  **Trapped (0 × 18 = 0):** Spot is not currently in a "trapped" zone for shorts; bulls are the ones currently under pressure.
+4.  **Approach (1 × 9 = 9):** Spot is in the approach zone toward lower support levels.
+5.  **PCR Div (0 × 12 = 0):** PCR is aligned with the bearish move.
+6.  **BN Div (0 × 8 = 0):** BankNifty is also bearish, confirming the Nifty weakness.
+
+**Mandatory Audit:** 
+- Price Vector: - (Calculated from context).
+- DTE Mode: Expiry day (Theta collapse is extreme).
+- Volume Validation: Applied to all dominant strikes.
+- Protocol Violations: 0.
+
+**DISCLAIMER:** *This analysis is based on provided data points for educational and analytical purposes. Options trading involves high risk, especially on expiry day. Please manage positions with strict stop-losses.*

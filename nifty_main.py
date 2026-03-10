@@ -6,7 +6,7 @@ import os
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from nifty_file_logger import (save_ai_query_data)
+from nifty_file_logger import save_ai_query_data
 from nifty_core_config import (SYMBOL, FETCH_INTERVAL, running,
                               signal_handler, initialize_session,
                               format_greek_value, should_run_ai_analysis,
@@ -17,10 +17,7 @@ from nifty_data_fetcher import (fetch_option_chain, parse_option_chain, calculat
                                calculate_pcr_for_expiry_data, fetch_banknifty_data, fetch_all_stock_data,
                                stop_playwright)
 from nifty_ai_analyzer import NiftyAIAnalyzer
-from nifty_file_logger import save_ai_query_data
-from multi_expiry_file_logger import save_multi_expiry_ai_query_data, save_daily_eod_state_block
 
-MULTI_EXPIRY_LOGGER_AVAILABLE = True
 ai_analyzer = NiftyAIAnalyzer()
 
 def display_nifty_single_expiry(oi_data, oi_pcr, volume_pcr):
@@ -301,37 +298,6 @@ def data_collection_cycle():
                                      current_nifty=current_nifty,
                                      expiry_date=expiry_date,
                                      banknifty_data=banknifty_data)
-
-        # Multi-expiry logging
-        try:
-            from multi_expiry_file_logger import save_multi_expiry_ai_query_data
-            multi_file_path = save_multi_expiry_ai_query_data(expiry_data=expiry_data,
-                                                            pcr_values=pcr_values,
-                                                            current_nifty=current_nifty,
-                                                            banknifty_data=banknifty_data,
-                                                            stock_data=stock_data)
-            if multi_file_path:
-                print(f"✅ Multi-expiry data saved to: {multi_file_path}")
-            else:
-                print("⚠️ Multi-expiry logging disabled or failed")
-        except ImportError:
-            print("⚠️ Multi-expiry logger not available")
-        except Exception as e:
-            print(f"⚠️ Multi-expiry logging failed: {e}")
-
-        print("\n📊 Generating daily EOD state block...")
-        try:
-            eod_filepath = save_daily_eod_state_block(expiry_data=expiry_data,
-                                                    pcr_values=pcr_values,
-                                                    current_nifty=current_nifty,
-                                                    banknifty_data=banknifty_data,
-                                                    stock_data=stock_data)
-            if eod_filepath:
-                print(f"✅ Daily EOD state block saved to: {eod_filepath}")
-            else:
-                print("⚠️ Daily EOD state block generation failed")
-        except Exception as e:
-            print(f"⚠️ Error generating daily EOD state block: {e}")
 
         if should_display_stocks() and stock_data:
             display_stocks_summary(stock_data)

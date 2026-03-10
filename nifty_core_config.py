@@ -26,7 +26,7 @@ AI_QUERY_MODE = "single"  # "single" | "multi" | "both"
 # System Operation Configuration
 ENABLE_LOOP_FETCHING = False
 ENABLE_STOCK_DISPLAY = False
-ENABLE_MULTI_EXPIRY = True
+ENABLE_MULTI_EXPIRY = False
 
 # Expiry Type Constants
 CURRENT_WEEK = "current_week"
@@ -37,14 +37,6 @@ EXPIRY_TYPES = [CURRENT_WEEK, NEXT_WEEK, MONTHLY]
 # Expiry Classification Parameters
 NEXT_WEEK_DAY_RANGE = (5, 9)
 MONTHLY_THRESHOLD_DAYS = 20
-
-# Platform-specific Directory Configuration
-if platform.system() == "Windows":
-    EOD_BASE_DIR = r"C:\dev\python-projects\OI-AI-Strategy\multi-expiry-logs"
-    MULTI_EXPIRY_LOGS_DIR = r"C:\dev\python-projects\OI-AI-Strategy\multi-expiry-logs"
-else:
-    EOD_BASE_DIR = "/root/OI-AI-Strategy/multi-expiry-logs"
-    MULTI_EXPIRY_LOGS_DIR = "/root/OI-AI-Strategy/multi-expiry-logs"
 
 # HTTP Headers Configuration
 HEADERS = {
@@ -223,14 +215,6 @@ def get_expiry_classification_params():
         'monthly_threshold_days': MONTHLY_THRESHOLD_DAYS
     }
 
-def get_eod_base_directory():
-    """Return the platform-specific EOD base directory"""
-    return EOD_BASE_DIR
-
-def get_multi_expiry_logs_directory():
-    """Return the platform-specific multi-expiry logs directory"""
-    return MULTI_EXPIRY_LOGS_DIR
-
 def validate_configuration():
     """Validate configuration settings for consistency"""
     issues = []
@@ -242,15 +226,6 @@ def validate_configuration():
     # Check mode consistency
     if AI_QUERY_MODE not in ["single", "multi", "both"]:
         issues.append(f"Invalid AI_QUERY_MODE: {AI_QUERY_MODE}. Must be 'single', 'multi', or 'both'")
-    
-    # Check directory accessibility
-    try:
-        if not os.path.exists(EOD_BASE_DIR):
-            os.makedirs(EOD_BASE_DIR, exist_ok=True)
-        if not os.path.exists(MULTI_EXPIRY_LOGS_DIR):
-            os.makedirs(MULTI_EXPIRY_LOGS_DIR, exist_ok=True)
-    except Exception as e:
-        issues.append(f"Directory creation failed: {e}")
     
     return issues
 
@@ -267,8 +242,6 @@ else:
 if __name__ == "__main__":
     print("\n=== Current Configuration ===")
     print(f"Platform: {platform.system()}")
-    print(f"EOD Base Directory: {EOD_BASE_DIR}")
-    print(f"Multi-Expiry Logs Directory: {MULTI_EXPIRY_LOGS_DIR}")
     print(f"AI Analysis Enabled: {ENABLE_AI_ANALYSIS}")
     print(f"Single AI Query: {ENABLE_SINGLE_AI_QUERY}")
     print(f"Multi AI Query: {ENABLE_MULTI_AI_QUERY}")

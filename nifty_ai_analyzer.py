@@ -12,8 +12,10 @@ class NiftyAIAnalyzer:
     def __init__(self, api_key: str = None):
         # 1. API KEYS & CREDENTIALS
         self.api_key = api_key or "AIzaSyByKUPL90bV_8uvuWLPZKGqa8t6grC7SIc"
-        self.telegram_bot_token = "8747682342:AAG5f--5bePDBGjTFQDw0B7rLNGZFNkzQU8"  # e.g., "123456789:ABCdefGhIJKlmNoPQRsT"
-        self.telegram_chat_id = "8483179520"      # e.g., "-1001234567890" or "987654321"
+        
+        # Updated to match the working credentials from your nifty_file_logger.py
+        self.telegram_bot_token = "8747682342:AAG5f--5bePDBGjTFQDw0B7rLNGZFNkzQU8"  
+        self.telegram_chat_id = "8483179520"      
         
         # Initialize Gemini Client
         self.client = genai.Client(api_key=self.api_key)
@@ -40,22 +42,22 @@ class NiftyAIAnalyzer:
 
     def send_telegram_alert(self, message_text: str):
         """Sends a formatted message to Telegram."""
-        if self.telegram_bot_token == "YOUR_TELEGRAM_BOT_TOKEN_HERE":
-            print("⚠️ Telegram skipped: Bot token not configured in nifty_ai_analyzer.py")
-            return
-
         url = f"https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage"
+        
+        # Strip heavy markdown to prevent Telegram 400 Parse Errors
+        clean_text = message_text.replace('**', '*').replace('##', '')
+        
         payload = {
             "chat_id": self.telegram_chat_id,
-            "text": message_text,
-            "parse_mode": "Markdown"
+            "text": clean_text
+            # parse_mode removed to ensure guaranteed delivery of raw AI text
         }
         
         try:
             # verify=False is used to match your system's existing SSL bypass settings
             response = requests.post(url, json=payload, verify=False, timeout=10)
             if response.status_code == 200:
-                print("📱 Successfully sent parsed snippet to Telegram!")
+                print("📱 Successfully sent AI snippet to Telegram!")
             else:
                 print(f"⚠️ Telegram API returned status code {response.status_code}: {response.text}")
         except Exception as e:
@@ -76,7 +78,6 @@ class NiftyAIAnalyzer:
         except Exception as e:
             return f"❌ Error reading file: {e}"
 
-        # Note: If you stayed on the free tier, ensure the model below is "gemini-3.1-flash-lite-preview"
         print("🧠 Requesting analysis from Google Gemini...")
         try:
             response = self.client.models.generate_content(
@@ -116,10 +117,14 @@ class NiftyAIAnalyzer:
             if start_idx != -1:
                 # Grab the matching line and the 49 lines after it
                 snippet_lines = lines[start_idx:start_idx + 50]
-                telegram_msg = "🤖 *Gemini AI Strategy Update:*\n\n" + "\n".join(snippet_lines)
+                telegram_msg = "🤖 Gemini AI Strategy Update:\n\n" + "\n".join(snippet_lines)
                 self.send_telegram_alert(telegram_msg)
             else:
-                print("⚠️ Keywords 'ANALYSIS NARRATIVE' or 'TRADING IMPLICATION' not found. Telegram skipped.")
+                print("⚠️ Keywords 'ANALYSIS NARRATIVE' or 'TRADING IMPLICATION' not found. Sending fallback response...")
+                # Fallback: Just grab the first 50 lines of the analysis
+                snippet_lines = lines[:50]
+                telegram_msg = "🤖 Gemini AI Strategy Update:\n\n" + "\n".join(snippet_lines)
+                self.send_telegram_alert(telegram_msg)
                 
             return f"🤖 GEMINI AI ANALYSIS:\n\n{ai_response}"
             
