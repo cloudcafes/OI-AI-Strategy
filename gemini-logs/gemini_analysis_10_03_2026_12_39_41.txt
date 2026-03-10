@@ -1,0 +1,46 @@
+Source Data File: ai_query_10_03_2026_12_39_33.txt
+================================================================================
+GEMINI AI ANALYSIS - Generated at 2026-03-10 12:39:41
+================================================================================
+
+### ANALYSIS NARRATIVE
+The Nifty market is currently in a state of high-density indecision around the 24,180–24,200 zone. With DTE=0 (Expiry Day), we are seeing intense theta decay and aggressive positioning. The Call writing at 24,200 is massive (+252k Chg OI) and acts as the primary immediate ceiling, while the 24,100 and 24,000 strikes hold substantial Put writing support. The Nifty OI PCR of 0.95 and Volume PCR of 1.00 suggest a perfectly balanced tug-of-war, with no clear directional advantage currently. BankNifty is showing a clear bearish tilt (PCR 0.79/0.77), which acts as a drag on Nifty’s potential to breakout. Given the proximity to the 24,200 wall and the expiry-day "gravity" effect, we are in a high-volatility, low-range environment where trapped writers are likely to trigger a localized squeeze if the 24,200 level is breached or if 24,100 support fails.
+
+### TRADING IMPLICATION
+*   **Directional Bias:** Neutral-to-Bearish (Expiry Pressure).
+*   **Confidence:** Medium (Expiry volatility risks).
+*   **Strategy:** Range play with a bias for a breakout below support. 
+*   **Key Levels:** 
+    *   **Resistance:** 24,200 (Highest OI wall).
+    *   **Support:** 24,100 (Primary support wall).
+*   **Trigger:** 
+    *   **Sell:** Below 24,090 (Target 24,050–24,025). 
+    *   **Buy:** Above 24,210 (Target 24,250–24,275).
+*   **Action:** Wait for the 24,100–24,200 breach. On expiry day, prioritize quick 20-point scalps rather than holding for long-term trends due to gamma instability.
+
+═══════════════════════════════════════════════
+REVERSAL ALERT
+═══════════════════════════════════════════════
+REVERSAL SCORE:  25 (MEDIUM)
+DIRECTION:       NEUTRAL
+ENTRY WINDOW:    ⚠️ HIGH RISK WINDOW — Within 45 min of expiry.
+ENTRY ALLOWED:   TRUE
+TRIGGER:         BREAK EITHER SIDE 24100–24200
+
+EVIDENCE BREAKDOWN:
+  1. Unwind    [0 signals × 30 = 0]:  None
+  2. Counter   [1 signals × 25 = 25]: NEUTRAL momentum: both sides scored
+  3. Trapped   [0 × 18 = 0]:          NEUTRAL-NEAR: Spot within 100pts of Max Pain
+  4. Approach  [0 × 9 = 0]:           Not in approach zone
+  5. PCR Div   [0 × 12 = 0]:          Source=FULL_SESSION_EARLY
+  6. BN Div    [0 × 8  = 0]:          CALL WRITING vs NEUTRAL
+  ─────────────────────────────────────────────
+  TOTAL SCORE: 25
+
+# MANDATORY QUALITY CHECKS (FINAL AUDIT)
+- PRICE_VECTOR: 0 (Data is static/single snapshot)
+- DTE: 0 (Expiry Day)
+- VOLUME_VALID: Applied
+- OI_WEIGHT: Applied
+- MAX_PAIN: 24,200 (Reliable: Yes)
+- PROTOCOL VIOLATIONS: [0]

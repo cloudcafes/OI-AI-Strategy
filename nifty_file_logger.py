@@ -1019,6 +1019,7 @@ STRENGTH METER: {SCORE}/10
 ANALYSIS NARRATIVE:
   [Auto-generated from all computed values above — summarize momentum, IV environment,
    Max Pain gravity, support/resistance walls, and expiry context in 4–6 sentences]
+  [I just want levels in any direction to capture 20 points move. what it could be with maximum percent of surity?]
 
 TRADING IMPLICATION:
   Momentum: {REV_DIR}

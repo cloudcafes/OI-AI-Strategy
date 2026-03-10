@@ -1,0 +1,55 @@
+Source Data File: ai_query_10_03_2026_12_07_23.txt
+================================================================================
+GEMINI AI ANALYSIS - Generated at 2026-03-10 12:07:31
+================================================================================
+
+### NIFTY INTRADAY ANALYSIS — v15.0
+**DATA TIME:** 12:07 | **DTE:** 0 (EXPIRY_DAY)
+
+---
+
+### QUANTITATIVE EVIDENCE
+*   **Net Chg OI (Puts - Calls):** +326,989 (Bullish skew in active writing)
+*   **Total Put Chg OI (Positive):** 2,548,266
+*   **Total Call Chg OI (Positive):** 2,221,277
+*   **Ratio (Put/Call):** 1.15
+*   **IV Baseline:** 35.8 | **IV Writing Confidence:** HIGH — Clean IV environment
+
+### KEY FLOW EVIDENCE — TOP DOMINANT STRIKES
+*   **PUT WRITERS (Support):** 
+    1. 24000 Put (+317,552 | Prem 6.5)
+    2. 24100 Put (+301,558 | Prem 16.2)
+    3. 24150 Put (+236,335 | Prem 27.0)
+*   **CALL WRITERS (Resistance):**
+    1. 24300 Call (+330,578 | Prem 28.6)
+    2. 24200 Call (+273,691 | Prem 71.0)
+    3. 24250 Call (+254,546 | Prem 46.4)
+
+### ANALYSIS NARRATIVE
+The Nifty option chain indicates a high-intensity battle between 24100-24200 (Support) and 24200-24300 (Resistance). Institutional writing is heavily concentrated at 24000/24100 Put strikes, creating a solid base. Conversely, aggressive Call writing at 24200/24300 confirms heavy resistance. With an OI PCR of 1.03 and a Volume PCR of 0.96, the market is currently in a narrow consolidation range. Max Pain sits at 24200, which acts as a magnetic point for current price action.
+
+### CRITICAL LEVELS
+*   **Primary Support:** 24100 | **Secondary:** 24000
+*   **Primary Resistance:** 24200 | **Secondary:** 24300
+*   **Max Pain:** 24200 (Reliable)
+*   **Momentum:** NEUTRAL-BULLISH
+*   **Trigger:** Break above 24220 for a move to 24250+; Break below 24180 for a move to 24100.
+
+---
+
+### REVERSAL ALERT
+*   **REVERSAL SCORE:** 42 (Moderate)
+*   **CONFIDENCE:** MEDIUM
+*   **DIRECTION:** NEUTRAL (Rangebound)
+*   **ENTRY WINDOW:** 15–60 MIN
+*   **TRIGGER:** BREAK EITHER SIDE 24100–24200
+
+---
+
+### TRADING IMPLICATION (Maximum Certainty)
+The safest, high-probability trade on this expiry day is a **Mean Reversion strategy**. 
+1. **If Nifty drops to 24100-24120:** Look for long entry (Put writing support is strongest here). Keep a tight stop loss below 24080.
+2. **If Nifty rallies to 24280-24300:** Look for short entry (Call writing resistance is dense here). Keep a stop loss above 24320.
+3. **Avoid the 24180–24220 zone:** This is the "Dead Zone" around the Max Pain strike where premiums will decay rapidly due to Theta collapse, providing no clean directional 20-point move.
+
+**Final Verdict:** The market is "trapped" between 24100 and 24200. **Wait for a clear break of the 24100–24300 boundaries.** On expiry, volume-validated breaks of these levels are the only setups offering the required certainty for a 20-point scalping move.
