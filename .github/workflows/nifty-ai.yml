@@ -2,13 +2,8 @@ name: Nifty AI Strategy
 
 on:
   schedule:
-    # 09:30–09:59 IST
     - cron: "0,30 4 * * 1-5"
-
-    # 10:00–14:59 IST
     - cron: "0,30 5-9 * * 1-5"
-
-    # 15:00–15:30 IST
     - cron: "0 10 * * 1-5"
 
   workflow_dispatch:
@@ -20,6 +15,8 @@ jobs:
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
+        with:
+          ref: win-version
 
       - name: Setup Python
         uses: actions/setup-python@v5
