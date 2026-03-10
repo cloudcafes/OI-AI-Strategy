@@ -10,7 +10,7 @@ FETCH_INTERVAL = 1800  # Seconds between fetches in loop mode
 
 # System Master Switches
 ENABLE_AI_ANALYSIS = True
-ENABLE_LOOP_FETCHING = True
+ENABLE_LOOP_FETCHING = False
 ENABLE_STOCK_DISPLAY = False
 
 # ---------------------------------------------------------
