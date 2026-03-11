@@ -2,20 +2,26 @@ import os
 import glob
 import datetime
 from google import genai
+import anthropic
 
-from nifty_config import GEMINI_API_KEY, AI_LOGS_DIR, GEMINI_LOGS_DIR
+from nifty_config import GEMINI_API_KEY, ANTHROPIC_API_KEY, AI_LOGS_DIR, GEMINI_LOGS_DIR
 from nifty_telegram import send_telegram_message
 
 class NiftyAIAnalyzer:
     def __init__(self):
-        # 1. Credential Check
-        if not GEMINI_API_KEY or "YOUR_" in GEMINI_API_KEY:
-            print("⚠️ Gemini skipped: API key not configured in nifty_config.py")
-            self.client = None
-            return
-            
         # Initialize Gemini Client
-        self.client = genai.Client(api_key=GEMINI_API_KEY)
+        if not GEMINI_API_KEY or "YOUR_" in GEMINI_API_KEY:
+            print("⚠️ Gemini config missing.")
+            self.gemini_client = None
+        else:
+            self.gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+            
+        # Initialize Anthropic (Claude) Client
+        if not ANTHROPIC_API_KEY or "YOUR_" in ANTHROPIC_API_KEY:
+            print("⚠️ Anthropic config missing.")
+            self.claude_client = None
+        else:
+            self.claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     def get_latest_log_file(self) -> str:
         """Finds the most recently created text file in the input directory."""
@@ -30,10 +36,7 @@ class NiftyAIAnalyzer:
         return max(list_of_files, key=os.path.getctime)
 
     def get_ai_analysis(self, **kwargs) -> str:
-        """Reads data, gets Gemini analysis, saves file, and sends Telegram alert."""
-        if not self.client:
-            return "❌ AI Analysis skipped: Gemini client not initialized."
-
+        """Waterfalls through Gemini Pro -> Claude -> Gemini Flash."""
         latest_file = self.get_latest_log_file()
         
         if not latest_file:
@@ -47,56 +50,103 @@ class NiftyAIAnalyzer:
         except Exception as e:
             return f"❌ Error reading file: {e}"
 
-        print("🧠 Requesting analysis from Google Gemini...")
-        try:
-            response = self.client.models.generate_content(
-                model="gemini-3.1-pro-preview", 
-                contents=[
-                    "You are an expert Nifty options trading analyst. Review the data and provide a clear, actionable trading analysis. ALWAYS include a section titled exactly 'ANALYSIS NARRATIVE' or 'TRADING IMPLICATION'.",
-                    file_content
-                ]
-            )
+        system_instruction = "You are an expert Nifty options trading analyst. Review the data and provide a clear, actionable trading analysis. ALWAYS include a section titled exactly 'ANALYSIS NARRATIVE' or 'TRADING IMPLICATION'."
+        
+        ai_response = None
+        used_model = "None"
+
+        # -------------------------------------------------------------
+        # 1st TRY: GEMINI 3.1 PRO PREVIEW
+        # -------------------------------------------------------------
+        if self.gemini_client:
+            print("🧠 Requesting analysis from Google Gemini Pro...")
+            try:
+                response = self.gemini_client.models.generate_content(
+                    model="gemini-3.1-pro-preview", 
+                    contents=[system_instruction, file_content]
+                )
+                ai_response = response.text
+                used_model = "Gemini Pro"
+                print("✅ Gemini Pro succeeded.")
+            except Exception as e:
+                print(f"⚠️ Gemini Pro failed: {e}")
+        
+        # -------------------------------------------------------------
+        # 2nd TRY: CLAUDE OPUS (Fallback)
+        # -------------------------------------------------------------
+        if not ai_response and self.claude_client:
+            print("🧠 Switching to Anthropic Claude Opus...")
+            try:
+                # Note: Using standard Claude 3 Opus string. Update if needed.
+                message = self.claude_client.messages.create(
+                    model="claude-3-opus-20240229",
+                    max_tokens=1500,
+                    system=system_instruction,
+                    messages=[
+                        {"role": "user", "content": file_content}
+                    ]
+                )
+                ai_response = message.content[0].text
+                used_model = "Claude Opus"
+                print("✅ Claude Opus succeeded.")
+            except Exception as e:
+                print(f"⚠️ Claude Opus failed: {e}")
+
+        # -------------------------------------------------------------
+        # 3rd TRY: GEMINI 3.1 FLASH PREVIEW (Last Resort)
+        # -------------------------------------------------------------
+        if not ai_response and self.gemini_client:
+            print("🧠 Switching to Google Gemini Flash...")
+            try:
+                response = self.gemini_client.models.generate_content(
+                    model="gemini-3.1-flash-preview", 
+                    contents=[system_instruction, file_content]
+                )
+                ai_response = response.text
+                used_model = "Gemini Flash"
+                print("✅ Gemini Flash succeeded.")
+            except Exception as e:
+                print(f"⚠️ Gemini Flash failed: {e}")
+
+        # -------------------------------------------------------------
+        # FINAL CHECK & LOGGING
+        # -------------------------------------------------------------
+        if not ai_response:
+            return "❌ AI analysis failed on all available engines (Pro, Claude, Flash)."
+
+        # --- FILE SAVING LOGIC ---
+        timestamp = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+        output_filepath = os.path.join(GEMINI_LOGS_DIR, f"ai_analysis_{timestamp}.txt")
+        
+        with open(output_filepath, 'w', encoding='utf-8') as f:
+            f.write(f"Source Data File: {os.path.basename(latest_file)}\n")
+            f.write(f"Model Used: {used_model}\n")
+            f.write("=" * 80 + "\n")
+            f.write(f"AI ANALYSIS - Generated at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write("=" * 80 + "\n\n")
+            f.write(ai_response)
             
-            ai_response = response.text
+        print(f"✅ Analysis saved successfully to:\n   {output_filepath}")
+        
+        # --- TELEGRAM PARSING LOGIC ---
+        print("🔍 Parsing response for Telegram keywords...")
+        lines = ai_response.split('\n')
+        start_idx = -1
+        
+        for i, line in enumerate(lines):
+            upper_line = line.upper()
+            if "ANALYSIS NARRATIVE" in upper_line or "TRADING IMPLICATION" in upper_line:
+                start_idx = i
+                break
+        
+        if start_idx != -1:
+            snippet_lines = lines[start_idx:start_idx + 50]
+            telegram_msg = f"🤖 {used_model} Strategy Update:\n\n" + "\n".join(snippet_lines)
+            send_telegram_message(telegram_msg)
+        else:
+            print("⚠️ Keywords 'ANALYSIS NARRATIVE' or 'TRADING IMPLICATION' not found. Sending fallback response...")
+            snippet_lines = lines[:50]
+            telegram_msg = f"🤖 {used_model} Strategy Update:\n\n" + "\n".join(snippet_lines)
+            send_telegram_message(telegram_msg)
             
-            # --- FILE SAVING LOGIC ---
-            timestamp = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
-            output_filepath = os.path.join(GEMINI_LOGS_DIR, f"gemini_analysis_{timestamp}.txt")
-            
-            with open(output_filepath, 'w', encoding='utf-8') as f:
-                f.write(f"Source Data File: {os.path.basename(latest_file)}\n")
-                f.write("=" * 80 + "\n")
-                f.write(f"GEMINI AI ANALYSIS - Generated at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write("=" * 80 + "\n\n")
-                f.write(ai_response)
-                
-            print(f"✅ Gemini analysis saved successfully to:\n   {output_filepath}")
-            
-            # --- TELEGRAM PARSING LOGIC ---
-            print("🔍 Parsing response for Telegram keywords...")
-            lines = ai_response.split('\n')
-            start_idx = -1
-            
-            for i, line in enumerate(lines):
-                upper_line = line.upper()
-                if "ANALYSIS NARRATIVE" in upper_line or "TRADING IMPLICATION" in upper_line:
-                    start_idx = i
-                    break
-            
-            if start_idx != -1:
-                # Grab the matching line and the 49 lines after it
-                snippet_lines = lines[start_idx:start_idx + 50]
-                telegram_msg = "🤖 Gemini AI Strategy Update:\n\n" + "\n".join(snippet_lines)
-                send_telegram_message(telegram_msg)
-            else:
-                print("⚠️ Keywords 'ANALYSIS NARRATIVE' or 'TRADING IMPLICATION' not found. Sending fallback response...")
-                # Fallback: Just grab the first 50 lines of the analysis
-                snippet_lines = lines[:50]
-                telegram_msg = "🤖 Gemini AI Strategy Update:\n\n" + "\n".join(snippet_lines)
-                send_telegram_message(telegram_msg)
-                
-            return f"\n🤖 GEMINI AI ANALYSIS:\n\n{ai_response}"
-            
-        except Exception as e:
-            print(f"⚠️ Gemini API call failed: {e}")
-            return f"❌ Gemini AI analysis failed: {str(e)}"
+        return f"\n🤖 {used_model.upper()} ANALYSIS:\n\n{ai_response}"
