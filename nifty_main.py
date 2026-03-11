@@ -16,7 +16,8 @@ from nifty_fetcher import (
     fetch_option_chain, parse_option_chain, calculate_pcr_values,
     fetch_banknifty_data, fetch_all_stock_data, stop_playwright
 )
-from nifty_logger import save_ai_query_data, format_strike_row
+# UPDATED IMPORT: Swapped format_strike_row for format_csv_row
+from nifty_logger import save_ai_query_data, format_csv_row
 from nifty_ai import NiftyAIAnalyzer
 
 # Initialize the AI Analyzer
@@ -26,12 +27,9 @@ ai_analyzer = NiftyAIAnalyzer()
 # CONSOLE DISPLAY HELPERS
 # ---------------------------------------------------------
 def print_table_header():
-    """Prints the standardized table header for options data."""
-    print(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}")
-    print(f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  "
-          f"{'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  "
-          f"{'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}")
-    print("-" * 150)
+    """Prints the standardized CSV header for options data."""
+    print("CE_ChgOI,CE_Vol,CE_LTP,CE_OI,CE_IV,STRIKE,PE_ChgOI,PE_Vol,PE_LTP,PE_OI,PE_IV,CE-PE_DIFF")
+    print("-" * 100)
 
 def display_nifty_data(oi_data, oi_pcr, volume_pcr):
     """Displays Nifty OI data to the console."""
@@ -46,11 +44,11 @@ def display_nifty_data(oi_data, oi_pcr, volume_pcr):
     print(f"{'='*80}")
     print_table_header()
 
-    # Leverage the DRY formatter from nifty_logger
+    # UPDATED: Use format_csv_row
     for data in oi_data:
-        print(format_strike_row(data), end="")
+        print(format_csv_row(data), end="")
 
-    print("=" * 150)
+    print("=" * 100)
 
 def display_banknifty_data(banknifty_data):
     """Displays BANKNIFTY OI data to the console."""
@@ -64,10 +62,11 @@ def display_banknifty_data(banknifty_data):
     print(f"{'='*80}")
     print_table_header()
 
+    # UPDATED: Use format_csv_row
     for data in data_list:
-        print(format_strike_row(data), end="")
+        print(format_csv_row(data), end="")
 
-    print("=" * 150)
+    print("=" * 100)
 
 def display_stocks_summary(stock_data):
     """Displays a summary of top stocks."""
