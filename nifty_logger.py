@@ -124,12 +124,8 @@ def save_ai_query_data(oi_data: List[Dict[str, Any]],
     # 1. Add AI Prompt Header (Keep this identical to your prompt requirement)
     system_prompt = """
 # ===================================================================
-# NIFTY INTRADAY + REVERSAL PROMPT v15.0 [FULLY FIXED + BLACK-BOX PROOF]
-# FIXES: Theta/Premium, IV/Vega Engine, Volume Validation, ITM/OTM Weighting,
-#        Expiry Mode, Counter Normalization, Max Pain Reliability,
-#        TRAPPED Dead Zone, PCR Data Quality, Support/Resistance Logic,
-#        Time-of-Day Entry Filter
-# LOGIC: "TREND → UNWIND → COUNTER → PAIN" + MAX PAIN + FULL TRACE
+This report is run from the server having UST time Zone so calculate time in IST accordingly.
+Data is not pre market but in IST market hours but due to UST time show early.
 # ===================================================================
 
 # ═══════════════════════════════════════════════════════
