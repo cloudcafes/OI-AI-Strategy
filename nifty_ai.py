@@ -4,8 +4,13 @@ import datetime
 from google import genai
 import anthropic
 
-from nifty_config import GEMINI_API_KEY, ANTHROPIC_API_KEY, AI_LOGS_DIR, GEMINI_LOGS_DIR
+from nifty_config import GEMINI_API_KEY, AI_LOGS_DIR, GEMINI_LOGS_DIR
 from nifty_telegram import send_telegram_message
+
+# Safely import ANTHROPIC_API_KEY if it exists, otherwise set to None
+import nifty_config
+ANTHROPIC_API_KEY = getattr(nifty_config, 'ANTHROPIC_API_KEY', None)
+
 
 class NiftyAIAnalyzer:
     def __init__(self):
@@ -18,7 +23,7 @@ class NiftyAIAnalyzer:
             
         # Initialize Anthropic (Claude) Client
         if not ANTHROPIC_API_KEY or "YOUR_" in ANTHROPIC_API_KEY:
-            print("⚠️ Anthropic config missing.")
+            print("⚠️ Anthropic config missing. Claude fallback will be disabled.")
             self.claude_client = None
         else:
             self.claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -56,7 +61,7 @@ class NiftyAIAnalyzer:
         used_model = "None"
 
         # -------------------------------------------------------------
-        # 1st TRY: GEMINI 3.1 PRO PREVIEW
+        # 1st TRY: GEMINI PRO
         # -------------------------------------------------------------
         if self.gemini_client:
             print("🧠 Requesting analysis from Google Gemini Pro...")
@@ -72,34 +77,37 @@ class NiftyAIAnalyzer:
                 print(f"⚠️ Gemini Pro failed: {e}")
         
         # -------------------------------------------------------------
-        # 2nd TRY: CLAUDE OPUS (Fallback)
+        # 2nd TRY: CLAUDE OPUS (Fallback 1)
         # -------------------------------------------------------------
-        if not ai_response and self.claude_client:
-            print("🧠 Switching to Anthropic Claude Opus...")
-            try:
-                # Note: Using standard Claude 3 Opus string. Update if needed.
-                message = self.claude_client.messages.create(
-                    model="claude-3-opus-20240229",
-                    max_tokens=1500,
-                    system=system_instruction,
-                    messages=[
-                        {"role": "user", "content": file_content}
-                    ]
-                )
-                ai_response = message.content[0].text
-                used_model = "Claude Opus"
-                print("✅ Claude Opus succeeded.")
-            except Exception as e:
-                print(f"⚠️ Claude Opus failed: {e}")
+        if not ai_response:
+            if self.claude_client:
+                print("🧠 Switching to Anthropic Claude...")
+                try:
+                    message = self.claude_client.messages.create(
+                        model="claude-3-opus-20240229",
+                        max_tokens=1500,
+                        system=system_instruction,
+                        messages=[
+                            {"role": "user", "content": file_content}
+                        ]
+                    )
+                    ai_response = message.content[0].text
+                    used_model = "Claude Opus"
+                    print("✅ Claude succeeded.")
+                except Exception as e:
+                    print(f"⚠️ Claude failed: {e}")
+            else:
+                print("⏭️ Skipping Claude fallback: ANTHROPIC_API_KEY is not configured.")
 
         # -------------------------------------------------------------
-        # 3rd TRY: GEMINI 3.1 FLASH PREVIEW (Last Resort)
+        # 3rd TRY: GEMINI FLASH (Last Resort)
         # -------------------------------------------------------------
         if not ai_response and self.gemini_client:
             print("🧠 Switching to Google Gemini Flash...")
             try:
+                # Reverted back to your original working model string
                 response = self.gemini_client.models.generate_content(
-                    model="gemini-3.1-flash-preview", 
+                    model="gemini-3.1-flash-lite-preview", 
                     contents=[system_instruction, file_content]
                 )
                 ai_response = response.text
