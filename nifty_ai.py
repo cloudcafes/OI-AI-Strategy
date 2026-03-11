@@ -50,7 +50,7 @@ class NiftyAIAnalyzer:
         print("🧠 Requesting analysis from Google Gemini...")
         try:
             response = self.client.models.generate_content(
-                model="gemini-3.1-flash-lite-preview", 
+                model="gemini-3.1-pro-preview", 
                 contents=[
                     "You are an expert Nifty options trading analyst. Review the data and provide a clear, actionable trading analysis. ALWAYS include a section titled exactly 'ANALYSIS NARRATIVE' or 'TRADING IMPLICATION'.",
                     file_content
