@@ -23,35 +23,20 @@ except Exception as e:
     print(f"⚠️ Resend configuration error: {e}")
 
 # ---------------------------------------------------------
-# HELPER: ROW FORMATTER (Applies DRY Principle)
+# HELPER: CSV FORMATTER (Optimized for LLM Tokens)
 # ---------------------------------------------------------
-def format_strike_row(data: dict) -> str:
-    """Formats a single options chain row for text logs."""
-    strike_price = data['strike_price']
+def format_csv_row(data: dict) -> str:
+    """Formats a single options chain row as a highly token-efficient CSV string."""
+    ce_iv = format_greek_value(data['ce_iv'], 1)
+    pe_iv = format_greek_value(data['pe_iv'], 1)
+    chg_oi_diff = data['ce_change_oi'] - data['pe_change_oi']
     
-    # CE Data
-    ce_oi = str(data['ce_change_oi']).rjust(10)
-    ce_vol = str(data['ce_volume']).rjust(10)
-    ce_ltp = f"{data['ce_ltp']:.1f}".rjust(8) if data['ce_ltp'] else "0".rjust(8)
-    ce_oi_total = str(data['ce_oi']).rjust(10)
-    ce_iv = format_greek_value(data['ce_iv'], 1).rjust(7)
+    # Handle missing/empty LTP values cleanly
+    ce_ltp = f"{data['ce_ltp']:.1f}" if data['ce_ltp'] else "0.0"
+    pe_ltp = f"{data['pe_ltp']:.1f}" if data['pe_ltp'] else "0.0"
     
-    # PE Data
-    pe_oi = str(data['pe_change_oi']).rjust(10)
-    pe_vol = str(data['pe_volume']).rjust(10)
-    pe_ltp = f"{data['pe_ltp']:.1f}".rjust(8) if data['pe_ltp'] else "0".rjust(8)
-    pe_oi_total = str(data['pe_oi']).rjust(10)
-    pe_iv = format_greek_value(data['pe_iv'], 1).rjust(7)
-    
-    # Diff
-    chg_oi_diff = str(data['ce_change_oi'] - data['pe_change_oi']).rjust(16)
-    
-    return (
-        f"{ce_oi}  {ce_vol}  {ce_ltp}  {ce_oi_total}  {ce_iv}  |  "
-        f"{str(strike_price).center(9)}  |  "
-        f"{pe_oi}  {pe_vol}  {pe_ltp}  {pe_oi_total}  {pe_iv}  |  "
-        f"{chg_oi_diff}\n"
-    )
+    # Format: CE_ChgOI, CE_Vol, CE_LTP, CE_OI, CE_IV, STRIKE, PE_ChgOI, PE_Vol, PE_LTP, PE_OI, PE_IV, CE_PE_DIFF
+    return f"{data['ce_change_oi']},{data['ce_volume']},{ce_ltp},{data['ce_oi']},{ce_iv},{data['strike_price']},{data['pe_change_oi']},{data['pe_volume']},{pe_ltp},{data['pe_oi']},{pe_iv},{chg_oi_diff}\n"
 
 # ---------------------------------------------------------
 # EMAIL SENDING LOGIC
@@ -121,7 +106,7 @@ def save_ai_query_data(oi_data: List[Dict[str, Any]],
     lines = []
     fetch_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # 1. Add AI Prompt Header (Keep this identical to your prompt requirement)
+    # 1. Add AI Prompt Header
     system_prompt = """
 # ===================================================================
 This report is run from the server having UST time Zone so calculate time in IST accordingly.
@@ -820,28 +805,18 @@ EVIDENCE BREAKDOWN:
         bn_vol_pcr = banknifty_data.get('pcr_values', {}).get('volume_pcr', 0)
         lines.append(f"\nBANKNIFTY DATA:\n- Current Value: {bn_curr}\n- Expiry Date: {bn_exp}\n- OI PCR: {bn_pcr:.2f}\n- Volume PCR: {bn_vol_pcr:.2f}\n")
 
-    # 4. Add Nifty Data Table
-    lines.append(f"\n\nCOMPLETE NIFTY OPTION CHAIN DATA:\n" + "=" * 80 + "\n")
-    lines.append(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}\n")
-    lines.append(f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}\n")
-    lines.append("-" * 150 + "\n")
+    # 4. Add Nifty Data Table (Optimized CSV format)
+    lines.append(f"\n\nCOMPLETE NIFTY OPTION CHAIN DATA (CSV FORMAT):\n")
+    lines.append("CE_ChgOI,CE_Vol,CE_LTP,CE_OI,CE_IV,STRIKE,PE_ChgOI,PE_Vol,PE_LTP,PE_OI,PE_IV,CE-PE_DIFF\n")
     
-    for data in oi_data:
-        lines.append(format_strike_row(data))
+    # Filter to only include strikes within ATM +/- 600 points
+    atm_strike = round(current_nifty / 50) * 50
+    filtered_data = [d for d in oi_data if abs(d['strike_price'] - atm_strike) <= 600]
+    
+    for data in filtered_data:
+        lines.append(format_csv_row(data))
         
-    lines.append("=" * 150 + "\n\n")
-
-    # 5. Add BankNifty Data Table (If available)
-    if banknifty_data and 'data' in banknifty_data:
-        lines.append(f"\nCOMPLETE BANKNIFTY OPTION CHAIN DATA:\n" + "=" * 80 + "\n")
-        lines.append(f"{'CALL OPTION':<50}|   STRIKE   |{'PUT OPTION':<52}|  {'CHG OI DIFF':<18}\n")
-        lines.append(f"{'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'Price'.center(9)}  |  {'Chg OI'.rjust(10)}  {'Volume'.rjust(10)}  {'LTP'.rjust(8)}  {'OI'.rjust(10)}  {'IV'.rjust(7)}  |  {'CE-PE'.rjust(16)}\n")
-        lines.append("-" * 150 + "\n")
-        
-        for data in banknifty_data['data']:
-            lines.append(format_strike_row(data))
-            
-        lines.append("=" * 150 + "\n")
+    lines.append("\n")
 
     # Final string compilation
     full_content = "".join(lines)
