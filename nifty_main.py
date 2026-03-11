@@ -16,7 +16,6 @@ from nifty_fetcher import (
     fetch_option_chain, parse_option_chain, calculate_pcr_values,
     fetch_banknifty_data, fetch_all_stock_data, stop_playwright
 )
-# UPDATED IMPORT: Swapped format_strike_row for format_csv_row
 from nifty_logger import save_ai_query_data, format_csv_row
 from nifty_ai import NiftyAIAnalyzer
 
@@ -32,7 +31,7 @@ def print_table_header():
     print("-" * 100)
 
 def display_nifty_data(oi_data, oi_pcr, volume_pcr):
-    """Displays Nifty OI data to the console."""
+    """Displays Nifty OI data to the console (Filtered for ATM +/- 600)."""
     if not oi_data: return
 
     current_value = oi_data[0]['nifty_value']
@@ -44,29 +43,31 @@ def display_nifty_data(oi_data, oi_pcr, volume_pcr):
     print(f"{'='*80}")
     print_table_header()
 
-    # UPDATED: Use format_csv_row
-    for data in oi_data:
+    # FILTER: Only print ATM +/- 600 to the console so it doesn't flood your screen
+    atm_strike = round(current_value / 50) * 50
+    filtered_data = [d for d in oi_data if abs(d['strike_price'] - atm_strike) <= 600]
+
+    for data in filtered_data:
         print(format_csv_row(data), end="")
 
+    print("-" * 100)
+    print(f"... (Hidden {len(oi_data) - len(filtered_data)} deep OTM strikes from console display) ...")
     print("=" * 100)
 
 def display_banknifty_data(banknifty_data):
-    """Displays BANKNIFTY OI data to the console."""
+    """Displays BANKNIFTY summary to the console (Chain hidden)."""
     if not banknifty_data or 'data' not in banknifty_data: return
 
-    data_list = banknifty_data['data']
-    if not data_list: return
+    bn_curr = banknifty_data.get('current_value', 0)
+    bn_exp = banknifty_data.get('expiry_date', 'N/A')
+    bn_pcr = banknifty_data.get('pcr_values', {}).get('oi_pcr', 0)
+    bn_vol_pcr = banknifty_data.get('pcr_values', {}).get('volume_pcr', 0)
 
     print(f"\n{'='*80}")
-    print(f"🏦 BANKNIFTY MONTHLY - Current: {banknifty_data['current_value']}, Expiry: {banknifty_data['expiry_date']}")
+    print(f"🏦 BANKNIFTY SUMMARY - Current: {bn_curr}, Expiry: {bn_exp}")
+    print(f"PCR: OI={bn_pcr:.2f}, Volume={bn_vol_pcr:.2f}")
     print(f"{'='*80}")
-    print_table_header()
-
-    # UPDATED: Use format_csv_row
-    for data in data_list:
-        print(format_csv_row(data), end="")
-
-    print("=" * 100)
+    # Note: We skip printing the whole BankNifty chain to the console to keep it clean!
 
 def display_stocks_summary(stock_data):
     """Displays a summary of top stocks."""
