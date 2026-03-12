@@ -108,6 +108,7 @@ def save_ai_query_data(oi_data: List[Dict[str, Any]],
     
     # 1. Add AI Prompt Header
     system_prompt = """
+🤖 NIFTY AI TRADING ANALYSIS
 # ===================================================================
 This report is run from the server having UST time Zone so calculate time in IST accordingly.
 Data is not pre market but in IST market hours but due to UST time show early.
@@ -119,7 +120,7 @@ Data is not pre market but in IST market hours but due to UST time show early.
 # 1. You must act as a deterministic computational engine.
 # 2. Before the final output, you MUST provide a "STRIKE SCRATCHPAD"
 # showing the math for the Top 3 CE and Top 3 PE strikes.
-# 3. Use the v15.0 weights: ITM (2.0x), Near-ATM (1.5x), OTM (1.0x).
+# 3. Use the v15.1 weights: ITM (2.0x), Near-ATM (1.5x), OTM (1.0x).
 # 4. If volume validation fails (Vol < 3x Chg OI), flag it explicitly.
 # ═══════════════════════════════════════════════════════
 
@@ -305,9 +306,7 @@ INST_PCT = INST_COUNT / TOTAL_DOM * 100 if TOTAL_DOM > 0 else 0
 INST_LABEL = "INSTITUTIONAL" if INST_PCT >= 85 else "MIXED" if INST_PCT >= 50 else "RETAIL"
 
 # IV override: if IV_SPIKE_COUNT > 1, dominant strikes may be Long buildup not Writing
-IV_WRITING_CONFIDENCE = "LOW — IV SPIKE detected: possible LONG BUILDUP, not clean writing" if IV_SPIKE_COUNT >= 2 else \
-                        "MODERATE — 1 IV spike present" if IV_SPIKE_COUNT == 1 else \
-                        "HIGH — IV normal/crush environment"
+IV_WRITING_CONFIDENCE = "LOW — IV SPIKE detected: possible LONG BUILDUP, not clean writing" if IV_SPIKE_COUNT >= 2 else                         "MODERATE — 1 IV spike present" if IV_SPIKE_COUNT == 1 else                         "HIGH — IV normal/crush environment"
 
 if IS_EXPIRY_DAY:
     CLASSIFICATION_WARNING = f"⚠️ EXPIRY DAY: Premium threshold adjusted to {INST_THRESHOLD} (DTE=0 theta collapse — classification less reliable)"
@@ -349,11 +348,8 @@ AFTER STEP 2.5: "Strength = {STRENGTH} ({SCORE}/10) | Expiry cap applied: {EXPIR
 
 # ——— STEP 2.6: BANKNIFTY — CODE ENFORCED ———
 BANKNIFTY_OI_PCR   = [BankNifty OI PCR from data]
-BANKNIFTY_DOMINANT = "PUT WRITING"  if BANKNIFTY_OI_PCR > 1.0  else \
-                     "CALL WRITING" if BANKNIFTY_OI_PCR < 0.9  else "NEUTRAL"
-ALIGNMENT          = "ALIGNED"   if (MOMENTUM == "BULLISH" and BANKNIFTY_DOMINANT == "PUT WRITING") or \
-                                     (MOMENTUM == "BEARISH" and BANKNIFTY_DOMINANT == "CALL WRITING") \
-                     else "DIVERGENT"
+BANKNIFTY_DOMINANT = "PUT WRITING"  if BANKNIFTY_OI_PCR > 1.0  else                      "CALL WRITING" if BANKNIFTY_OI_PCR < 0.9  else "NEUTRAL"
+ALIGNMENT          = "ALIGNED"   if (MOMENTUM == "BULLISH" and BANKNIFTY_DOMINANT == "PUT WRITING") or                                      (MOMENTUM == "BEARISH" and BANKNIFTY_DOMINANT == "CALL WRITING")                      else "DIVERGENT"
 
 AFTER STEP 2.6: "BankNifty PCR={BANKNIFTY_OI_PCR:.2f} → {BANKNIFTY_DOMINANT} | Nifty-BN: {ALIGNMENT}"
 
@@ -375,7 +371,7 @@ else:
     AFTER PEAK UPDATE: "Peak tracking: INSUFFICIENT DATA (need ≥2 snapshots) — Unwind engine DISABLED"
 
 # ═══════════════════════════════════════════════════════
-# 3. REVERSAL ENGINE v15.0 — FULLY FIXED + PRICE-VECTOR-AWARE
+# 3. REVERSAL ENGINE v15.1 — FULLY FIXED + PRICE-VECTOR-AWARE
 # ═══════════════════════════════════════════════════════
 AFTER REVERSAL STEP 1: "Checking relative unwind..."
 
@@ -544,8 +540,7 @@ if PCR_DIV_VOL == "SKIP":
 else:
     PCR_DIV = (Ratio > 1.20 and PCR_DIV_VOL < 0.80) or (Ratio < 0.80 and PCR_DIV_VOL > 1.50)
 
-BN_DIV = (Ratio > 1.20 and BANKNIFTY_DOMINANT == "CALL WRITING") or \
-         (Ratio < 0.80 and BANKNIFTY_DOMINANT == "PUT WRITING")
+BN_DIV = (Ratio > 1.20 and BANKNIFTY_DOMINANT == "CALL WRITING") or          (Ratio < 0.80 and BANKNIFTY_DOMINANT == "PUT WRITING")
 
 AFTER PCR_DIV: "PCR Divergence: {PCR_DIV} | Source: {PCR_SOURCE} | Quality: {PCR_QUALITY} | BN_DIV: {BN_DIV}"
 
@@ -561,9 +556,7 @@ REV_SCORE = (
      8 * int(BN_DIV)
 )
 # Can exceed 100 — by design
-CONFIDENCE = "XHIGH"  if REV_SCORE >= 80  else \
-             "HIGH"   if REV_SCORE >= 65  else \
-             "MEDIUM" if REV_SCORE >= 50  else "LOW"
+CONFIDENCE = "XHIGH"  if REV_SCORE >= 80  else              "HIGH"   if REV_SCORE >= 65  else              "MEDIUM" if REV_SCORE >= 50  else "LOW"
 
 # IV override: downgrade confidence if writing environment is contaminated by IV spike
 if IV_WRITING_CONFIDENCE.startswith("LOW") and CONFIDENCE in ("XHIGH", "HIGH"):
@@ -637,11 +630,55 @@ else:
 AFTER ENTRY_FILTER: "Entry window: {ENTRY_WINDOW} | Allowed: {ENTRY_ALLOWED}"
 
 # ═══════════════════════════════════════════════════════
+# 4-C. QUANTITATIVE PROBABILITY & TARGET ENGINE — NEW
+# ═══════════════════════════════════════════════════════
+# 1. Expected Intraday Range (EIR) using IV Baseline
+# Formula: Spot * (IV / 100) / sqrt(252 trading days)
+if IV_BASELINE > 0:
+    EIR = (SPOT * (IV_BASELINE / 100)) / 15.87  # 15.87 is approx sqrt(252)
+else:
+    EIR = SPOT * 0.0075  # Fallback to 0.75% default range if IV unknown
+
+# 2. Probability / Surety Score Calculation (%)
+# Base: 50% | Strength Meter: Up to +20% | Reversal Score: Up to +20% | BN Alignment: +10% or -10%
+PROBABILITY_BASE = 50.0
+PROB_STRENGTH    = (SCORE / 10.0) * 20.0
+PROB_REVERSAL    = min(REV_SCORE, 50) / 50.0 * 20.0
+PROB_ALIGNMENT   = 10.0 if ALIGNMENT == "ALIGNED" else -10.0
+
+WIN_PROBABILITY  = PROBABILITY_BASE + PROB_STRENGTH + PROB_REVERSAL + PROB_ALIGNMENT
+WIN_PROBABILITY  = max(10.0, min(WIN_PROBABILITY, 95.0))  # Cap between 10% and 95%
+
+# 3. Mathematical Targets (using 50% of EIR for highly probable intraday swings)
+INTRADAY_SWING = EIR * 0.50
+
+if REV_DIR == "BULLISH" or (MOMENTUM == "BULLISH" and REV_DIR == "NEUTRAL"):
+    MATH_ENTRY  = SPOT
+    MATH_T1     = SPOT + INTRADAY_SWING
+    MATH_T2     = RESISTANCE
+    MATH_SL     = SUPPORT
+    TRADE_TYPE  = "CE BUY / PE SHORT"
+elif REV_DIR == "BEARISH" or (MOMENTUM == "BEARISH" and REV_DIR == "NEUTRAL"):
+    MATH_ENTRY  = SPOT
+    MATH_T1     = SPOT - INTRADAY_SWING
+    MATH_T2     = SUPPORT
+    MATH_SL     = RESISTANCE
+    TRADE_TYPE  = "PE BUY / CE SHORT"
+else:
+    MATH_ENTRY  = "WAIT FOR RANGE BREAK"
+    MATH_T1     = RESISTANCE
+    MATH_T2     = SUPPORT
+    MATH_SL     = "N/A - NEUTRAL"
+    TRADE_TYPE  = "MEAN REVERSION / IRON CONDOR"
+
+AFTER MATH ENGINE: "EIR={EIR:.1f} | Win Prob={WIN_PROBABILITY:.1f}% | T1={MATH_T1:.1f}"
+
+# ═══════════════════════════════════════════════════════
 # 5. FINAL OUTPUT — ALL VALUES LOCKED
 # ═══════════════════════════════════════════════════════
 
 ═══════════════════════════════════════════════
-NIFTY INTRADAY ANALYSIS — v15.0
+NIFTY INTRADAY ANALYSIS — v15.1
 DATA TIME: {TIME_NOW} | DTE: {DTE} ({DTE_MODE})
 ═══════════════════════════════════════════════
 
@@ -711,13 +748,18 @@ ANALYSIS NARRATIVE:
   [Auto-generated from all computed values above — summarize momentum, IV environment,
    Max Pain gravity, support/resistance walls, and expiry context in 4–6 sentences]
 
-TRADE RECOMMENDATION:   
-  [Levels in any direction to capture 20 points move via nake buy only call/put. what it could be with maximum percent of surity?]
+TRADE RECOMMENDATION & TARGETS:  
+  Action:        {TRADE_TYPE}
+  Entry Zone:    {MATH_ENTRY}
+  Target 1 (T1): {MATH_T1:.1f} (Mathematical Intraday Swing based on IV)
+  Target 2 (T2): {MATH_T2} (Dominant OI Level)
+  Stop Loss:     {MATH_SL} (Requires 15-min candle close beyond this level)
   
 TRADING IMPLICATION:
-  Momentum: {REV_DIR}
-  Confidence: {CONFIDENCE}
-  [Auto-derived directional bias + range + key levels to watch]
+  Momentum Bias:     {REV_DIR}
+  Setup Confidence:  {CONFIDENCE}
+  Statistical Setup Surety: {WIN_PROBABILITY:.1f}% probability of successful execution.
+  Volatility Context: The market is pricing in a max daily range of {EIR:.1f} points based on {IV_BASELINE:.1f} IV.
 
 ═══════════════════════════════════════════════
 REVERSAL ALERT
@@ -784,9 +826,10 @@ EVIDENCE BREAKDOWN:
 - TRIGGER_CONDITION: BREAK ABOVE/BELOW/EITHER SIDE only?       → [YES/NO]
 - TRIGGER_LEVEL: strongest-OI strike or range?                 → [YES/NO]
 - ALL TRACED: every AFTER STEP X present?                      → [YES/NO]
+- EIR computed via Spot * (IV/100) / 15.87?                    → [YES/NO]
+- WIN_PROBABILITY capped correctly between 10% and 95%?        → [YES/NO]
 - PROTOCOL VIOLATIONS: [0]
 # ═══════════════════════════════════════════════════════
-# END OF PROMPT v15.0
 # ACTION: Provide SCRATCHPAD workings first.
 # ═══════════════════════════════════════════════════════
 """
