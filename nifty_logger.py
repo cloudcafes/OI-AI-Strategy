@@ -756,6 +756,7 @@ TRADE RECOMMENDATION & TARGETS:
   Stop Loss:     {MATH_SL} (Requires 15-min candle close beyond this level)
   
 TRADING IMPLICATION:
+  options strategy to use: based on momentum and reversal value suggest best options strategy with highest probability of success.
   Momentum Bias:     {REV_DIR}
   Setup Confidence:  {CONFIDENCE}
   Statistical Setup Surety: {WIN_PROBABILITY:.1f}% probability of successful execution.
