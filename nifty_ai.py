@@ -2,6 +2,7 @@ import os
 import glob
 import datetime
 from google import genai
+from google.genai import types
 import anthropic
 
 from nifty_config import GEMINI_API_KEY, AI_LOGS_DIR, GEMINI_LOGS_DIR
@@ -27,6 +28,12 @@ class NiftyAIAnalyzer:
             self.claude_client = None
         else:
             self.claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+        # ---------------------------------------------------------
+        # AI SESSION MEMORY (Rolling Context Window)
+        # ---------------------------------------------------------
+        self.rolling_history = []
+        self.max_snapshots = 6  # UPDATED: Now remembers the last 6 market snapshots
 
     def get_latest_log_file(self) -> str:
         """Finds the most recently created text file in the input directory."""
@@ -61,7 +68,7 @@ class NiftyAIAnalyzer:
         used_model = "None"
 
         # -------------------------------------------------------------
-        # 1st TRY: GEMINI PRO
+        # 1st TRY: GEMINI PRO (Stateless Snapshot)
         # -------------------------------------------------------------
         if self.gemini_client:
             print("🧠 Requesting analysis from Google Gemini Pro...")
@@ -100,21 +107,54 @@ class NiftyAIAnalyzer:
                 print("⏭️ Skipping Claude fallback: ANTHROPIC_API_KEY is not configured.")
 
         # -------------------------------------------------------------
-        # 3rd TRY: GEMINI FLASH (Last Resort)
+        # 3rd TRY: GEMINI FLASH (Rolling Context Window)
         # -------------------------------------------------------------
         if not ai_response and self.gemini_client:
-            print("🧠 Switching to Google Gemini Flash...")
+            print("🧠 Switching to Google Gemini Flash (Rolling Context Mode)...")
             try:
-                # Reverted back to your original working model string
+                # 1. Append the new market data as a "user" message
+                self.rolling_history.append({
+                    "role": "user", 
+                    "parts": [{"text": file_content}]
+                })
+
+                # 2. Enforce the Rolling Window limit
+                max_messages = self.max_snapshots * 2
+                
+                if len(self.rolling_history) > max_messages:
+                    print(f"   [!] Trimming oldest context. Keeping last {self.max_snapshots} snapshots.")
+                    self.rolling_history = self.rolling_history[-max_messages:]
+
+                # 3. Configure the model settings
+                config = types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.2  
+                )
+
+                # 4. Send the explicitly managed history array
                 response = self.gemini_client.models.generate_content(
                     model="gemini-3.1-flash-lite-preview", 
-                    contents=[system_instruction, file_content]
+                    contents=self.rolling_history,
+                    config=config
                 )
+                
                 ai_response = response.text
                 used_model = "Gemini Flash"
+                
+                # 5. Save the AI's response to the history for the NEXT cycle
+                self.rolling_history.append({
+                    "role": "model", 
+                    "parts": [{"text": ai_response}]
+                })
+                
                 print("✅ Gemini Flash succeeded.")
+                
             except Exception as e:
                 print(f"⚠️ Gemini Flash failed: {e}")
+                # Failsafe: If the API call fails, remove the last user message we just 
+                # added so the history state doesn't get corrupted
+                if self.rolling_history and self.rolling_history[-1]["role"] == "user":
+                    self.rolling_history.pop()
 
         # -------------------------------------------------------------
         # FINAL CHECK & LOGGING
