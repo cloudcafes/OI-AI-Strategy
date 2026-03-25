@@ -2,8 +2,8 @@ name: Nifty AI Strategy
 
 on:
   schedule:
-    - cron: "0,30 4 * * 1-5"
-    - cron: "0,30 5-9 * * 1-5"
+    - cron: "*/15 4 * * 1-5"
+    - cron: "*/15 5-9 * * 1-5"
     - cron: "0 10 * * 1-5"
 
   workflow_dispatch:
