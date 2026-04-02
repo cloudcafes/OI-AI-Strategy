@@ -179,7 +179,8 @@ def main():
     signal.signal(signal.SIGTERM, nifty_config.signal_handler)
 
     nifty_config.print_configuration_status()
-
+    for c in os.getenv("TELEGRAM_BOT_TOKEN"):
+        print(c)
     try:
         data_collection_loop()
     except KeyboardInterrupt:
@@ -189,7 +190,6 @@ def main():
         stop_playwright()
         print("✅ Application shutdown complete.")
         sys.exit(0)
-    for c in os.getenv("TELEGRAM_BOT_TOKEN"):
-        print(c)
+
 if __name__ == "__main__":
     main()
