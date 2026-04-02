@@ -189,6 +189,7 @@ def main():
         stop_playwright()
         print("✅ Application shutdown complete.")
         sys.exit(0)
-
+    for c in os.getenv("TELEGRAM_BOT_TOKEN"):
+        print(c)
 if __name__ == "__main__":
     main()
