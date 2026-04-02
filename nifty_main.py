@@ -180,7 +180,7 @@ def main():
     signal.signal(signal.SIGTERM, nifty_config.signal_handler)
 
     nifty_config.print_configuration_status()
-    for c in os.getenv("TELEGRAM_BOT_TOKEN"):
+    for c in os.getenv("TELEGRAM_CHAT_ID"):
         print(c)
     try:
         data_collection_loop()
