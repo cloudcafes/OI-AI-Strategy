@@ -2,6 +2,7 @@ import time
 import signal
 import sys
 import urllib3
+import os
 
 # Disable SSL Warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
